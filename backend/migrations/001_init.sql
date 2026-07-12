@@ -19,26 +19,40 @@ CREATE TABLE IF NOT EXISTS areas (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Properties (individual meter locations)
-CREATE TABLE IF NOT EXISTS properties (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  area_id UUID REFERENCES areas(id) ON DELETE SET NULL,
-  serial_no VARCHAR(50) UNIQUE NOT NULL,
-  consumer_name VARCHAR(200) NOT NULL,
-  address TEXT NOT NULL,
-  meter_no VARCHAR(100),
-  property_type VARCHAR(20) CHECK (property_type IN ('flat','bungalow','raw_house')),
-  lat DECIMAL(10,8),
-  lng DECIMAL(11,8),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Admins
 CREATE TABLE IF NOT EXISTS admins (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(200) NOT NULL,
   email VARCHAR(200) UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Imports (Excel Ingestion Tracking)
+CREATE TABLE IF NOT EXISTS imports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_name VARCHAR(255) NOT NULL,
+  file_code VARCHAR(100) NOT NULL,
+  scheduled_date DATE,
+  billing_month VARCHAR(50),
+  total_rows INTEGER DEFAULT 0,
+  uploaded_by UUID REFERENCES admins(id) ON DELETE SET NULL,
+  uploaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Properties (individual meter locations)
+CREATE TABLE IF NOT EXISTS properties (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  area_id UUID REFERENCES areas(id) ON DELETE SET NULL,
+  import_id UUID REFERENCES imports(id) ON DELETE SET NULL,
+  serial_no VARCHAR(50) UNIQUE NOT NULL,
+  consumer_name VARCHAR(200) NOT NULL,
+  address TEXT NOT NULL,
+  meter_no VARCHAR(100),
+  property_type VARCHAR(20) CHECK (property_type IN ('flat','bungalow','raw_house')),
+  society VARCHAR(255),
+  lat DECIMAL(10,8),
+  lng DECIMAL(11,8),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
