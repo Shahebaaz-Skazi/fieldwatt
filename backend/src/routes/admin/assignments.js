@@ -148,6 +148,7 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
   } catch (error) {
     next(error);
   }
+});
 // GET /admin/assignments/cycles - Get list of billing cycles
 router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
