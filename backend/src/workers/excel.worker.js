@@ -198,6 +198,7 @@ const processExcel = async () => {
       throw new Error('Excel must contain "Serial No" and "Consumer Name" columns.');
     }
 
+    let importId = null;
     const total = format === 'SAP' ? dataObjects.length : rawRows.length - 1;
 
     // Resolve date and file properties
@@ -246,7 +247,7 @@ const processExcel = async () => {
        RETURNING id`,
       [cleanFileName, fileCode, schedDate, billingMonth, total, adminId]
     );
-    const importId = importRes.rows[0].id;
+    importId = importRes.rows[0].id;
 
     parentPort.postMessage({ type: 'start', total, importId });
 
@@ -366,6 +367,10 @@ const processExcel = async () => {
     parentPort.postMessage({ type: 'done', importId });
   } catch (error) {
     await dbClient.query('ROLLBACK').catch(() => {});
+    if (importId) {
+      console.log(`Failed import detected: cleaning up orphaned import record ID ${importId}`);
+      await dbClient.query('DELETE FROM imports WHERE id = $1', [importId]).catch(() => {});
+    }
     parentPort.postMessage({ type: 'error', error: error.message });
   } finally {
     dbClient.release();

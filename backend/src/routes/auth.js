@@ -51,15 +51,16 @@ router.post('/admin/login', async (req, res, next) => {
 // POST /auth/agent/login (Supports both agent phone and admin email logins)
 router.post('/agent/login', async (req, res, next) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, username, password } = req.body;
+    const loginIdentifier = (username || phone || '').toString().trim();
 
-    if (!phone || !password) {
-      return res.status(400).json({ error: 'Please enter credentials and password.' });
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ error: 'Please enter username and password.' });
     }
 
     // Admin login redirect support
-    if (phone.toString().includes('@')) {
-      const result = await db.query('SELECT * FROM admins WHERE email = $1', [phone.toString().trim().toLowerCase()]);
+    if (loginIdentifier.includes('@')) {
+      const result = await db.query('SELECT * FROM admins WHERE email = $1', [loginIdentifier.toLowerCase()]);
       const admin = result.rows[0];
       
       if (!admin) {
@@ -80,17 +81,17 @@ router.post('/agent/login', async (req, res, next) => {
       return res.json({ token, user: { id: admin.id, name: admin.name, phone: admin.email, role: 'admin' } });
     }
 
-    // Standard agent phone login
-    const result = await db.query('SELECT * FROM agents WHERE phone = $1 AND is_active = true', [phone.toString().trim()]);
+    // Standard agent name login
+    const result = await db.query('SELECT * FROM agents WHERE UPPER(name) = $1 AND is_active = true', [loginIdentifier.toUpperCase()]);
     const agent = result.rows[0];
     
     if (!agent) {
-      return res.status(401).json({ error: 'Invalid phone number or password.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
     
     const isValid = await bcrypt.compare(password, agent.password_hash);
     if (!isValid) {
-      return res.status(401).json({ error: 'Invalid phone number or password.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
     
     // Update last login

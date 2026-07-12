@@ -44,6 +44,18 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setViewingAgent(null);
+        setReassignAgent(null);
+        setZoomPhoto(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleAgentClick = async (agent) => {
     setViewingAgent(agent);
     setLoadingReadings(true);
@@ -291,8 +303,8 @@ const Dashboard = () => {
 
       {/* Agent Detail Modal (Drawer) */}
       {viewingAgent && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '800px', width: '95%' }}>
+        <div className="modal-overlay" onClick={() => setViewingAgent(null)}>
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               <div>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>{viewingAgent.name} - Cycle Submissions</h2>
@@ -374,8 +386,8 @@ const Dashboard = () => {
 
       {/* Leave Reassignment Modal */}
       {reassignAgent && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '500px' }}>
+        <div className="modal-overlay" onClick={() => { setReassignAgent(null); setPendingProps([]); }}>
+          <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Reassign Pending Work</h2>
               <button onClick={() => { setReassignAgent(null); setPendingProps([]); }} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>

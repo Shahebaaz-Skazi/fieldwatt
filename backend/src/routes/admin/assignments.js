@@ -148,6 +148,108 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
   } catch (error) {
     next(error);
   }
+// GET /admin/assignments/cycles - Get list of billing cycles
+router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      "SELECT id, label, is_active FROM cycles ORDER BY start_date DESC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /admin/assignments/societies - Get list of distinct society names
+router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      "SELECT DISTINCT society FROM properties WHERE society IS NOT NULL AND society <> '' ORDER BY society ASC"
+    );
+    res.json(result.rows.map(r => r.society));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /admin/assignments/search-properties - Query properties with status and society groupings
+router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { q, cycle_id, status, societies } = req.query;
+    
+    // Resolve target cycle: active default if not defined
+    let targetCycleId = cycle_id;
+    if (!targetCycleId || targetCycleId === 'undefined') {
+      const activeCycleRes = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+      if (activeCycleRes.rows.length > 0) {
+        targetCycleId = activeCycleRes.rows[0].id;
+      }
+    }
+
+    if (!targetCycleId) {
+      return res.json([]); // No cycles in database yet
+    }
+
+    let queryText = `
+      SELECT 
+        p.id,
+        p.serial_no,
+        p.consumer_name,
+        p.address,
+        p.meter_no,
+        p.property_type,
+        p.society,
+        a.name as area_name,
+        asg.id as assignment_id,
+        asg.agent_id,
+        ag.name as agent_name,
+        r.status_code,
+        r.reading_value
+      FROM properties p
+      LEFT JOIN areas a ON p.area_id = a.id
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
+      LEFT JOIN readings r ON r.assignment_id = asg.id
+      WHERE 1=1
+    `;
+    
+    const params = [targetCycleId];
+    let paramCount = 2;
+    
+    if (q && q.trim()) {
+      queryText += ` AND (p.consumer_name ILIKE $${paramCount} OR p.serial_no ILIKE $${paramCount} OR p.address ILIKE $${paramCount} OR p.society ILIKE $${paramCount})`;
+      params.push(`%${q.trim()}%`);
+      paramCount++;
+    }
+    
+    if (societies) {
+      const socList = societies.split(',').map(s => s.trim()).filter(Boolean);
+      if (socList.length > 0) {
+        queryText += ` AND p.society = ANY($${paramCount}::varchar[])`;
+        params.push(socList);
+        paramCount++;
+      }
+    }
+    
+    if (status && status !== 'all') {
+      if (status === 'assigned') {
+        queryText += ` AND asg.id IS NOT NULL`;
+      } else if (status === 'unassigned') {
+        queryText += ` AND asg.id IS NULL`;
+      } else if (status === 'doorlocked') {
+        queryText += ` AND r.status_code = 'door_locked'`;
+      } else if (status === 'completed') {
+        queryText += ` AND r.status_code = 'completed'`;
+      }
+    }
+    
+    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 3000`; // safe performance ceiling
+    
+    const result = await db.query(queryText, params);
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

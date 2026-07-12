@@ -47,6 +47,12 @@ router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { name, phone, email, password } = createAgentSchema.parse(req.body);
     
+    // Ensure agent name is unique (since it is the login handle)
+    const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(name) = $1', [name.toUpperCase().trim()]);
+    if (duplicate.rows.length > 0) {
+      return res.status(400).json({ error: 'An agent with this username already exists.' });
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -70,6 +76,13 @@ router.patch('/:id', authMiddleware, requireAdmin, async (req, res, next) => {
     const agentId = req.params.id;
     const updates = updateAgentSchema.parse(req.body);
     
+    if (updates.name) {
+      const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(name) = $1 AND id <> $2', [updates.name.toUpperCase().trim(), agentId]);
+      if (duplicate.rows.length > 0) {
+        return res.status(400).json({ error: 'An agent with this username already exists.' });
+      }
+    }
+
     // Build dynamic query
     const fields = [];
     const values = [];

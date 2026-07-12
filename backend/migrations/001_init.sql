@@ -126,3 +126,6 @@ CREATE TABLE IF NOT EXISTS revisits (
 
 -- Ensure duplicate area names (regardless of spaces or capitalization) are rejected
 CREATE UNIQUE INDEX IF NOT EXISTS areas_name_nospace_key ON areas (UPPER(REPLACE(name, ' ', '')));
+
+-- Speed up society filter groupings and bulk property lookups
+CREATE INDEX IF NOT EXISTS idx_properties_society ON properties(society);

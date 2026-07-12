@@ -30,6 +30,17 @@ const Agents = () => {
     fetchAgents();
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowAddModal(false);
+        setShowEditModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -153,8 +164,8 @@ const Agents = () => {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Register New Agent</h2>
               <button onClick={() => setShowAddModal(false)} className="btn btn-secondary" style={{ padding: '4px' }}>
@@ -216,8 +227,8 @@ const Agents = () => {
 
       {/* Edit Modal */}
       {showEditModal && editingAgent && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <div className="modal-overlay" onClick={() => { setShowEditModal(false); setEditingAgent(null); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Edit Agent Profile</h2>
               <button onClick={() => setShowEditModal(false)} className="btn btn-secondary" style={{ padding: '4px' }}>

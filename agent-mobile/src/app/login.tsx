@@ -85,17 +85,16 @@ export default function LoginScreen() {
 
           {/* Form */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Registered Phone Number</Text>
+            <Text style={styles.label}>Agent Username</Text>
             <View style={[
               styles.inputContainer,
               phoneFocused && styles.inputContainerFocused
             ]}>
-              <Ionicons name="call-outline" size={18} color={phoneFocused ? '#111827' : '#8b9bb4'} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={18} color={phoneFocused ? '#111827' : '#8b9bb4'} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="e.g. 9876543210"
+                placeholder="e.g. Default Agent"
                 placeholderTextColor="#94a3b8"
-                keyboardType="phone-pad"
                 autoCapitalize="none"
                 value={phone}
                 onChangeText={setPhone}
