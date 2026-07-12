@@ -290,10 +290,19 @@ const processExcel = async () => {
     const CHUNK_SIZE = 200;
     const rows = format === 'SAP' ? dataObjects : rawRows.slice(1);
 
+    // Warm up the area cache to avoid querying the DB for existing areas (ponytail: memory caching avoids roundtrip latency)
+    const existingAreas = await dbClient.query('SELECT id, name FROM areas');
+    for (const row of existingAreas.rows) {
+      const key = areaKey(normalise(row.name));
+      areaCache[key] = { id: row.id };
+    }
+
     for (let i = 0; i < total; i += CHUNK_SIZE) {
       const chunk = rows.slice(i, i + CHUNK_SIZE);
 
       await dbClient.query('BEGIN');
+
+      const parsedChunkRows = [];
 
       for (const raw of chunk) {
         let parsed = null;
@@ -308,24 +317,46 @@ const processExcel = async () => {
 
         const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society } = parsed;
 
-        // 1. Resolve area (deduplication-safe)
+        // 1. Resolve area (deduplication-safe lookup from memory cache)
         const areaId = await resolveArea(area_name, city);
 
-        // 2. Upsert property keyed on Installation No / MR ORDER ID (serial_no)
-        await dbClient.query(
-          `INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           ON CONFLICT (serial_no)
-           DO UPDATE SET
-             area_id        = EXCLUDED.area_id,
-             consumer_name  = EXCLUDED.consumer_name,
-             address        = EXCLUDED.address,
-             meter_no       = EXCLUDED.meter_no,
-             property_type  = EXCLUDED.property_type,
-             import_id      = EXCLUDED.import_id,
-             society        = EXCLUDED.society`,
-          [areaId, serial_no, consumer_name, address, meter_no, property_type, importId, society]
-        );
+        parsedChunkRows.push({
+          areaId,
+          serial_no,
+          consumer_name,
+          address,
+          meter_no,
+          property_type,
+          society
+        });
+      }
+
+      if (parsedChunkRows.length > 0) {
+        const values = [];
+        const valueStrings = [];
+        let paramCount = 1;
+
+        for (const row of parsedChunkRows) {
+          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7})`);
+          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society);
+          paramCount += 8;
+        }
+
+        const bulkQuery = `
+          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society)
+          VALUES ${valueStrings.join(', ')}
+          ON CONFLICT (serial_no)
+          DO UPDATE SET
+            area_id        = EXCLUDED.area_id,
+            consumer_name  = EXCLUDED.consumer_name,
+            address        = EXCLUDED.address,
+            meter_no       = EXCLUDED.meter_no,
+            property_type  = EXCLUDED.property_type,
+            import_id      = EXCLUDED.import_id,
+            society        = EXCLUDED.society
+        `;
+
+        await dbClient.query(bulkQuery, values);
       }
 
       await dbClient.query('COMMIT');
