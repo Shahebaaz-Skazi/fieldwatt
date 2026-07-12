@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FieldWatt — Product Requirements Document</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --card: #1e2230;
+    --border: #2a2f42;
+    --accent: #f5a623;
+    --accent2: #4f9cf9;
+    --accent3: #34d399;
+    --accent4: #f87171;
+    --text: #e8eaf2;
+    --muted: #7a80a0;
+    --tag-bg: #252b40;
+    --font-display: 'Georgia', serif;
+    --font-body: system-ui, -apple-system, sans-serif;
+    --font-mono: 'Courier New', monospace;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 0 40px;
+    text-align: center;
+  }
+  .header-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  header h1 {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 5vw, 60px);
+    font-weight: normal;
+    letter-spacing: -1px;
+    color: #fff;
+  }
+  header h1 span { color: var(--accent); }
+  .header-sub {
+    color: var(--muted);
+    margin-top: 12px;
+    font-size: 15px;
+  }
+  .meta-row {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .meta-item { font-size: 12px; color: var(--muted); }
+  .meta-item strong { color: var(--text); display: block; font-size: 13px; }
+
+  /* LAYOUT */
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+  /* TOC */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    margin: 40px 0;
+  }
+  .toc-title { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 32px; }
+  .toc a {
+    color: var(--accent2);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .toc a:hover { color: var(--accent); }
+  .toc-num { color: var(--muted); font-size: 12px; margin-right: 6px; font-family: var(--font-mono); }
+
+  /* SECTIONS */
+  section { padding: 56px 0 0; }
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: normal;
+    color: #fff;
+    margin-bottom: 20px;
+    letter-spacing: -0.5px;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 28px 0 10px;
+  }
+  p { color: var(--muted); margin-bottom: 14px; }
+  p strong { color: var(--text); }
+
+  /* DIVIDER */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 56px 0 0;
+  }
+
+  /* CARDS GRID */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 24px 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+  }
+  .card-icon {
+    width: 36px; height: 36px;
+    background: var(--tag-bg);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  .card h4 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* FEATURE ROWS */
+  .feature-block {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .feature-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .feature-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .badge-must { background: #3d1f1f; color: var(--accent4); }
+  .badge-should { background: #1f2f1f; color: var(--accent3); }
+  .badge-could { background: #1f2a3d; color: var(--accent2); }
+  .badge-new { background: #3d2e10; color: var(--accent); }
+
+  .feature-title { font-weight: 600; font-size: 14px; color: var(--text); }
+  .feature-body { padding: 16px 22px; }
+  .feature-list { list-style: none; }
+  .feature-list li {
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 10px;
+    border-bottom: 1px solid #1e2230;
+  }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list li::before { content: '→'; color: var(--accent2); flex-shrink: 0; }
+
+  /* ROLES */
+  .role-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
+  .role-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .role-card.admin { border-top: 3px solid var(--accent); }
+  .role-card.agent { border-top: 3px solid var(--accent3); }
+  .role-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600; margin-bottom: 14px; }
+  .role-card.admin .role-label { color: var(--accent); }
+  .role-card.agent .role-label { color: var(--accent3); }
+  .role-list { list-style: none; }
+  .role-list li { font-size: 13px; color: var(--muted); padding: 5px 0; display: flex; gap: 8px; }
+  .role-list li::before { content: '✓'; flex-shrink: 0; }
+  .role-card.admin .role-list li::before { color: var(--accent); }
+  .role-card.agent .role-list li::before { color: var(--accent3); }
+
+  /* STATUS CODES */
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 20px 0; }
+  .status-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .status-item h5 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .status-item p { font-size: 12px; color: var(--muted); margin: 0; }
+
+  /* TECH STACK TABLE */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 14px;
+    color: var(--muted);
+    border-bottom: 1px solid #1a1e2a;
+    vertical-align: top;
+  }
+  td:first-child { color: var(--text); font-weight: 600; }
+  td code {
+    font-family: var(--font-mono);
+    background: var(--tag-bg);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent2);
+  }
+
+  /* PHASE TIMELINE */
+  .phases { margin: 24px 0; }
+  .phase {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 0;
+    position: relative;
+  }
+  .phase::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 42px;
+    bottom: -1px;
+    width: 1px;
+    background: var(--border);
+  }
+  .phase:last-child::before { display: none; }
+  .phase-num {
+    width: 40px; height: 40px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent);
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .phase-content {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    flex: 1;
+  }
+  .phase-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+  .phase-weeks { font-size: 12px; color: var(--accent); margin-bottom: 10px; }
+  .phase-items { font-size: 13px; color: var(--muted); }
+  .phase-items li { padding: 2px 0; }
+
+  /* RISKS */
+  .risk-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 3fr;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    align-items: start;
+  }
+  .risk-row:last-child { border-bottom: none; }
+  .risk-severity {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-align: center;
+    display: inline-block;
+  }
+  .sev-high { background: #3d1f1f; color: var(--accent4); }
+  .sev-med { background: #3d2e10; color: var(--accent); }
+  .sev-low { background: #1f2a3d; color: var(--accent2); }
+
+  /* ADDED badge */
+  .added-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: #2a1f00;
+    color: var(--accent);
+    border: 1px solid #5a3a00;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  footer {
+    margin-top: 80px;
+    padding: 40px 0;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 640px) {
+    .toc-grid { grid-template-columns: 1fr; }
+    .role-split { grid-template-columns: 1fr; }
+    .risk-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">Product Requirements Document</div>
+  <h1>Field<span>Watt</span></h1>
+  <p class="header-sub">Electricity Meter Reading · Field Operations Platform</p>
+  <div class="meta-row">
+    <div class="meta-item"><strong>Version</strong>1.0 — Initial</div>
+    <div class="meta-item"><strong>Platform</strong>Web Admin + Android/iOS Agent App</div>
+    <div class="meta-item"><strong>Offline</strong>Fully supported</div>
+    <div class="meta-item"><strong>Build mode</strong>Solo + AI-assisted</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <nav class="toc">
+    <div class="toc-title">Contents</div>
+    <div class="toc-grid">
+      <div><a href="#overview"><span class="toc-num">01</span>Product overview</a></div>
+      <div><a href="#personas"><span class="toc-num">02</span>User personas</a></div>
+      <div><a href="#features-admin"><span class="toc-num">03</span>Admin panel features</a></div>
+      <div><a href="#features-agent"><span class="toc-num">04</span>Agent app features</a></div>
+      <div><a href="#statuses"><span class="toc-num">05</span>Visit status codes</a></div>
+      <div><a href="#added"><span class="toc-num">06</span>What we're adding beyond original</a></div>
+      <div><a href="#tech"><span class="toc-num">07</span>Tech stack</a></div>
+      <div><a href="#data"><span class="toc-num">08</span>Data model overview</a></div>
+      <div><a href="#phases"><span class="toc-num">09</span>Build phases</a></div>
+      <div><a href="#risks"><span class="toc-num">10</span>Risks & mitigations</a></div>
+    </div>
+  </nav>
+
+  <!-- 01 OVERVIEW -->
+  <section id="overview">
+    <div class="section-label">01 — Overview</div>
+    <h2>What is FieldWatt?</h2>
+    <p>FieldWatt is a <strong>two-sided field operations platform</strong> for electricity meter reading companies (infracon businesses). Admins upload area/property data via Excel, assign work to agents, and monitor all activity from a web dashboard. Agents use a mobile app to see their assigned meters, visit locations, record readings, upload photos, and mark visit outcomes — all with <strong>full offline support</strong>.</p>
+    <p>The system closes the loop between <strong>field data collection</strong> and <strong>back-office management</strong> — eliminating paper forms, missed visits, and opaque agent performance.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <h4>Admin web dashboard</h4>
+        <p>Upload data, assign work, track progress, export reports. Runs in any browser.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <h4>Agent mobile app</h4>
+        <p>React Native — one codebase for Android and iOS. Works fully offline.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h4>Real-time sync</h4>
+        <p>Agent updates flow to admin dashboard live when online, queue when offline.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h4>Analytics & export</h4>
+        <p>Completion rates, agent performance, area coverage — downloadable anytime.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 02 PERSONAS -->
+  <section id="personas">
+    <div class="section-label">02 — Personas</div>
+    <h2>Who uses this?</h2>
+    <div class="role-split">
+      <div class="role-card admin">
+        <div class="role-label">⚙️ Admin (you)</div>
+        <ul class="role-list">
+          <li>Uploads property data via Excel</li>
+          <li>Assigns areas or serial ranges to agents</li>
+          <li>Monitors daily login & progress</li>
+          <li>Handles leave — reassigns work</li>
+          <li>Exports completion reports</li>
+          <li>Reviews flagged or problem visits</li>
+          <li>Manages agent accounts</li>
+        </ul>
+      </div>
+      <div class="role-card agent">
+        <div class="role-label">🧑‍🔧 Field Agent</div>
+        <ul class="role-list">
+          <li>Logs in, sees today's assigned list</li>
+          <li>Navigates to each property</li>
+          <li>Enters meter reading value</li>
+          <li>Photos meter or situation</li>
+          <li>Marks outcome (done / locked / refused…)</li>
+          <li>Works fully offline if needed</li>
+          <li>Marks self on leave</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 03 ADMIN FEATURES -->
+  <section id="features-admin">
+    <div class="section-label">03 — Admin panel</div>
+    <h2>Admin features</h2>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Excel upload & property ingestion</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Upload .xlsx file; system parses and structures by Area → Property type (Flat / Bungalow / Raw house)</li>
+          <li>Preview parsed data before confirming import</li>
+          <li>Validate required columns — show errors row by row if data is bad</li>
+          <li>Each property gets a serial number, consumer name, address, meter number</li>
+          <li>Support re-upload to update existing data (merge mode, not wipe)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Area-wise property browser</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>View all areas (Bavdhan, Chinchwad, etc.) with flat/bungalow/raw house counts</li>
+          <li>Drill into area → see all properties with serial numbers</li>
+          <li>Filter by property type, status (pending / done / problem)</li>
+          <li>Search by consumer name or meter number</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Agent assignment engine</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Assign by area (entire area to one or more agents)</li>
+          <li>Assign by serial number range (e.g. 1–100 to Agent X)</li>
+          <li>Assign individual properties by selection</li>
+          <li>Multiple agents can share one area</li>
+          <li>See assignment coverage — what's assigned, what's still unassigned</li>
+          <li>Partial completion reassignment — if agent did 300/500, auto-select remaining 200 and reassign</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Live agent dashboard</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Today's attendance: who has logged in vs not yet</li>
+          <li>Per-agent completion counter: Assigned / Done / Pending / Problem</li>
+          <li>Last active timestamp per agent</li>
+          <li>Mark agent on leave → system prompts to reassign their pending work</li>
+          <li>Drill down into any agent's list and see each property's status + photo</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Data export</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Export full area data as Excel with reading values, status, agent, timestamp</li>
+          <li>Filter export: by area, date range, agent, status</li>
+          <li>Export agent performance summary</li>
+          <li>Auto-generate daily report (CSV or PDF)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New — Added</span>
+        <span class="feature-title">Live map view <span class="added-badge">Research finding</span></span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>See all agents as dots on a map (GPS location when online)</li>
+          <li>See property pins — green = done, red = pending, orange = problem</li>
+          <li>Helps admin spot if agent is stuck, going wrong area, or skipping locations</li>
+          <li>Heat map of pending work density per area</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New — Added</span>
+        <span class="feature-title">Anomaly & tamper alerts <span class="added-badge">Research finding</span></span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Flag readings that are 0, abnormally low, or 50%+ different from previous month</li>
+          <li>Admin gets alert list: "12 readings look unusual today"</li>
+          <li>Mark flagged reading as verified or escalate for physical inspection</li>
+          <li>Possible meter tampering flag when reading drops significantly</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-should">Should have</span>
+        <span class="feature-title">Notification & broadcast</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Push notification to all agents (e.g. "Today's target: 100 readings by 4 PM")</li>
+          <li>Push to specific agent</li>
+          <li>In-app chat message to an agent</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 04 AGENT FEATURES -->
+  <section id="features-agent">
+    <div class="section-label">04 — Agent mobile app</div>
+    <h2>Agent app features</h2>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Today's work list</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>On login, agent sees all assigned properties sorted by serial number</li>
+          <li>Each item shows: Serial no. · Consumer name · Address · Property type · Status</li>
+          <li>Progress bar: "48 of 100 done"</li>
+          <li>Pending / done / problem tabs for easy filtering</li>
+          <li>Tap any item to open the reading form</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Reading submission form</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Enter meter reading number (numeric keypad)</li>
+          <li>Select visit outcome (see status codes section)</li>
+          <li>Upload photo — required for "Done" and "Door locked" outcomes</li>
+          <li>Add text note (optional, free text)</li>
+          <li>GPS auto-captured on submit</li>
+          <li>Timestamp auto-captured on submit</li>
+          <li>If offline: save to local queue, auto-sync when signal returns</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-must">Must have</span>
+        <span class="feature-title">Offline-first operation</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>All assigned data downloaded to device on login</li>
+          <li>Agent can complete full day of readings with zero internet</li>
+          <li>Photos stored locally until sync</li>
+          <li>Sync queue shows: "14 records waiting to upload"</li>
+          <li>Auto-syncs in background when signal detected</li>
+          <li>Conflict resolution: server wins for assignments, local wins for readings</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New — Added</span>
+        <span class="feature-title">Navigation assist <span class="added-badge">Research finding</span></span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>"Get directions" button → opens Google Maps / Apple Maps to property address</li>
+          <li>Route suggestion: order today's list by geographic proximity to reduce walking</li>
+          <li>Area map showing all pending properties as pins</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New — Added</span>
+        <span class="feature-title">Reading validation <span class="added-badge">Research finding</span></span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>If reading entered is lower than last month — show warning before allowing submit</li>
+          <li>If reading is suspiciously high (10x normal) — confirm prompt</li>
+          <li>Prevents typo errors at source, not discovered later in billing</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-should">Should have</span>
+        <span class="feature-title">Leave & attendance</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Agent can mark "I am on leave today" from the app</li>
+          <li>Admin gets notification and can reassign the work</li>
+          <li>Attendance log visible to admin (login time, last activity time)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-could">Nice to have</span>
+        <span class="feature-title">Performance summary for agent</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Agent can see own stats: this week / this month</li>
+          <li>Total done, problems encountered, average per day</li>
+          <li>Encourages self-motivation and transparency</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 05 STATUS CODES -->
+  <section id="statuses">
+    <div class="section-label">05 — Visit status codes</div>
+    <h2>What an agent can mark</h2>
+    <p>Every visit gets one of these outcomes. Each has photo requirement rules and flows to the right admin view.</p>
+    <div class="status-grid">
+      <div class="status-item">
+        <div class="status-dot" style="background:#34d399"></div>
+        <div>
+          <h5>Reading taken ✅</h5>
+          <p>Reading value entered + meter photo uploaded</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#f87171"></div>
+        <div>
+          <h5>Door locked 🔒</h5>
+          <p>Photo of locked door required. Admin notes for revisit</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#f5a623"></div>
+        <div>
+          <h5>Not reachable 📵</h5>
+          <p>Attempted call, no answer. Timestamp auto-logged</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#f87171"></div>
+        <div>
+          <h5>Access denied ❌</h5>
+          <p>Customer present but refused. Note required</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#4f9cf9"></div>
+        <div>
+          <h5>Meter not found 🔍</h5>
+          <p>Cannot locate meter at address. Note + photo</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#f5a623"></div>
+        <div>
+          <h5>Meter damaged ⚠️</h5>
+          <p>Visible damage or suspected tamper. Photo mandatory</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#a78bfa"></div>
+        <div>
+          <h5>Revisit needed 🔄</h5>
+          <p>First visit incomplete, schedule follow-up</p>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="status-dot" style="background:#94a3b8"></div>
+        <div>
+          <h5>Vacant property 🏚️</h5>
+          <p>Address is empty / under construction</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 06 ADDED FEATURES -->
+  <section id="added">
+    <div class="section-label">06 — What we're adding</div>
+    <h2>Beyond the original brief <span class="added-badge">Research-backed additions</span></h2>
+    <p>After researching industry-standard field ops platforms like Fieldmaster, Axonator, TrackoField, DCS, and Itron's Temetra, here are the gaps we're filling:</p>
+
+    <h3>Things research showed that the original plan was missing:</h3>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">GPS geo-verified check-in</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Reading can only be submitted when agent is within ~100m of property GPS coordinates</li>
+          <li>Prevents fake "done" submissions from home or office</li>
+          <li>GPS coordinates stored with every reading — admin can verify location on map</li>
+          <li>Override available for admin if GPS is unavailable in a specific area</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">Previous reading history on agent screen</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>When agent opens a property, show last 2–3 months reading values</li>
+          <li>Helps agent spot if current reading looks wrong before submitting</li>
+          <li>Shows estimated consumption (e.g. avg 120 units/month for this consumer)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">Revisit scheduling</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Door-locked or not-reachable → admin can schedule a revisit date</li>
+          <li>System re-queues the property in agent's list on that date</li>
+          <li>Revisit counter per property — if 3 failed attempts, escalates to supervisor</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">Auto daily report</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Every evening at set time, auto-generate area completion summary</li>
+          <li>Emailed to admin: readings done today, pending count, problems flagged</li>
+          <li>No manual pulling of reports required for routine oversight</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">Route optimization for agents</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>If property GPS coordinates are available, suggest an optimized walking order</li>
+          <li>Reduces total travel time per agent per day</li>
+          <li>Based on geographic clustering — nearest unvisited property next</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature-block">
+      <div class="feature-header">
+        <span class="feature-badge badge-new">New</span>
+        <span class="feature-title">Multi-cycle / monthly data separation</span>
+      </div>
+      <div class="feature-body">
+        <ul class="feature-list">
+          <li>Each upload cycle gets a "cycle" label (e.g. June 2025)</li>
+          <li>Historical reading data is preserved per cycle</li>
+          <li>Admin can compare completion rate month over month</li>
+          <li>Useful for detecting consistently unreachable consumers</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 07 TECH STACK -->
+  <section id="tech">
+    <div class="section-label">07 — Tech stack</div>
+    <h2>Technology decisions</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Choice</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Admin frontend</td>
+          <td><code>React + Vite</code></td>
+          <td>Fast dev, component reuse, good table/chart ecosystem</td>
+        </tr>
+        <tr>
+          <td>Agent mobile app</td>
+          <td><code>React Native (Expo)</code></td>
+          <td>Single codebase → Android + iOS. Expo simplifies camera, GPS, offline</td>
+        </tr>
+        <tr>
+          <td>Backend API</td>
+          <td><code>Node.js + Express</code></td>
+          <td>Easy for solo dev, huge ecosystem, same language as frontend</td>
+        </tr>
+        <tr>
+          <td>Primary database</td>
+          <td><code>PostgreSQL</code></td>
+          <td>Relational — perfect for area/property/agent/assignment structure</td>
+        </tr>
+        <tr>
+          <td>Mobile offline DB</td>
+          <td><code>SQLite (via expo-sqlite)</code></td>
+          <td>Native SQLite on device, syncs to Postgres on reconnect</td>
+        </tr>
+        <tr>
+          <td>Photo storage</td>
+          <td><code>Cloudinary</code></td>
+          <td>Free tier generous, automatic compression, CDN delivery</td>
+        </tr>
+        <tr>
+          <td>Authentication</td>
+          <td><code>JWT + bcrypt</code></td>
+          <td>Simple, stateless, works offline-friendly</td>
+        </tr>
+        <tr>
+          <td>Push notifications</td>
+          <td><code>Expo Push + Firebase FCM</code></td>
+          <td>Free, cross-platform, works with Expo out of the box</td>
+        </tr>
+        <tr>
+          <td>Maps</td>
+          <td><code>react-native-maps + Google Maps API</code></td>
+          <td>Best map integration, directions API for navigation</td>
+        </tr>
+        <tr>
+          <td>Excel parsing</td>
+          <td><code>SheetJS (xlsx)</code></td>
+          <td>Parse .xlsx server-side, battle-tested, free</td>
+        </tr>
+        <tr>
+          <td>Hosting (API)</td>
+          <td><code>Railway</code></td>
+          <td>Postgres + Node.js in one place, free tier, easy deploy</td>
+        </tr>
+        <tr>
+          <td>Hosting (frontend)</td>
+          <td><code>Vercel</code></td>
+          <td>Zero config deploy for React, free tier</td>
+        </tr>
+        <tr>
+          <td>Email (reports)</td>
+          <td><code>Resend / Nodemailer</code></td>
+          <td>Simple transactional email for daily reports</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 08 DATA MODEL -->
+  <section id="data">
+    <div class="section-label">08 — Data model</div>
+    <h2>Core entities</h2>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">🏘️</div>
+        <h4>Area</h4>
+        <p>id, name, city, total_properties, created_at</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏠</div>
+        <h4>Property</h4>
+        <p>id, area_id, serial_no, consumer_name, address, meter_no, property_type (flat/bungalow/raw_house), lat, lng</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">👤</div>
+        <h4>Agent</h4>
+        <p>id, name, phone, email, password_hash, is_active, last_login</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📋</div>
+        <h4>Assignment</h4>
+        <p>id, agent_id, property_id, cycle_id, assigned_at, assigned_by</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📖</div>
+        <h4>Reading</h4>
+        <p>id, assignment_id, reading_value, status_code, photo_url, note, gps_lat, gps_lng, submitted_at, synced_at</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗓️</div>
+        <h4>Cycle</h4>
+        <p>id, label (e.g. "June 2025"), start_date, end_date, is_active</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 09 PHASES -->
+  <section id="phases">
+    <div class="section-label">09 — Build plan</div>
+    <h2>Phase-by-phase delivery</h2>
+    <p>Each phase delivers something usable. You're not waiting 6 months to see anything.</p>
+
+    <div class="phases">
+      <div class="phase">
+        <div class="phase-num">01</div>
+        <div class="phase-content">
+          <div class="phase-title">Foundation — Backend + Database</div>
+          <div class="phase-weeks">Weeks 1–2</div>
+          <ul class="phase-items">
+            <li>Postgres schema: Area, Property, Agent, Assignment, Reading, Cycle</li>
+            <li>Express API: auth endpoints, CRUD for all entities</li>
+            <li>SheetJS Excel parser → ingest properties from upload</li>
+            <li>JWT authentication with admin vs agent roles</li>
+            <li>Deploy to Railway</li>
+          </ul>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">02</div>
+        <div class="phase-content">
+          <div class="phase-title">Admin panel — Data & Assignments</div>
+          <div class="phase-weeks">Weeks 3–4</div>
+          <ul class="phase-items">
+            <li>Excel upload UI with preview and validation</li>
+            <li>Area browser with property counts and drill-down</li>
+            <li>Agent management (add, edit, deactivate)</li>
+            <li>Assignment UI — assign by range, by area, individual</li>
+            <li>Deploy to Vercel</li>
+          </ul>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">03</div>
+        <div class="phase-content">
+          <div class="phase-title">Agent mobile app — Core flows</div>
+          <div class="phase-weeks">Weeks 5–7</div>
+          <ul class="phase-items">
+            <li>Expo project setup, login screen</li>
+            <li>Today's work list with progress bar</li>
+            <li>Reading submission form: value + status + photo</li>
+            <li>Offline queue with SQLite</li>
+            <li>Background sync when online</li>
+          </ul>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">04</div>
+        <div class="phase-content">
+          <div class="phase-title">Admin dashboard — Monitoring</div>
+          <div class="phase-weeks">Weeks 8–9</div>
+          <ul class="phase-items">
+            <li>Live agent status board (login status, completion count)</li>
+            <li>Drill-down into any agent's list + submitted photos</li>
+            <li>Leave marking + work reassignment flow</li>
+            <li>Partial completion reassignment</li>
+          </ul>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">05</div>
+        <div class="phase-content">
+          <div class="phase-title">GPS, map & anomaly features</div>
+          <div class="phase-weeks">Weeks 10–11</div>
+          <ul class="phase-items">
+            <li>Agent GPS capture on reading submit</li>
+            <li>Geo-verified check-in (proximity validation)</li>
+            <li>Admin map: agent dots + property pin colors</li>
+            <li>Anomaly detection: flag weird readings</li>
+          </ul>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">06</div>
+        <div class="phase-content">
+          <div class="phase-title">Export, reports & polish</div>
+          <div class="phase-weeks">Weeks 12–13</div>
+          <ul class="phase-items">
+            <li>Excel export with all filters</li>
+            <li>Auto daily report email</li>
+            <li>Push notifications (admin → agent broadcasts)</li>
+            <li>Revisit scheduling</li>
+            <li>Route optimization suggestion on agent app</li>
+            <li>UAT testing, bug fixes, performance tuning</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 10 RISKS -->
+  <section id="risks">
+    <div class="section-label">10 — Risks</div>
+    <h2>Risks & how to handle them</h2>
+
+    <div style="margin: 20px 0;">
+      <div style="display:grid; grid-template-columns: 2fr 1fr 3fr; gap:12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+        <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--muted);">Risk</div>
+        <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--muted);">Severity</div>
+        <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--muted);">Mitigation</div>
+      </div>
+
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Excel files have inconsistent column names from different sources</div>
+        <div><span class="risk-severity sev-high">High</span></div>
+        <div style="color:var(--muted); font-size:13px;">Build a column mapping UI — admin maps their Excel columns to system fields on first upload</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Agents in low-connectivity areas can't sync for hours</div>
+        <div><span class="risk-severity sev-med">Med</span></div>
+        <div style="color:var(--muted); font-size:13px;">Full offline-first design with local SQLite. Sync queue survives app close/restart</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Agent submits reading without physically going to property</div>
+        <div><span class="risk-severity sev-high">High</span></div>
+        <div style="color:var(--muted); font-size:13px;">GPS geo-verification (100m radius check). Admin can review GPS trail per agent</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Photo upload eats agent's mobile data</div>
+        <div><span class="risk-severity sev-med">Med</span></div>
+        <div style="color:var(--muted); font-size:13px;">Compress photos to ~200KB before upload. Agent can set "upload on WiFi only" preference</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Duplicate readings if agent submits and app crashes before sync confirm</div>
+        <div><span class="risk-severity sev-med">Med</span></div>
+        <div style="color:var(--muted); font-size:13px;">Idempotency keys on reading submission. Server deduplicates by (property_id + cycle_id)</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">Cloudinary photo storage costs at scale</div>
+        <div><span class="risk-severity sev-low">Low</span></div>
+        <div style="color:var(--muted); font-size:13px;">Free tier handles ~25GB. Purge photos older than 3 cycles. Switch to S3 if needed</div>
+      </div>
+      <div class="risk-row">
+        <div style="color:var(--text); font-size:13px;">iOS App Store review delay for updates</div>
+        <div><span class="risk-severity sev-med">Med</span></div>
+        <div style="color:var(--muted); font-size:13px;">Use Expo OTA updates for JS-only changes. Store review only needed for native module changes</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <footer>
+    <div>FieldWatt — Product Requirements Document v1.0</div>
+    <div style="margin-top:6px; color: #3d4460;">Built with research from Fieldmaster, Axonator, TrackoField, DCS Metering, Itron Temetra</div>
+  </footer>
+
+</div>
+</body>
+</html>

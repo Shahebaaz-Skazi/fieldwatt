@@ -1,0 +1,170 @@
+import * as SQLite from 'expo-sqlite';
+
+let db: SQLite.SQLiteDatabase | null = null;
+
+export const initDb = async () => {
+  if (db) return db;
+  
+  db = await SQLite.openDatabaseAsync('fieldwatt.db');
+  
+  // Create properties table to cache today's assignments
+  await db.execAsync(`
+    PRAGMA journal_mode = WAL;
+    
+    CREATE TABLE IF NOT EXISTS properties (
+      id TEXT PRIMARY KEY,
+      assignment_id TEXT NOT NULL,
+      serial_no TEXT NOT NULL,
+      consumer_name TEXT NOT NULL,
+      address TEXT NOT NULL,
+      meter_no TEXT,
+      property_type TEXT,
+      lat REAL,
+      lng REAL,
+      area_name TEXT,
+      society TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS readings_queue (
+      id TEXT PRIMARY KEY,
+      assignment_id TEXT NOT NULL,
+      idempotency_key TEXT UNIQUE NOT NULL,
+      reading_value REAL,
+      status_code TEXT NOT NULL,
+      photo_url TEXT,
+      note TEXT,
+      gps_lat REAL,
+      gps_lng REAL,
+      gps_accuracy REAL,
+      submitted_at TEXT NOT NULL,
+      is_synced INTEGER DEFAULT 0
+    );
+  `);
+
+  // Handle migration upgrades for existing local db instances
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN area_name TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN society TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  console.log('Local SQLite database initialized.');
+  return db;
+};
+
+export const getDb = () => {
+  if (!db) throw new Error('Database not initialized. Call initDb() first.');
+  return db;
+};
+
+// Cache today's assignments locally
+export const saveProperties = async (properties: any[]) => {
+  const database = getDb();
+  
+  // Clear old properties before caching new ones
+  await database.runAsync('DELETE FROM properties');
+  
+  for (const prop of properties) {
+    await database.runAsync(
+      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        prop.property_id,
+        prop.assignment_id,
+        prop.serial_no,
+        prop.consumer_name,
+        prop.address,
+        prop.meter_no || null,
+        prop.property_type,
+        prop.property_lat ? parseFloat(prop.property_lat) : null,
+        prop.property_lng ? parseFloat(prop.property_lng) : null,
+        prop.area_name || null,
+        prop.society || null
+      ]
+    );
+  }
+};
+
+// Retrieve cached properties merged with their queued readings if any
+export const getCachedProperties = async () => {
+  const database = getDb();
+  const rows = await database.getAllAsync(`
+    SELECT p.*, r.reading_value, r.status_code as reading_status, r.photo_url, r.note, r.is_synced, r.id as queued_reading_id
+    FROM properties p
+    LEFT JOIN readings_queue r ON p.assignment_id = r.assignment_id
+    ORDER BY CAST(p.serial_no AS INTEGER) ASC
+  `);
+  return rows;
+};
+
+// Queue a reading for offline upload
+export const queueReading = async (reading: {
+  assignment_id: string;
+  idempotency_key: string;
+  reading_value?: number | null;
+  status_code: string;
+  photo_url?: string | null;
+  note?: string | null;
+  gps_lat?: number | null;
+  gps_lng?: number | null;
+  gps_accuracy?: number | null;
+  submitted_at: string;
+}) => {
+  const database = getDb();
+  const uuid = reading.idempotency_key;
+  
+  await database.runAsync(
+    `INSERT OR REPLACE INTO readings_queue (
+      id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, gps_lat, gps_lng, gps_accuracy, submitted_at, is_synced
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    [
+      uuid,
+      reading.assignment_id,
+      reading.idempotency_key,
+      reading.reading_value !== undefined ? reading.reading_value : null,
+      reading.status_code,
+      reading.photo_url || null,
+      reading.note || null,
+      reading.gps_lat || null,
+      reading.gps_lng || null,
+      reading.gps_accuracy || null,
+      reading.submitted_at
+    ]
+  );
+};
+
+// Retrieve all unsynced readings in the queue
+export const getUnsyncedReadings = async () => {
+  const database = getDb();
+  const rows = await database.getAllAsync(
+    'SELECT * FROM readings_queue WHERE is_synced = 0'
+  );
+  return rows;
+};
+
+// Mark matching readings as synced (or delete them to keep the file small)
+export const markReadingsAsSynced = async (idempotencyKeys: string[]) => {
+  const database = getDb();
+  for (const key of idempotencyKeys) {
+    // ponytail: delete to save storage space on device after confirmation
+    await database.runAsync(
+      'DELETE FROM readings_queue WHERE idempotency_key = ?',
+      [key]
+    );
+  }
+};
+
+export const getPropertyById = async (id: string) => {
+  const database = getDb();
+  const rows = await database.getAllAsync('SELECT * FROM properties WHERE id = ?', [id]);
+  if (rows.length > 0) {
+    return rows[0];
+  }
+  return null;
+};

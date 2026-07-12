@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: fieldwatt-backend
+    env: node
+    plan: free # ponytail: run on Render free tier
+    buildCommand: npm install
+    startCommand: npm start
+    rootDirectory: backend
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: DATABASE_URL
+        sync: false # Set in Render Dashboard (Supabase PostgreSQL URL)
+      - key: JWT_SECRET
+        sync: false # Set in Render Dashboard (Secret security string)
+      - key: REDIS_URL
+        sync: false # Set in Render Dashboard (Upstash Redis URL for queues)

@@ -1,0 +1,257 @@
+import React, { useEffect, useState } from 'react';
+import api from '../utils/api';
+import anime from 'animejs';
+import { FileDown, Award, TrendingUp, BarChart3, AlertCircle } from 'lucide-react';
+
+const Reports = () => {
+  const [data, setData] = useState({ agents: [] });
+  const [cycles, setCycles] = useState([]);
+  const [selectedCycleId, setSelectedCycleId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const fetchReportsData = async () => {
+    try {
+      const [dbData, cyclesData] = await Promise.all([
+        api.get('/admin/dashboard'),
+        api.get('/admin/assignments/coverage') // using coverage as proxy for cycle listing
+      ]);
+      setData(dbData);
+      // Mock cycle options since we don't have separate cycle CRUD page (standard YAGNI fallback)
+      setCycles([
+        { id: dbData.active_cycle_id, label: 'Active Billing Cycle' }
+      ]);
+      setSelectedCycleId(dbData.active_cycle_id);
+    } catch (err) {
+      setError(err.message || 'Failed to retrieve reports.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportsData();
+  }, []);
+
+  // Anime.js entrance animations
+  useEffect(() => {
+    if (loading) return;
+
+    anime({
+      targets: '.animate-card',
+      translateY: [20, 0],
+      opacity: [0, 1],
+      delay: anime.stagger(100),
+      easing: 'easeOutQuad',
+      duration: 600
+    });
+
+    anime({
+      targets: '.animate-row',
+      translateX: [-10, 0],
+      opacity: [0, 1],
+      delay: anime.stagger(50),
+      easing: 'easeOutQuad',
+      duration: 500
+    });
+  }, [loading]);
+
+  const handleExportCSV = async () => {
+    if (!selectedCycleId) return;
+
+    try {
+      // Fetch all readings for all agents in this cycle to format
+      const exportRows = [];
+      // Headers
+      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Agent Name', 'Status', 'Reading Value (kWh)', 'Submitted At']);
+
+      for (const agent of data.agents) {
+        const readings = await api.get(`/admin/dashboard/agents/${agent.id}/readings?cycle_id=${selectedCycleId}`);
+        readings.forEach(r => {
+          exportRows.push([
+            r.serial_no,
+            r.consumer_name,
+            `"${r.address.replace(/"/g, '""')}"`, // escape quotes for CSV
+            r.meter_no || 'N/A',
+            r.property_type,
+            agent.name,
+            r.status_code,
+            r.reading_value !== null ? r.reading_value : '-',
+            new Date(r.submitted_at).toLocaleString()
+          ]);
+        });
+      }
+
+      if (exportRows.length === 1) {
+        alert('No readings recorded in this cycle to export.');
+        return;
+      }
+
+      // Compile CSV String
+      const csvContent = '\uFEFF' + exportRows.map(e => e.join(',')).join('\n'); // added BOM for Excel compatibility
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `FieldWatt_Readings_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert('CSV compile failed: ' + err.message);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>Analyzing reports metrics...</div>;
+  }
+
+  // Calculate efficiency score card rankings
+  const rankedAgents = data.agents
+    .map(agent => {
+      const completionRate = agent.assigned_count > 0 
+        ? Math.round((agent.done_count / agent.assigned_count) * 100) 
+        : 0;
+      
+      // Accuracy score: completed readings with no anomalies
+      const anomalyRate = agent.done_count > 0
+        ? Math.round((agent.problem_count / agent.assigned_count) * 100)
+        : 0;
+      const accuracyScore = Math.max(100 - anomalyRate, 0);
+
+      // Total efficiency: completion weighted by accuracy
+      const efficiencyScore = Math.round((completionRate * 0.7) + (accuracyScore * 0.3));
+
+      return {
+        ...agent,
+        completionRate,
+        accuracyScore,
+        efficiencyScore
+      };
+    })
+    .sort((a, b) => b.efficiencyScore - a.efficiencyScore);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Analytics & Reports</h1>
+          <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>Export cycle logs and audit agent performance parameters</p>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)', borderRadius: '8px', border: '1px solid var(--accent4)' }}>
+          {error}
+        </div>
+      )}
+
+      <div className="reports-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px', alignItems: 'start' }}>
+        {/* Efficiency scoreboard */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Agent Performance Leaderboard</h3>
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Agent Name</th>
+                  <th>Completion Rate</th>
+                  <th>Accuracy Index</th>
+                  <th>Efficiency Score</th>
+                  <th style={{ textAlign: 'right' }}>Award</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankedAgents.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No performance data collected.</td>
+                  </tr>
+                ) : (
+                  rankedAgents.map((agent, index) => (
+                    <tr key={agent.id} className="animate-row" style={{ opacity: 0 }}>
+                      <td style={{ fontWeight: '700', color: index === 0 ? 'var(--accent)' : 'var(--muted)' }}>#{index + 1}</td>
+                      <td style={{ fontWeight: '600', color: 'var(--text)' }}>{agent.name}</td>
+                      <td>{agent.completionRate}%</td>
+                      <td>{agent.accuracyScore}%</td>
+                      <td style={{ fontWeight: '700', color: 'var(--accent2)' }}>{agent.efficiencyScore} pts</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {index === 0 ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent)', fontWeight: '600', fontSize: '12px' }}>
+                            <Award size={14} /> Elite Rank
+                          </span>
+                        ) : index < 3 ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '12px' }}>
+                            Superstars
+                          </span>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Export Panel Sidebar */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div className="animate-card" style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            opacity: 0
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={18} style={{ color: 'var(--accent)' }} />
+              Data Exporter
+            </h3>
+            
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '12px' }}>Target billing cycle</label>
+              <select
+                className="form-input"
+                value={selectedCycleId}
+                onChange={(e) => setSelectedCycleId(e.target.value)}
+                style={{ fontSize: '13px' }}
+              >
+                {cycles.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+
+            <button onClick={handleExportCSV} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+              <FileDown size={16} />
+              Export Cycle Data to CSV
+            </button>
+          </div>
+
+          <div className="animate-card" style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            opacity: 0
+          }}>
+            <h4 style={{ color: 'var(--text)', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <TrendingUp size={14} style={{ color: 'var(--accent3)' }} />
+              Operational Insights
+            </h4>
+            <p style={{ color: 'var(--muted)', fontSize: '12px', lineHeight: '1.5' }}>
+              Agent Efficiency scores are calculated using a 70% weight on completed assigned workloads, combined with a 30% accuracy audit (evaluating anomalous readings and proximity warnings).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Reports;
