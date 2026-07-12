@@ -20,3 +20,7 @@ services:
         sync: false # Set in Render Dashboard (Secret security string)
       - key: REDIS_URL
         sync: false # Set in Render Dashboard (Upstash Redis URL for queues)
+      - key: SUPABASE_URL
+        sync: false # Set in Render Dashboard (Supabase Project URL)
+      - key: SUPABASE_SERVICE_KEY
+        sync: false # Set in Render Dashboard (Supabase Service Role Key)
