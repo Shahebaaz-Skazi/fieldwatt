@@ -5,7 +5,7 @@ services:
     plan: free # ponytail: run on Render free tier
     buildCommand: npm install
     startCommand: npm start
-    rootDirectory: backend
+    rootDir: backend
     healthCheckPath: /health
     envVars:
       - key: PORT
