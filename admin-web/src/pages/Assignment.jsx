@@ -18,6 +18,10 @@ const Assignment = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedSocieties, setSelectedSocieties] = useState([]);
   
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
+
   // UI states
   const [showSocietyDropdown, setShowSocietyDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,6 +73,7 @@ const Assignment = () => {
       });
       setProperties(data);
       setSelectedPropIds(new Set()); // Reset selection on reload
+      setCurrentPage(1); // Reset pagination on data load
     } catch (err) {
       setMessage({ text: err.message || 'Failed to search properties.', type: 'error' });
     } finally {
@@ -103,11 +108,31 @@ const Assignment = () => {
   };
 
   const handleSocietyToggle = (society) => {
-    if (selectedSocieties.includes(society)) {
-      setSelectedSocieties(selectedSocieties.filter(s => s !== society));
+    const isSelected = selectedSocieties.includes(society);
+    let nextSocieties;
+    if (isSelected) {
+      nextSocieties = selectedSocieties.filter(s => s !== society);
+      // Automatically uncheck all loaded properties belonging to this society
+      const nextPropIds = new Set(selectedPropIds);
+      properties.forEach(p => {
+        if (p.society === society) {
+          nextPropIds.delete(p.id);
+        }
+      });
+      setSelectedPropIds(nextPropIds);
     } else {
-      setSelectedSocieties([...selectedSocieties, society]);
+      nextSocieties = [...selectedSocieties, society];
+      // Automatically check all loaded properties belonging to this society
+      const nextPropIds = new Set(selectedPropIds);
+      properties.forEach(p => {
+        if (p.society === society) {
+          nextPropIds.add(p.id);
+        }
+      });
+      setSelectedPropIds(nextPropIds);
     }
+    setSelectedSocieties(nextSocieties);
+    setCurrentPage(1); // Reset page on filter changes
   };
 
   const handleBulkAssign = async () => {
@@ -147,6 +172,13 @@ const Assignment = () => {
     if (prop.status_code === 'door_locked') return <span className="badge" style={{ backgroundColor: '#f59e0b', color: '#fff' }}>Door Locked</span>;
     return <span className="badge badge-success" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>Assigned ({prop.agent_name})</span>;
   };
+
+  // Slice paginated flats
+  const totalPages = Math.ceil(properties.length / ITEMS_PER_PAGE) || 1;
+  const paginatedProperties = properties.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -280,6 +312,7 @@ const Assignment = () => {
                   maxHeight: '200px',
                   overflowY: 'auto',
                   padding: '8px',
+                  marginTop: '4px'
                 }}>
                   {societies.length === 0 ? (
                     <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies found</div>
@@ -328,7 +361,7 @@ const Assignment = () => {
         }}>
           <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CheckSquare size={16} />
-            Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size}</strong> of <strong style={{ color: 'var(--text)' }}>{properties.length}</strong> loaded properties.
+            Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{properties.length.toLocaleString()}</strong> loaded properties.
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -358,70 +391,117 @@ const Assignment = () => {
         </div>
       </div>
 
-      {/* Properties Table */}
+      {/* Properties Table & Pagination Controls */}
       {loading ? (
         <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '60px' }}>
           <RefreshCw size={24} className="spin" style={{ margin: '0 auto 12px' }} />
           <span>Searching properties list...</span>
         </div>
       ) : (
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={properties.length > 0 && selectedPropIds.size === properties.length}
-                    onChange={handleSelectAll}
-                    style={{ cursor: 'pointer' }}
-                  />
-                </th>
-                <th>Consumer Details</th>
-                <th>Serial / Meter No</th>
-                <th>Society</th>
-                <th>Area Location</th>
-                <th>Task Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {properties.length === 0 ? (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px' }}>
-                    No properties match your filter options.
-                  </td>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* Scrollable fixed viewport container */}
+          <div style={{ 
+            maxHeight: '420px', 
+            overflowY: 'auto', 
+            border: '1px solid var(--border)', 
+            borderRadius: '8px',
+            backgroundColor: 'var(--surface)'
+          }}>
+            <table className="table" style={{ margin: 0 }}>
+              <thead>
+                <tr style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: 'var(--surface)', borderBottom: '2px solid var(--border)' }}>
+                  <th style={{ width: '40px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={properties.length > 0 && selectedPropIds.size === properties.length}
+                      onChange={handleSelectAll}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th>Consumer Details</th>
+                  <th>Serial / Meter No</th>
+                  <th>Society</th>
+                  <th>Area Location</th>
+                  <th>Task Status</th>
                 </tr>
-              ) : (
-                properties.map(prop => (
-                  <tr
-                    key={prop.id}
-                    onClick={() => handleSelectProperty(prop.id)}
-                    style={{ cursor: 'pointer', background: selectedPropIds.has(prop.id) ? 'rgba(59, 130, 246, 0.04)' : 'transparent' }}
-                  >
-                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedPropIds.has(prop.id)}
-                        onChange={() => handleSelectProperty(prop.id)}
-                        style={{ cursor: 'pointer' }}
-                      />
+              </thead>
+              <tbody>
+                {paginatedProperties.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px' }}>
+                      No properties match your filter options.
                     </td>
-                    <td>
-                      <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
-                      <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>{prop.address}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: '500' }}>{prop.serial_no}</div>
-                      {prop.meter_no && <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>Meter: {prop.meter_no}</div>}
-                    </td>
-                    <td style={{ color: 'var(--text)' }}>{prop.society || '-'}</td>
-                    <td>{prop.area_name || '-'}</td>
-                    <td>{getStatusBadge(prop)}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  paginatedProperties.map(prop => (
+                    <tr
+                      key={prop.id}
+                      onClick={() => handleSelectProperty(prop.id)}
+                      style={{ cursor: 'pointer', background: selectedPropIds.has(prop.id) ? 'rgba(59, 130, 246, 0.04)' : 'transparent' }}
+                    >
+                      <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPropIds.has(prop.id)}
+                          onChange={() => handleSelectProperty(prop.id)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
+                        <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>{prop.address}</div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: '500' }}>{prop.serial_no}</div>
+                        {prop.meter_no && <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>Meter: {prop.meter_no}</div>}
+                      </td>
+                      <td style={{ color: 'var(--text)' }}>{prop.society || '-'}</td>
+                      <td>{prop.area_name || '-'}</td>
+                      <td>{getStatusBadge(prop)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Client-Side Pagination Drawer controls */}
+          {totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              marginTop: '4px'
+            }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                Showing page <b>{currentPage}</b> of <b>{totalPages}</b> (Showing {paginatedProperties.length} of {properties.length.toLocaleString()} total flats)
+              </span>
+              
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '13px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '13px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

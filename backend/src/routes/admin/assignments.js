@@ -244,7 +244,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       }
     }
     
-    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 3000`; // safe performance ceiling
+    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`; // safe performance ceiling
     
     const result = await db.query(queryText, params);
     res.json(result.rows);
