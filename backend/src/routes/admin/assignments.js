@@ -149,19 +149,19 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
     next(error);
   }
 });
-// GET /admin/assignments/mrus - Get list of distinct MRU names (file_code from imports)
+// GET /admin/assignments/mrus - Get list of distinct MRU names (area names from areas table)
 router.get('/mrus', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const result = await db.query(
-      "SELECT DISTINCT file_code FROM imports WHERE file_code IS NOT NULL AND file_code <> '' ORDER BY file_code ASC"
+      "SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' ORDER BY name ASC"
     );
-    res.json(result.rows.map(r => r.file_code));
+    res.json(result.rows.map(r => r.name));
   } catch (error) {
     next(error);
   }
 });
 
-// GET /admin/assignments/months - Get available years and months for a selected MRU
+// GET /admin/assignments/months - Get available years and months for a selected MRU area name
 router.get('/months', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru } = req.query;
@@ -170,10 +170,12 @@ router.get('/months', authMiddleware, requireAdmin, async (req, res, next) => {
     }
     const result = await db.query(
       `SELECT DISTINCT 
-         EXTRACT(YEAR FROM scheduled_date)::int as year,
-         EXTRACT(MONTH FROM scheduled_date)::int as month
-       FROM imports 
-       WHERE file_code = $1 
+         EXTRACT(YEAR FROM i.scheduled_date)::int as year,
+         EXTRACT(MONTH FROM i.scheduled_date)::int as month
+       FROM imports i
+       INNER JOIN properties p ON p.import_id = i.id
+       INNER JOIN areas a ON p.area_id = a.id
+       WHERE a.name = $1
        ORDER BY year DESC, month DESC`,
       [mru]
     );
@@ -195,20 +197,23 @@ router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET /admin/assignments/societies - Get list of distinct society names (optionally filtered by MRU, year, month)
+// GET /admin/assignments/societies - Get list of distinct society names (filtered by MRU area name, year, month)
 router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
     let queryText = "SELECT DISTINCT society FROM properties WHERE society IS NOT NULL AND society <> ''";
     let params = [];
     if (mru && year && month) {
-      queryText += ` AND import_id = (
-        SELECT id FROM imports 
-        WHERE file_code = $1 
-          AND EXTRACT(YEAR FROM scheduled_date) = $2 
-          AND EXTRACT(MONTH FROM scheduled_date) = $3 
-        LIMIT 1
-      )`;
+      queryText = `
+        SELECT DISTINCT p.society 
+        FROM properties p
+        INNER JOIN areas a ON p.area_id = a.id
+        INNER JOIN imports i ON p.import_id = i.id
+        WHERE a.name = $1 
+          AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
+          AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+          AND p.society IS NOT NULL AND p.society <> ''
+      `;
       params = [mru, parseInt(year), parseInt(month)];
     }
     queryText += " ORDER BY society ASC";
@@ -219,21 +224,23 @@ router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) =>
   }
 });
 
-// GET /admin/assignments/search-properties - Query properties with status and society groupings
+// GET /admin/assignments/search-properties - Query properties with status and society groupings by area name
 router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { q, mru, year, month, status, societies, agent_filter_id } = req.query;
     
-    // Resolve matching import and cycle from the mru, year, and month
+    // Resolve matching import and cycle from the mru area name, year, and month
     if (!mru || !year || !month) {
-      return res.json({ properties: [], cycleId: null }); // Require the initial key filters to load properties
+      return res.json({ properties: [], cycleId: null });
     }
 
     const importRes = await db.query(
       `SELECT i.id as import_id, c.id as cycle_id
        FROM imports i
+       INNER JOIN properties p ON p.import_id = i.id
+       INNER JOIN areas a ON p.area_id = a.id
        LEFT JOIN cycles c ON c.label = i.billing_month
-       WHERE i.file_code = $1 
+       WHERE a.name = $1 
          AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
          AND EXTRACT(MONTH FROM i.scheduled_date) = $3
        LIMIT 1`,
@@ -241,12 +248,10 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
     );
 
     if (importRes.rows.length === 0) {
-      return res.json({ properties: [], cycleId: null }); // No matching import dataset found
+      return res.json({ properties: [], cycleId: null });
     }
 
     const { import_id, cycle_id } = importRes.rows[0];
-
-    // cycle_id can be null if cycle is not created yet, handle safely
     const targetCycleId = cycle_id || '00000000-0000-0000-0000-000000000000'; 
 
     let queryText = `
@@ -265,15 +270,15 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
         r.status_code,
         r.reading_value
       FROM properties p
-      LEFT JOIN areas a ON p.area_id = a.id
+      INNER JOIN areas a ON p.area_id = a.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE p.import_id = $2
+      WHERE a.name = $2 AND p.import_id = $3
     `;
     
-    const params = [targetCycleId, import_id];
-    let paramCount = 3;
+    const params = [targetCycleId, mru, import_id];
+    let paramCount = 4;
     
     if (q && q.trim()) {
       queryText += ` AND (p.consumer_name ILIKE $${paramCount} OR p.serial_no ILIKE $${paramCount} OR p.address ILIKE $${paramCount} OR p.society ILIKE $${paramCount})`;
@@ -308,7 +313,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       paramCount++;
     }
     
-    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`; // safe performance ceiling
+    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`;
     
     const result = await db.query(queryText, params);
     res.json({
@@ -320,7 +325,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
   }
 });
 
-// GET /admin/assignments/export - Export properties, readings, and assignment logs for a given MRU, year, and month
+// GET /admin/assignments/export - Export properties, readings, and assignment logs for a given MRU area name, year, and month
 router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
@@ -331,8 +336,10 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
     const importRes = await db.query(
       `SELECT i.id as import_id, c.id as cycle_id
        FROM imports i
+       INNER JOIN properties p ON p.import_id = i.id
+       INNER JOIN areas a ON p.area_id = a.id
        LEFT JOIN cycles c ON c.label = i.billing_month
-       WHERE i.file_code = $1 
+       WHERE a.name = $1 
          AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
          AND EXTRACT(MONTH FROM i.scheduled_date) = $3
        LIMIT 1`,
@@ -359,12 +366,13 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         r.reading_value,
         r.submitted_at
       FROM properties p
+      INNER JOIN areas a ON p.area_id = a.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE p.import_id = $2
+      WHERE a.name = $2 AND p.import_id = $3
       ORDER BY p.serial_no ASC
-    `, [targetCycleId, import_id]);
+    `, [targetCycleId, mru, import_id]);
 
     res.json(result.rows);
   } catch (error) {
