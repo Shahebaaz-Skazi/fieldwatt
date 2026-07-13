@@ -17,6 +17,7 @@ const Assignment = () => {
   const [selectedCycleId, setSelectedCycleId] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedSocieties, setSelectedSocieties] = useState([]);
+  const [societySearch, setSocietySearch] = useState('');
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -104,6 +105,7 @@ const Assignment = () => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setShowSocietyDropdown(false);
+        setSocietySearch('');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -301,7 +303,7 @@ const Assignment = () => {
                   right: 0,
                   bottom: 0,
                   zIndex: 9998
-                }} onClick={() => setShowSocietyDropdown(false)} />
+                }} onClick={() => { setShowSocietyDropdown(false); setSocietySearch(''); }} />
                 
                 <div style={{
                   position: 'absolute',
@@ -313,39 +315,77 @@ const Assignment = () => {
                   borderRadius: '8px',
                   boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
                   zIndex: 9999,
-                  maxHeight: '200px',
+                  maxHeight: '260px',
                   overflowY: 'auto',
                   padding: '8px',
-                  marginTop: '4px'
+                  marginTop: '4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
                 }}>
-                  {societies.length === 0 ? (
-                    <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies found</div>
+                  {/* Inline Search Input */}
+                  <input
+                    type="text"
+                    placeholder="Search society..."
+                    value={societySearch}
+                    onChange={(e) => setSocietySearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const matched = societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase()));
+                        if (matched.length > 0) {
+                          handleSocietyToggle(matched[0]);
+                          setSocietySearch('');
+                        }
+                      } else if (e.key === 'Escape') {
+                        setShowSocietyDropdown(false);
+                        setSocietySearch('');
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      marginBottom: '4px',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      backgroundColor: 'var(--bg-input, #f3f4f6)',
+                      color: 'var(--text, #111827)',
+                      boxSizing: 'border-box'
+                    }}
+                    autoFocus
+                  />
+
+                  {societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase())).length === 0 ? (
+                    <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies match search query</div>
                   ) : (
-                    societies.map(soc => (
-                      <label
-                        key={soc}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '6px 8px',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '13px',
-                          color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
-                          fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
-                        }}
-                        className="hover-light"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedSocieties.includes(soc)}
-                          onChange={() => handleSocietyToggle(soc)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span>{soc}</span>
-                      </label>
-                    ))
+                    societies
+                      .filter(s => s.toLowerCase().includes(societySearch.toLowerCase()))
+                      .map(soc => (
+                        <label
+                          key={soc}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
+                            fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
+                          }}
+                          className="hover-light"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSocieties.includes(soc)}
+                            onChange={() => handleSocietyToggle(soc)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span>{soc}</span>
+                        </label>
+                      ))
                   )}
                 </div>
               </>
