@@ -27,7 +27,7 @@ const Assignment = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      setError('');
+      setMessage({ text: '', type: '' });
       
       // Parallel fetches for speed
       const [cyclesData, societiesData, agentsData] = await Promise.all([
