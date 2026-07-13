@@ -366,9 +366,7 @@ const Assignment = () => {
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedSocieties.length === 0 
                   ? 'All Societies' 
-                  : selectedSocieties.join(', ').length > 25 
-                    ? selectedSocieties.join(', ').slice(0, 22) + '...' 
-                    : selectedSocieties.join(', ')}
+                  : `${selectedSocieties.length} Selected (${selectedSocieties.slice(0, 2).join(', ')}${selectedSocieties.length > 2 ? '...' : ''})`}
               </span>
               <span style={{ fontSize: '10px' }}>▼</span>
             </button>
@@ -411,9 +409,9 @@ const Assignment = () => {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const matched = societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase()));
+                        const matched = societies.filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
                         if (matched.length > 0) {
-                          handleSocietyToggle(matched[0]);
+                          handleSocietyToggle(matched[0].society);
                           setSocietySearch('');
                         }
                       } else if (e.key === 'Escape') {
@@ -436,8 +434,8 @@ const Assignment = () => {
                   />
 
                   {(() => {
-                    const filtered = societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase()));
-                    const areAllSelected = filtered.length > 0 && filtered.every(s => selectedSocieties.includes(s));
+                    const filtered = societies.filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
+                    const areAllSelected = filtered.length > 0 && filtered.every(s => selectedSocieties.includes(s.society));
                     
                     if (filtered.length === 0) {
                       return <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies match search query</div>;
@@ -467,9 +465,9 @@ const Assignment = () => {
                             checked={areAllSelected}
                             onChange={() => {
                               if (areAllSelected) {
-                                setSelectedSocieties(selectedSocieties.filter(s => !filtered.includes(s)));
+                                setSelectedSocieties(selectedSocieties.filter(s => !filtered.map(x => x.society).includes(s)));
                               } else {
-                                const union = Array.from(new Set([...selectedSocieties, ...filtered]));
+                                const union = Array.from(new Set([...selectedSocieties, ...filtered.map(x => x.society)]));
                                 setSelectedSocieties(union);
                               }
                             }}
@@ -478,32 +476,45 @@ const Assignment = () => {
                           <span>Select All ({filtered.length})</span>
                         </label>
 
-                        {/* List items */}
-                        {filtered.map(soc => (
-                          <label
-                            key={soc}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              padding: '6px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
-                              fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
-                            }}
-                            className="hover-light"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedSocieties.includes(soc)}
-                              onChange={() => handleSocietyToggle(soc)}
-                              style={{ cursor: 'pointer' }}
-                            />
-                            <span>{soc}</span>
-                          </label>
-                        ))}
+                        {/* List items with assignment count status colors */}
+                        {filtered.map(soc => {
+                          const isFullyAssigned = soc.total_count > 0 && soc.assigned_count === soc.total_count;
+                          const isPartiallyAssigned = soc.assigned_count > 0 && soc.assigned_count < soc.total_count;
+                          let statusColor = 'var(--text)';
+                          if (isFullyAssigned) statusColor = '#10b981'; // Green
+                          else if (isPartiallyAssigned) statusColor = '#f59e0b'; // Orange/Yellow
+                          
+                          return (
+                            <label
+                              key={soc.society}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '6px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                color: selectedSocieties.includes(soc.society) ? '#10b981' : statusColor,
+                                fontWeight: selectedSocieties.includes(soc.society) || isFullyAssigned || isPartiallyAssigned ? '600' : 'normal'
+                              }}
+                              className="hover-light"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedSocieties.includes(soc.society)}
+                                onChange={() => handleSocietyToggle(soc.society)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span>
+                                {soc.society}
+                                <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: '6px' }}>
+                                  ({soc.assigned_count}/{soc.total_count})
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
                       </>
                     );
                   })()}

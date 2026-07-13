@@ -197,28 +197,42 @@ router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET /admin/assignments/societies - Get list of distinct society names (filtered by MRU area name, year, month)
+// GET /admin/assignments/societies - Get list of distinct society names (filtered by MRU area name, year, month) with assignment counts
 router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
-    let queryText = "SELECT DISTINCT society FROM properties WHERE society IS NOT NULL AND society <> ''";
+    let queryText = `
+      SELECT 
+        society, 
+        0::int as total_count, 
+        0::int as assigned_count 
+      FROM properties 
+      WHERE society IS NOT NULL AND society <> ''
+      GROUP BY society
+    `;
     let params = [];
     if (mru && year && month) {
       queryText = `
-        SELECT DISTINCT p.society 
+        SELECT 
+          p.society,
+          COUNT(p.id)::int as total_count,
+          COUNT(asg.id)::int as assigned_count
         FROM properties p
         INNER JOIN areas a ON p.area_id = a.id
         INNER JOIN imports i ON p.import_id = i.id
+        LEFT JOIN cycles c ON c.label = i.billing_month
+        LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = c.id
         WHERE a.name = $1 
           AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
           AND EXTRACT(MONTH FROM i.scheduled_date) = $3
           AND p.society IS NOT NULL AND p.society <> ''
+        GROUP BY p.society
       `;
       params = [mru, parseInt(year), parseInt(month)];
     }
     queryText += " ORDER BY society ASC";
     const result = await db.query(queryText, params);
-    res.json(result.rows.map(r => r.society));
+    res.json(result.rows);
   } catch (error) {
     next(error);
   }
