@@ -40,7 +40,7 @@ export default function WorkListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   
   // Navigation states
-  const [currentNavTab, setCurrentNavTab] = useState<'dashboard' | 'assignments' | 'profile'>('dashboard');
+  const [currentNavTab, setCurrentNavTab] = useState<'assignments' | 'radar' | 'profile'>('assignments');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedArea, setSelectedArea] = useState<string>('All');
   const [selectedSociety, setSelectedSociety] = useState<string>('All');
@@ -52,7 +52,115 @@ export default function WorkListScreen() {
   const [nearestProperty, setNearestProperty] = useState<any | null>(null);
   const [selectedMapProperty, setSelectedMapProperty] = useState<any | null>(null);
 
+  // Hierarchical view states
+  const [drillLevel, setDrillLevel] = useState<'areas' | 'societies' | 'wings' | 'flats'>('areas');
+  const [drillArea, setDrillArea] = useState<string | null>(null);
+  const [drillSociety, setDrillSociety] = useState<string | null>(null);
+  const [drillWing, setDrillWing] = useState<string | null>(null);
+  const [drillSearch, setDrillSearch] = useState('');
+
+  // Wing parser helper
+  const getWingFromAddress = (address: string) => {
+    if (!address) return 'No Wing';
+    const upper = address.toUpperCase();
+    const match = upper.match(/(?:WING|BLDG|BUILDING|BLDG-|WING-)\s*([A-Z0-9]+)/i) || 
+                  upper.match(/([A-Z0-9]+)\s*(?:WING|BLDG|BUILDING)/i);
+    if (match) {
+      return match[1].trim() + ' Wing';
+    }
+    
+    const flatMatch = upper.match(/(?:FLAT|APT|ROOM|NO)?\s*\b([A-Z])[-/\s]?\d{2,4}\b/i);
+    if (flatMatch) {
+      return flatMatch[1].trim() + ' Wing';
+    }
+    
+    return 'Main Wing';
+  };
+
+  // Compute unique areas for drilldown
+  const drillAreasList = React.useMemo(() => {
+    const counts: { [key: string]: { total: number; pending: number } } = {};
+    properties.forEach(p => {
+      if (!p.area_name) return;
+      if (!counts[p.area_name]) {
+        counts[p.area_name] = { total: 0, pending: 0 };
+      }
+      counts[p.area_name].total += 1;
+      if (!p.reading_status) {
+        counts[p.area_name].pending += 1;
+      }
+    });
+    return Object.keys(counts).sort().map(name => ({
+      name,
+      total: counts[name].total,
+      pending: counts[name].pending
+    }));
+  }, [properties]);
+
   // Compute unique societies for selected area
+  const drillSocietiesList = React.useMemo(() => {
+    if (!drillArea) return [];
+    const counts: { [key: string]: { total: number; pending: number } } = {};
+    properties.forEach(p => {
+      if (p.area_name !== drillArea || !p.society) return;
+      if (!counts[p.society]) {
+        counts[p.society] = { total: 0, pending: 0 };
+      }
+      counts[p.society].total += 1;
+      if (!p.reading_status) {
+        counts[p.society].pending += 1;
+      }
+    });
+    return Object.keys(counts).sort().map(name => ({
+      name,
+      total: counts[name].total,
+      pending: counts[name].pending
+    }));
+  }, [properties, drillArea]);
+
+  // Compute unique wings for selected area and society
+  const drillWingsList = React.useMemo(() => {
+    if (!drillArea || !drillSociety) return [];
+    const counts: { [key: string]: { total: number; pending: number } } = {};
+    properties.forEach(p => {
+      if (p.area_name !== drillArea || p.society !== drillSociety) return;
+      const wing = getWingFromAddress(p.address);
+      if (!counts[wing]) {
+        counts[wing] = { total: 0, pending: 0 };
+      }
+      counts[wing].total += 1;
+      if (!p.reading_status) {
+        counts[wing].pending += 1;
+      }
+    });
+    return Object.keys(counts).sort().map(name => ({
+      name,
+      total: counts[name].total,
+      pending: counts[name].pending
+    }));
+  }, [properties, drillArea, drillSociety]);
+
+  // Compute unique flats for selected area, society, and wing
+  const drillFlatsList = React.useMemo(() => {
+    if (!drillArea || !drillSociety || !drillWing) return [];
+    let list = properties.filter(p => 
+      p.area_name === drillArea && 
+      p.society === drillSociety && 
+      getWingFromAddress(p.address) === drillWing
+    );
+    
+    if (drillSearch) {
+      const q = drillSearch.toLowerCase();
+      list = list.filter(p => 
+        p.consumer_name.toLowerCase().includes(q) || 
+        p.serial_no.includes(q) ||
+        (p.meter_no && p.meter_no.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [properties, drillArea, drillSociety, drillWing, drillSearch]);
+
+  // Compute unique societies for selected area (old filters)
   const availableSocieties = React.useMemo(() => {
     if (!selectedArea || selectedArea === 'All') return [];
     const filteredByArea = properties.filter(item => item.area_name === selectedArea);
@@ -63,7 +171,7 @@ export default function WorkListScreen() {
     return ['All', ...Array.from(uniqueSoc).sort()];
   }, [properties, selectedArea]);
 
-  // Reset society filter when area changes
+  // Reset society filter when area changes (old filters)
   useEffect(() => {
     setSelectedSociety('All');
   }, [selectedArea]);
@@ -186,14 +294,12 @@ export default function WorkListScreen() {
           distance_m: minDistance
         });
       } else {
-        // Fallback if coordinates are not seeded yet
         setNearestProperty({
           ...pending[0],
           distance_m: null
         });
       }
     } else {
-      // Fallback if GPS coordinates are not loaded yet
       setNearestProperty({
         ...pending[0],
         distance_m: null
@@ -205,45 +311,30 @@ export default function WorkListScreen() {
     return <Redirect href="/login" />;
   }
 
-  // Calculate statistics
-  const total = properties.length;
-  const doneCount = properties.filter(p => p.reading_status === 'reading_taken').length;
-  const problemCount = properties.filter(p => p.reading_status && p.reading_status !== 'reading_taken').length;
-  const completed = doneCount + problemCount;
-  const progressPercent = total > 0 ? completed / total : 0;
-
   // ─────────────────────────────────────────────
   // Vector Radar Mapping Engine
   // ─────────────────────────────────────────────
-  // Centers the agent, and plots properties relative to them.
-  // Fallbacks: If no GPS is present, center around the average coordinate of seeded properties.
-  // ─────────────────────────────────────────────
   const renderRadarMap = () => {
-    // 1. Establish center coordinates
     let centerLat = agentLocation?.lat;
     let centerLng = agentLocation?.lng;
 
     if (!centerLat || !centerLng) {
-      // Fallback center: average coordinates of properties that have them
       const withCoords = properties.filter(p => p.lat && p.lng);
       if (withCoords.length > 0) {
         centerLat = withCoords.reduce((acc, p) => acc + p.lat, 0) / withCoords.length;
         centerLng = withCoords.reduce((acc, p) => acc + p.lng, 0) / withCoords.length;
       } else {
-        // Manhattan fallback coordinates
         centerLat = 40.7831;
         centerLng = -73.9712;
       }
     }
 
-    // 2. Map coordinates to pixel offsets (radius: 120 pixels max screen projection)
     const RADAR_RADIUS = 135;
-    const MAX_METRES = 600; // Zoom level scale: 600m radius covers active zone
+    const MAX_METRES = 600;
 
     const mappedPins = properties.map(p => {
       if (!p.lat || !p.lng) return null;
       
-      // Calculate distances in meters along X and Y axes
       const distY = haversineDistance(centerLat!, centerLng!, p.lat, centerLng!);
       const distX = haversineDistance(centerLat!, centerLng!, centerLat!, p.lng);
 
@@ -253,11 +344,9 @@ export default function WorkListScreen() {
       const deltaX = distX * signX;
       const deltaY = distY * signY;
 
-      // Project onto pixel grid relative to center
       const projX = (deltaX / MAX_METRES) * RADAR_RADIUS;
       const projY = (deltaY / MAX_METRES) * RADAR_RADIUS;
 
-      // Calculate absolute distance for tooltip display
       const distance = haversineDistance(centerLat!, centerLng!, p.lat, p.lng);
 
       return {
@@ -275,32 +364,26 @@ export default function WorkListScreen() {
           <Text style={styles.radarSubtitle}>Concentric scope: 600m range · Offline-safe</Text>
         </View>
 
-        {/* The radar circle grid */}
         <View style={styles.radarScope}>
-          {/* Circular grids */}
           <View style={[styles.radarRing, { width: 90, height: 90, borderRadius: 45 }]} />
           <View style={[styles.radarRing, { width: 180, height: 180, borderRadius: 90 }]} />
           <View style={[styles.radarRing, { width: 270, height: 270, borderRadius: 135 }]} />
 
-          {/* Scope crosshairs */}
           <View style={[styles.radarLine, { width: 270, height: 1 }]} />
           <View style={[styles.radarLine, { width: 1, height: 270 }]} />
 
-          {/* Properties Pins */}
           {mappedPins.map((pin: any) => {
-            // Check boundaries
             const distFromCenter = Math.sqrt(pin.x * pin.x + pin.y * pin.y);
-            if (distFromCenter > RADAR_RADIUS) return null; // out of scope
+            if (distFromCenter > RADAR_RADIUS) return null;
 
             const isNearest = nearestProperty && nearestProperty.id === pin.id;
             const isSelected = selectedMapProperty && selectedMapProperty.id === pin.id;
 
-            // Determine pin color
-            let pinColor = '#374151'; // Pending (gray)
+            let pinColor = '#374151';
             if (pin.reading_status === 'reading_taken') {
-              pinColor = '#10b981'; // Done (green)
+              pinColor = '#10b981';
             } else if (pin.reading_status && pin.reading_status !== 'reading_taken') {
-              pinColor = '#f59e0b'; // Problem (orange)
+              pinColor = '#f59e0b';
             }
 
             return (
@@ -323,13 +406,11 @@ export default function WorkListScreen() {
             );
           })}
 
-          {/* Agent core indicator (center) */}
           <View style={styles.agentPin}>
             <View style={styles.agentPinCore} />
           </View>
         </View>
 
-        {/* Selected property bottom card sheet */}
         {selectedMapProperty ? (
           <View style={styles.mapSheetCard}>
             <View style={styles.mapSheetHeader}>
@@ -385,229 +466,244 @@ export default function WorkListScreen() {
     );
   };
 
-  const renderDashboardTab = () => {
-    const total = properties.length;
-    const completed = properties.filter(p => p.reading_status === 'reading_taken').length;
-    const remained = properties.filter(p => !p.reading_status).length;
-    const progressPercent = total > 0 ? (completed / total) : 0;
+  // ── Tab 1: Hierarchical Worklist Tab ──
+  const renderWorklistTab = () => {
+    const handleGoBack = () => {
+      if (drillLevel === 'flats') {
+        setDrillLevel('wings');
+        setDrillWing(null);
+      } else if (drillLevel === 'wings') {
+        setDrillLevel('societies');
+        setDrillSociety(null);
+      } else if (drillLevel === 'societies') {
+        setDrillLevel('areas');
+        setDrillArea(null);
+      }
+    };
 
     return (
       <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
         {/* Header bar */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Hello, {user?.name?.split(' ')[0] || 'Agent'}</Text>
-            <Text style={styles.headerSubtitle}>Duty Tracking Console</Text>
+            <Text style={styles.headerTitle}>Task Assignments</Text>
+            <Text style={styles.headerSubtitle}>Drilldown list · Offline cache</Text>
           </View>
           <SyncIndicator />
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-          {/* Progress overview card */}
-          <View style={[styles.progressCard, { marginHorizontal: 0, marginTop: 0 }]}>
-            <View style={styles.progressRow}>
-              <Text style={styles.progressLabel}>Overall Completion Progress</Text>
-              <Text style={styles.progressValue}>{completed} of {total} done</Text>
-            </View>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]} />
-            </View>
-            <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 8, textAlign: 'right' }}>
-              {Math.round(progressPercent * 100)}% Completed today
-            </Text>
+        {/* Path Navigator / Breadcrumbs */}
+        {drillLevel !== 'areas' && (
+          <View style={styles.pathNavigator}>
+            <TouchableOpacity onPress={handleGoBack} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={15} color="#111827" />
+              <Text style={styles.backBtnText}>Back</Text>
+            </TouchableOpacity>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pathBreadcrumbs}>
+              <Text style={styles.breadcrumbItem}>{drillArea}</Text>
+              {drillSociety && (
+                <>
+                  <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
+                  <Text style={styles.breadcrumbItem}>{drillSociety}</Text>
+                </>
+              )}
+              {drillWing && (
+                <>
+                  <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
+                  <Text style={styles.breadcrumbItem}>{drillWing}</Text>
+                </>
+              )}
+            </ScrollView>
           </View>
+        )}
 
-          {/* Metric cards grid */}
-          <View style={{ gap: 12 }}>
-            <Text style={{ fontSize: 12, fontWeight: '800', color: '#6b7280', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>
-              📌 Duty Stats (Click card to filter list)
-            </Text>
+        {/* Content list */}
+        {loading ? (
+          <View style={styles.loadingContainer}><ActivityIndicator color="#10b981" size="large" /></View>
+        ) : (
+          <View style={{ flex: 1 }}>
+            {drillLevel === 'areas' && (
+              <FlatList
+                data={drillAreasList}
+                keyExtractor={(item) => item.name}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
+                }
+                ListHeaderComponent={
+                  <Text style={styles.drillSectionTitle}>Select Area ({drillAreasList.length})</Text>
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No assigned areas found.</Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDrillArea(item.name);
+                      setDrillLevel('societies');
+                    }}
+                    style={styles.drillCard}
+                  >
+                    <View style={styles.drillCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={styles.drillIconWrapper}>
+                          <Ionicons name="folder-open" size={20} color="#10b981" />
+                        </View>
+                        <View>
+                          <Text style={styles.drillCardName}>{item.name}</Text>
+                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
 
-            {/* Metric Card 1: Today's Assignments */}
-            <TouchableOpacity
-              onPress={() => {
-                setCurrentNavTab('assignments');
-                setActiveTab('done');
-              }}
-              style={{
-                backgroundColor: '#ecfdf5',
-                borderColor: '#a7f3d0',
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 20,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-              activeOpacity={0.8}
-            >
-              <View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#065f46', textTransform: 'uppercase' }}>Today's Done</Text>
-                <Text style={{ fontSize: 28, fontWeight: '900', color: '#065f46', marginTop: 4 }}>{completed}</Text>
-              </View>
-              <Ionicons name="checkmark-circle-outline" size={32} color="#065f46" />
-            </TouchableOpacity>
+            {drillLevel === 'societies' && (
+              <FlatList
+                data={drillSocietiesList}
+                keyExtractor={(item) => item.name}
+                ListHeaderComponent={
+                  <Text style={styles.drillSectionTitle}>Select Society ({drillSocietiesList.length})</Text>
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No societies found in this area.</Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDrillSociety(item.name);
+                      setDrillLevel('wings');
+                    }}
+                    style={styles.drillCard}
+                  >
+                    <View style={styles.drillCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                          <Ionicons name="business" size={20} color="#3b82f6" />
+                        </View>
+                        <View>
+                          <Text style={styles.drillCardName}>{item.name}</Text>
+                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
 
-            {/* Metric Card 2: Total Assignments */}
-            <TouchableOpacity
-              onPress={() => {
-                setCurrentNavTab('assignments');
-                setActiveTab('pending');
-              }}
-              style={{
-                backgroundColor: '#ffffff',
-                borderColor: '#e5e7eb',
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 20,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-              activeOpacity={0.8}
-            >
-              <View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#111827', textTransform: 'uppercase' }}>Total Assignments</Text>
-                <Text style={{ fontSize: 28, fontWeight: '900', color: '#111827', marginTop: 4 }}>{total}</Text>
-              </View>
-              <Ionicons name="documents-outline" size={32} color="#111827" />
-            </TouchableOpacity>
+            {drillLevel === 'wings' && (
+              <FlatList
+                data={drillWingsList}
+                keyExtractor={(item) => item.name}
+                ListHeaderComponent={
+                  <Text style={styles.drillSectionTitle}>Select Wing / Building ({drillWingsList.length})</Text>
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No wings found in this society.</Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDrillWing(item.name);
+                      setDrillLevel('flats');
+                    }}
+                    style={styles.drillCard}
+                  >
+                    <View style={styles.drillCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                          <Ionicons name="grid" size={20} color="#f59e0b" />
+                        </View>
+                        <View>
+                          <Text style={styles.drillCardName}>{item.name}</Text>
+                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
 
-            {/* Metric Card 3: Remained Assignments */}
-            <TouchableOpacity
-              onPress={() => {
-                setCurrentNavTab('assignments');
-                setActiveTab('pending');
-              }}
-              style={{
-                backgroundColor: '#fef2f2',
-                borderColor: '#fca5a5',
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 20,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-              activeOpacity={0.8}
-            >
-              <View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#991b1b', textTransform: 'uppercase' }}>Remained Assignment</Text>
-                <Text style={{ fontSize: 28, fontWeight: '900', color: '#991b1b', marginTop: 4 }}>{remained}</Text>
-              </View>
-              <Ionicons name="time-outline" size={32} color="#991b1b" />
-            </TouchableOpacity>
+            {drillLevel === 'flats' && (
+              <>
+                <View style={[styles.searchBar, { marginTop: 12 }]}>
+                  <Ionicons name="search" size={16} color="#8b9bb4" style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search flats by name or serial..."
+                    placeholderTextColor="#8b9bb4"
+                    value={drillSearch}
+                    onChangeText={setDrillSearch}
+                  />
+                </View>
+
+                <FlatList
+                  data={drillFlatsList}
+                  keyExtractor={(item) => item.id}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
+                  }
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>No properties matched search query.</Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      onPress={() => router.push(`/property/${item.id}`)}
+                      style={styles.itemCard}
+                    >
+                      <View style={styles.itemHeader}>
+                        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
+                        {item.reading_status ? (
+                          <View style={[
+                            styles.itemBadge,
+                            item.reading_status === 'reading_taken' ? styles.badgeSuccess : styles.badgeDanger
+                          ]}>
+                            <Text style={[
+                              styles.itemBadgeText,
+                              item.reading_status === 'reading_taken' ? styles.badgeTextSuccess : styles.badgeTextDanger
+                            ]}>
+                              {item.reading_status.replace('_', ' ')}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={[styles.itemBadge, styles.badgePending]}>
+                            <Text style={[styles.itemBadgeText, styles.badgeTextPending]}>Pending</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
+                      <Text style={styles.itemAddress}>{item.address}</Text>
+                      {item.meter_no ? (
+                        <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  )}
+                />
+              </>
+            )}
           </View>
-          
-          {/* Quick Action Button */}
-          <TouchableOpacity
-            onPress={() => {
-              setCurrentNavTab('assignments');
-              setViewMode('map');
-            }}
-            style={{
-              backgroundColor: '#111827',
-              borderRadius: 12,
-              padding: 16,
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'row',
-              gap: 8,
-              marginTop: 10
-            }}
-          >
-            <Ionicons name="navigate-outline" size={18} color="#ffffff" />
-            <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 14 }}>Open Scope Radar Scan</Text>
-          </TouchableOpacity>
-        </ScrollView>
+        )}
       </View>
     );
   };
 
-  const renderProfileTab = () => {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Operator Profile</Text>
-            <Text style={styles.headerSubtitle}>Account & Settings</Text>
-          </View>
-        </View>
-
-        {/* Profile Card */}
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-          <View style={{
-            backgroundColor: '#ffffff',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 20,
-            alignItems: 'center',
-            gap: 12
-          }}>
-            <View style={{
-              width: 72,
-              height: 72,
-              borderRadius: 36,
-              backgroundColor: '#f3f4f6',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderColor: '#e5e7eb',
-              borderWidth: 1
-            }}>
-              <Ionicons name="person" size={32} color="#111827" />
-            </View>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>{user?.name || 'Field Operator'}</Text>
-              <Text style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{user?.phone}</Text>
-            </View>
-          </View>
-
-          {/* Details list */}
-          <View style={{
-            backgroundColor: '#ffffff',
-            borderColor: '#e5e7eb',
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 16,
-            gap: 12
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 10 }}>
-              <Text style={{ color: '#6b7280', fontSize: 13 }}>Status</Text>
-              <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '600' }}>Active / Duty</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 10 }}>
-              <Text style={{ color: '#6b7280', fontSize: 13 }}>System Mode</Text>
-              <Text style={{ color: '#111827', fontSize: 13 }}>Offline-First Sync</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#6b7280', fontSize: 13 }}>Total Sync Entries</Text>
-              <Text style={{ color: '#111827', fontSize: 13 }}>{properties.length} Cache Nodes</Text>
-            </View>
-          </View>
-
-          {/* Logout Action */}
-          <TouchableOpacity 
-            onPress={() => logout()} 
-            style={{
-              backgroundColor: '#fef2f2',
-              borderColor: '#fca5a5',
-              borderWidth: 1,
-              borderRadius: 12,
-              paddingVertical: 14,
-              alignItems: 'center',
-              marginTop: 20
-            }}
-          >
-            <Text style={{ color: '#991b1b', fontWeight: '700', fontSize: 14 }}>Log Out of Session</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderAssignmentsTab = () => {
+  // ── Tab 2: GPS Scope Radar Tab ──
+  const renderRadarScopeTab = () => {
     const total = properties.length;
     const doneCount = properties.filter(p => p.reading_status === 'reading_taken').length;
     const problemCount = properties.filter(p => p.reading_status && p.reading_status !== 'reading_taken').length;
@@ -619,12 +715,11 @@ export default function WorkListScreen() {
         {/* Header bar */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Task Assignments</Text>
+            <Text style={styles.headerTitle}>Radar Scope View</Text>
             <Text style={styles.headerSubtitle}>{properties.length} entries allocated</Text>
           </View>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Toggle View mode */}
             <TouchableOpacity
               onPress={() => setViewMode(v => v === 'list' ? 'map' : 'list')}
               style={styles.viewModeToggle}
@@ -654,7 +749,7 @@ export default function WorkListScreen() {
 
         {/* Zone / Area Selector Horizontal Pills */}
         <View style={styles.areaFilterContainer}>
-          <Text style={styles.areaFilterLabel}>📁 ASSIGNED AREAS</Text>
+          <Text style={styles.areaFilterLabel}>📁 FILTER BY AREA</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.areaPillsContainer}>
             {['All', ...Array.from(new Set(properties.map(p => p.area_name).filter(Boolean)))].map((areaName) => {
               const isActive = selectedArea === areaName;
@@ -680,7 +775,7 @@ export default function WorkListScreen() {
         {/* Society / Street Selector Horizontal Pills */}
         {selectedArea && selectedArea !== 'All' && availableSocieties.length > 1 && (
           <View style={[styles.areaFilterContainer, { marginTop: -4, marginBottom: 12 }]}>
-            <Text style={styles.areaFilterLabel}>🏡 SOCIETIES / COLONIES</Text>
+            <Text style={styles.areaFilterLabel}>🏡 FILTER BY SOCIETY</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.areaPillsContainer}>
               {availableSocieties.map((socName) => {
                 const isActive = selectedSociety === socName;
@@ -839,23 +934,93 @@ export default function WorkListScreen() {
     );
   };
 
+  // ── Tab 3: Operator Profile Settings ──
+  const renderProfileTab = () => {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Operator Profile</Text>
+            <Text style={styles.headerSubtitle}>Account & Settings</Text>
+          </View>
+        </View>
+
+        {/* Profile Card */}
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+          <View style={{
+            backgroundColor: '#ffffff',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 20,
+            alignItems: 'center',
+            gap: 12
+          }}>
+            <View style={{
+              width: 72,
+              height: 72,
+              borderRadius: 36,
+              backgroundColor: '#f3f4f6',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderColor: '#e5e7eb',
+              borderWidth: 1
+            }}>
+              <Ionicons name="person" size={32} color="#111827" />
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>{user?.name || 'Field Operator'}</Text>
+              <Text style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{user?.phone}</Text>
+            </View>
+          </View>
+
+          {/* Details list */}
+          <View style={{
+            backgroundColor: '#ffffff',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 16,
+            gap: 12
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 10 }}>
+              <Text style={{ color: '#6b7280', fontSize: 13 }}>Status</Text>
+              <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '600' }}>Active / Duty</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingBottom: 10 }}>
+              <Text style={{ color: '#6b7280', fontSize: 13 }}>System Mode</Text>
+              <Text style={{ color: '#111827', fontSize: 13 }}>Offline-First Sync</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#6b7280', fontSize: 13 }}>Total Sync Entries</Text>
+              <Text style={{ color: '#111827', fontSize: 13 }}>{properties.length} Cache Nodes</Text>
+            </View>
+          </View>
+
+          {/* Logout Action */}
+          <TouchableOpacity 
+            onPress={() => logout()} 
+            style={{
+              backgroundColor: '#fef2f2',
+              borderColor: '#fca5a5',
+              borderWidth: 1,
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+              marginTop: 20
+            }}
+          >
+            <Text style={{ color: '#991b1b', fontWeight: '700', fontSize: 14 }}>Log Out of Session</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  };
+
   const renderBottomTabBar = () => {
     return (
       <View style={styles.bottomTab}>
-        <TouchableOpacity
-          onPress={() => setCurrentNavTab('dashboard')}
-          style={styles.bottomTabButton}
-        >
-          <Ionicons 
-            name={currentNavTab === 'dashboard' ? 'home' : 'home-outline'} 
-            size={20} 
-            color={currentNavTab === 'dashboard' ? '#111827' : '#6b7280'} 
-          />
-          <Text style={[styles.bottomTabText, currentNavTab === 'dashboard' && styles.bottomTabTextActive]}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           onPress={() => setCurrentNavTab('assignments')}
           style={styles.bottomTabButton}
@@ -866,7 +1031,21 @@ export default function WorkListScreen() {
             color={currentNavTab === 'assignments' ? '#111827' : '#6b7280'} 
           />
           <Text style={[styles.bottomTabText, currentNavTab === 'assignments' && styles.bottomTabTextActive]}>
-            Assignments
+            Worklist
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setCurrentNavTab('radar')}
+          style={styles.bottomTabButton}
+        >
+          <Ionicons 
+            name={currentNavTab === 'radar' ? 'navigate' : 'navigate-outline'} 
+            size={20} 
+            color={currentNavTab === 'radar' ? '#111827' : '#6b7280'} 
+          />
+          <Text style={[styles.bottomTabText, currentNavTab === 'radar' && styles.bottomTabTextActive]}>
+            Radar Scope
           </Text>
         </TouchableOpacity>
 
@@ -890,8 +1069,8 @@ export default function WorkListScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={{ flex: 1, marginBottom: 60 }}>
-        {currentNavTab === 'dashboard' && renderDashboardTab()}
-        {currentNavTab === 'assignments' && renderAssignmentsTab()}
+        {currentNavTab === 'assignments' && renderWorklistTab()}
+        {currentNavTab === 'radar' && renderRadarScopeTab()}
         {currentNavTab === 'profile' && renderProfileTab()}
       </View>
       {renderBottomTabBar()}
@@ -1347,5 +1526,83 @@ const styles = StyleSheet.create({
   bottomTabTextActive: {
     color: '#111827',
   },
+  // ── Hierarchical Path Navigation Styles ──
+  pathNavigator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    gap: 12,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  backBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  pathBreadcrumbs: {
+    alignItems: 'center',
+    gap: 6,
+    flexDirection: 'row',
+  },
+  breadcrumbItem: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  drillSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6b7280',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  drillCard: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e5e7eb',
+    borderWidth: 1,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+  },
+  drillCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  drillIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drillCardName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  drillCardMeta: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
 });
-
