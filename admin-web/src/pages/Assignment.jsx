@@ -409,7 +409,10 @@ const Assignment = () => {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        const matched = societies.filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
+                        const matched = societies
+                          .map(s => typeof s === 'string' ? { society: s, total_count: 0, assigned_count: 0 } : s)
+                          .filter(s => s && s.society)
+                          .filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
                         if (matched.length > 0) {
                           handleSocietyToggle(matched[0].society);
                           setSocietySearch('');
@@ -434,7 +437,10 @@ const Assignment = () => {
                   />
 
                   {(() => {
-                    const filtered = societies.filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
+                    const normalized = societies
+                      .map(s => typeof s === 'string' ? { society: s, total_count: 0, assigned_count: 0 } : s)
+                      .filter(s => s && s.society);
+                    const filtered = normalized.filter(s => s.society.toLowerCase().includes(societySearch.toLowerCase()));
                     const areAllSelected = filtered.length > 0 && filtered.every(s => selectedSocieties.includes(s.society));
                     
                     if (filtered.length === 0) {
