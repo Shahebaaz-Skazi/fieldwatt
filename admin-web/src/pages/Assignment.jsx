@@ -36,6 +36,7 @@ const Assignment = () => {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const fetchMrusAndAgents = async () => {
     try {
@@ -59,7 +60,14 @@ const Assignment = () => {
   };
 
   const fetchMonthsForMru = async (mru) => {
-    if (!mru) return;
+    if (!mru) {
+      setAvailableMonths([]);
+      setSelectedYear('');
+      setSelectedMonth('');
+      setSocieties([]);
+      setSelectedSocieties([]);
+      return;
+    }
     try {
       const monthsData = await api.get('/admin/assignments/months', { params: { mru } });
       setAvailableMonths(monthsData);
@@ -152,11 +160,16 @@ const Assignment = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const handleShowData = () => {
+    setHasLoaded(true);
+    fetchProperties();
+  };
+
   useEffect(() => {
-    if (properties.length > 0 || debouncedSearch) {
+    if (hasLoaded) {
       fetchProperties();
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, selectedMru, selectedYear, selectedMonth, selectedSocieties, selectedStatus, aboveAgentFilterId]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -422,14 +435,18 @@ const Assignment = () => {
                     autoFocus
                   />
 
-                  {societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase())).length === 0 ? (
-                    <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies match search query</div>
-                  ) : (
-                    societies
-                      .filter(s => s.toLowerCase().includes(societySearch.toLowerCase()))
-                      .map(soc => (
+                  {(() => {
+                    const filtered = societies.filter(s => s.toLowerCase().includes(societySearch.toLowerCase()));
+                    const areAllSelected = filtered.length > 0 && filtered.every(s => selectedSocieties.includes(s));
+                    
+                    if (filtered.length === 0) {
+                      return <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies match search query</div>;
+                    }
+
+                    return (
+                      <>
+                        {/* Select All Toggle */}
                         <label
-                          key={soc}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -438,21 +455,58 @@ const Assignment = () => {
                             borderRadius: '4px',
                             cursor: 'pointer',
                             fontSize: '13px',
-                            color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
-                            fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
+                            fontWeight: '600',
+                            borderBottom: '1px solid var(--border)',
+                            paddingBottom: '8px',
+                            marginBottom: '4px',
+                            color: 'var(--text)'
                           }}
-                          className="hover-light"
                         >
                           <input
                             type="checkbox"
-                            checked={selectedSocieties.includes(soc)}
-                            onChange={() => handleSocietyToggle(soc)}
+                            checked={areAllSelected}
+                            onChange={() => {
+                              if (areAllSelected) {
+                                setSelectedSocieties(selectedSocieties.filter(s => !filtered.includes(s)));
+                              } else {
+                                const union = Array.from(new Set([...selectedSocieties, ...filtered]));
+                                setSelectedSocieties(union);
+                              }
+                            }}
                             style={{ cursor: 'pointer' }}
                           />
-                          <span>{soc}</span>
+                          <span>Select All ({filtered.length})</span>
                         </label>
-                      ))
-                  )}
+
+                        {/* List items */}
+                        {filtered.map(soc => (
+                          <label
+                            key={soc}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '6px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
+                              fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
+                            }}
+                            className="hover-light"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedSocieties.includes(soc)}
+                              onChange={() => handleSocietyToggle(soc)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span>{soc}</span>
+                          </label>
+                        ))}
+                      </>
+                    );
+                  })()}
                 </div>
               </>
             )}
@@ -496,7 +550,7 @@ const Assignment = () => {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={fetchProperties}
+              onClick={handleShowData}
               style={{ width: '100%', height: '40px', justifyContent: 'center' }}
             >
               Show Data
