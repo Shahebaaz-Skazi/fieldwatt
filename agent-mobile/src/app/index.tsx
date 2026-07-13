@@ -81,13 +81,13 @@ export default function WorkListScreen() {
   const drillAreasList = React.useMemo(() => {
     const counts: { [key: string]: { total: number; pending: number } } = {};
     properties.forEach(p => {
-      if (!p.area_name) return;
-      if (!counts[p.area_name]) {
-        counts[p.area_name] = { total: 0, pending: 0 };
+      const area = p.area_name ? p.area_name.trim() : 'No Area';
+      if (!counts[area]) {
+        counts[area] = { total: 0, pending: 0 };
       }
-      counts[p.area_name].total += 1;
+      counts[area].total += 1;
       if (!p.reading_status) {
-        counts[p.area_name].pending += 1;
+        counts[area].pending += 1;
       }
     });
     return Object.keys(counts).sort().map(name => ({
@@ -102,13 +102,15 @@ export default function WorkListScreen() {
     if (!drillArea) return [];
     const counts: { [key: string]: { total: number; pending: number } } = {};
     properties.forEach(p => {
-      if (p.area_name !== drillArea || !p.society) return;
-      if (!counts[p.society]) {
-        counts[p.society] = { total: 0, pending: 0 };
+      const area = p.area_name ? p.area_name.trim() : 'No Area';
+      if (area !== drillArea) return;
+      const soc = p.society ? p.society.trim() : 'No Society';
+      if (!counts[soc]) {
+        counts[soc] = { total: 0, pending: 0 };
       }
-      counts[p.society].total += 1;
+      counts[soc].total += 1;
       if (!p.reading_status) {
-        counts[p.society].pending += 1;
+        counts[soc].pending += 1;
       }
     });
     return Object.keys(counts).sort().map(name => ({
@@ -123,7 +125,9 @@ export default function WorkListScreen() {
     if (!drillArea || !drillSociety) return [];
     const counts: { [key: string]: { total: number; pending: number } } = {};
     properties.forEach(p => {
-      if (p.area_name !== drillArea || p.society !== drillSociety) return;
+      const area = p.area_name ? p.area_name.trim() : 'No Area';
+      const soc = p.society ? p.society.trim() : 'No Society';
+      if (area !== drillArea || soc !== drillSociety) return;
       const wing = getWingFromAddress(p.address);
       if (!counts[wing]) {
         counts[wing] = { total: 0, pending: 0 };
@@ -143,11 +147,13 @@ export default function WorkListScreen() {
   // Compute unique flats for selected area, society, and wing
   const drillFlatsList = React.useMemo(() => {
     if (!drillArea || !drillSociety || !drillWing) return [];
-    let list = properties.filter(p => 
-      p.area_name === drillArea && 
-      p.society === drillSociety && 
-      getWingFromAddress(p.address) === drillWing
-    );
+    let list = properties.filter(p => {
+      const area = p.area_name ? p.area_name.trim() : 'No Area';
+      const soc = p.society ? p.society.trim() : 'No Society';
+      return area === drillArea && 
+             soc === drillSociety && 
+             getWingFromAddress(p.address) === drillWing;
+    });
     
     if (drillSearch) {
       const q = drillSearch.toLowerCase();
