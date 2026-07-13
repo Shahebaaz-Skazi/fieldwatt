@@ -264,7 +264,7 @@ const Assignment = () => {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  zIndex: 99
+                  zIndex: 9998
                 }} onClick={() => setShowSocietyDropdown(false)} />
                 
                 <div style={{
@@ -272,15 +272,14 @@ const Assignment = () => {
                   top: '100%',
                   left: 0,
                   right: 0,
-                  background: 'var(--bg-card)',
+                  backgroundColor: 'var(--surface, #ffffff)',
                   border: '1px solid var(--border)',
                   borderRadius: '8px',
-                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                  zIndex: 100,
+                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)',
+                  zIndex: 9999,
                   maxHeight: '200px',
                   overflowY: 'auto',
                   padding: '8px',
-                  marginTop: '4px'
                 }}>
                   {societies.length === 0 ? (
                     <div style={{ color: 'var(--muted)', padding: '8px', fontSize: '12px' }}>No societies found</div>

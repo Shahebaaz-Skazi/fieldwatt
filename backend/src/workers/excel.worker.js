@@ -240,6 +240,15 @@ const processExcel = async () => {
       cycleId = newCycle.rows[0].id;
     }
 
+    // Ensure this spreadsheet has not been imported for this billing cycle already (double-fill safety fallback)
+    const existing = await dbClient.query(
+      'SELECT id FROM imports WHERE file_code = $1 AND billing_month = $2 LIMIT 1',
+      [fileCode, billingMonth]
+    );
+    if (existing.rows.length > 0) {
+      throw new Error(`This spreadsheet (File Code: ${fileCode}) has already been imported for the ${billingMonth} billing cycle.`);
+    }
+
     // 2. Insert into imports tracking table
     const importRes = await dbClient.query(
       `INSERT INTO imports (file_name, file_code, scheduled_date, billing_month, total_rows, uploaded_by)

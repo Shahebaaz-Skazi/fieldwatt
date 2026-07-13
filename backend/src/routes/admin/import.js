@@ -7,6 +7,7 @@ const { Worker } = require('worker_threads');
 const crypto = require('crypto');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleGuard');
+const db = require('../../db');
 
 // Ensure uploads folder exists
 const uploadDir = path.join(__dirname, '../../../uploads');
@@ -174,6 +175,50 @@ router.get('/:jobId/status', authMiddleware, requireAdmin, (req, res) => {
       activeListeners.delete(jobId);
     }
   });
+});
+
+// GET /admin/import/history - List previously uploaded sheets
+router.get('/history', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(`
+      SELECT 
+        i.id,
+        i.file_name,
+        i.file_code,
+        i.scheduled_date,
+        i.billing_month,
+        i.total_rows,
+        i.uploaded_at,
+        a.name as uploader_name
+      FROM imports i
+      LEFT JOIN admins a ON i.uploaded_by = a.id
+      ORDER BY i.uploaded_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /admin/import/:importId - Purge properties and tracking record of an import
+router.delete('/:importId', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { importId } = req.params;
+
+    // Delete properties (which cascades to assignments and readings)
+    await db.query('DELETE FROM properties WHERE import_id = $1', [importId]);
+
+    // Delete import tracker record
+    const result = await db.query('DELETE FROM imports WHERE id = $1 RETURNING file_name', [importId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Import record not found.' });
+    }
+
+    res.json({ message: `Successfully deleted import "${result.rows[0].file_name}" and all its imported properties.` });
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

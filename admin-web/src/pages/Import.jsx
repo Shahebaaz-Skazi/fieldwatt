@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { UploadCloud, FileSpreadsheet, Play, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Play, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 
 const Import = () => {
   const [file, setFile] = useState(null);
@@ -16,7 +16,27 @@ const Import = () => {
   const [progress, setProgress] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
 
+  // Ingestion history states
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const fileInputRef = useRef(null);
+
+  const fetchHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const data = await api.get('/admin/import/history');
+      setHistory(data);
+    } catch (err) {
+      console.error('Failed to retrieve history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, [jobId]); // Refresh list when a job starts or completes
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -74,6 +94,24 @@ const Import = () => {
     }
   };
 
+  const handleDeleteImport = async (id, fileName) => {
+    const confirmMessage = `WARNING: Are you sure you want to delete the import "${fileName}"?\n\nThis will permanently delete all properties uploaded under this file, along with any assignments and readings linked to them.\n\nThis action cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      setHistoryLoading(true);
+      setError('');
+      setSuccess('');
+      const res = await api.delete(`/admin/import/${id}`);
+      setSuccess(res.message);
+      fetchHistory();
+    } catch (err) {
+      setError(err.message || 'Failed to delete import.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   // Listen to background progress via Server-Sent Events (SSE)
   useEffect(() => {
     if (!jobId) return;
@@ -81,7 +119,6 @@ const Import = () => {
     const token = localStorage.getItem('admin_token');
     const sseUrl = `${api.API_BASE_URL}/admin/import/${jobId}/status?token=${token}`;
     
-    // Custom handling for SSE with auth can be simplified by passing token in query
     const eventSource = new EventSource(sseUrl);
 
     eventSource.onmessage = (event) => {
@@ -93,14 +130,11 @@ const Import = () => {
         if (data.progress) setProgress(data.progress);
 
         if (data.status === 'completed') {
-          setSuccess('Property ingestion completed successfully! Redirecting to Areas Browser...');
+          setSuccess('Property ingestion completed successfully!');
           eventSource.close();
           setJobId(null);
           setLoading(false);
           setFile(null);
-          setTimeout(() => {
-            useAuthStore.getState().setActivePage('areas');
-          }, 1500);
         } else if (data.status === 'failed') {
           setError(data.error || 'Excel parsing failed.');
           eventSource.close();
@@ -113,7 +147,6 @@ const Import = () => {
     };
 
     eventSource.onerror = (err) => {
-      // Clean fallback if connection closes or SSE fails
       eventSource.close();
     };
 
@@ -212,6 +245,68 @@ const Import = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Upload History & Deletion Panel */}
+      <div style={{
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Spreadsheet Ingestion History</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '-8px' }}>
+          Review and purge previous imports. Deleting an import will cascade delete all associated properties, assignments, and readings.
+        </p>
+
+        {historyLoading ? (
+          <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '24px' }}>
+            <RefreshCw size={24} className="spinning" style={{ margin: '0 auto 12px', animation: 'spin 2s linear infinite' }} />
+            <span>Loading upload logs...</span>
+          </div>
+        ) : history.length === 0 ? (
+          <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '32px', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+            No spreadsheets ingested yet.
+          </div>
+        ) : (
+          <div className="table-container" style={{ margin: 0 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Billing Month</th>
+                  <th>File Name</th>
+                  <th>Total Records</th>
+                  <th>Upload Date</th>
+                  <th>Uploaded By</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((item) => (
+                  <tr key={item.id}>
+                    <td style={{ fontWeight: '600', color: 'var(--text)' }}>{item.billing_month}</td>
+                    <td>{item.file_name}</td>
+                    <td>{item.total_rows.toLocaleString()}</td>
+                    <td>{new Date(item.uploaded_at).toLocaleString()}</td>
+                    <td>{item.uploader_name || 'Admin'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleDeleteImport(item.id, item.file_name)}
+                        className="btn btn-secondary"
+                        style={{ padding: '6px 12px', color: 'var(--accent4)', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+                      >
+                        Purge Data
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
