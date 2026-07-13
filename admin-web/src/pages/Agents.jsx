@@ -12,7 +12,7 @@ const Agents = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   
   // Form states
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', username: '', password: '' });
   const [editingAgent, setEditingAgent] = useState(null);
 
   const fetchAgents = async () => {
@@ -47,7 +47,7 @@ const Agents = () => {
     try {
       await api.post('/admin/agents', formData);
       setShowAddModal(false);
-      setFormData({ name: '', phone: '', email: '', password: '' });
+      setFormData({ name: '', phone: '', email: '', username: '', password: '' });
       fetchAgents();
     } catch (err) {
       setError(err.message || 'Failed to create agent.');
@@ -62,6 +62,7 @@ const Agents = () => {
         name: editingAgent.name,
         phone: editingAgent.phone,
         email: editingAgent.email,
+        username: editingAgent.username,
         is_active: editingAgent.is_active,
       });
       setShowEditModal(false);
@@ -111,6 +112,7 @@ const Agents = () => {
           <thead>
             <tr>
               <th>Agent Name</th>
+              <th>Username</th>
               <th>Phone Connection</th>
               <th>Email address</th>
               <th>Active Status</th>
@@ -121,12 +123,13 @@ const Agents = () => {
           <tbody>
             {agents.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents registered yet.</td>
+                <td colSpan="7" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents registered yet.</td>
               </tr>
             ) : (
               agents.map((agent) => (
                 <tr key={agent.id} style={{ opacity: agent.is_active ? 1 : 0.6 }}>
                   <td style={{ fontWeight: '600', color: 'var(--text)' }}>{agent.name}</td>
+                  <td style={{ fontFamily: 'monospace', color: 'var(--accent2)' }}>{agent.username}</td>
                   <td>{agent.phone}</td>
                   <td>{agent.email || '-'}</td>
                   <td>
@@ -184,6 +187,17 @@ const Agents = () => {
                   placeholder="e.g. John Doe"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Username (login identifier)</label>
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  placeholder="e.g. john_doe"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 />
               </div>
               <div className="form-group">
@@ -247,6 +261,16 @@ const Agents = () => {
                   className="form-input"
                   value={editingAgent.name}
                   onChange={(e) => setEditingAgent({ ...editingAgent, name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Username (login identifier)</label>
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  value={editingAgent.username || ''}
+                  onChange={(e) => setEditingAgent({ ...editingAgent, username: e.target.value })}
                 />
               </div>
               <div className="form-group">

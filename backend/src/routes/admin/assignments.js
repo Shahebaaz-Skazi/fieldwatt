@@ -149,6 +149,40 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
     next(error);
   }
 });
+// GET /admin/assignments/mrus - Get list of distinct MRU names (file_code from imports)
+router.get('/mrus', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      "SELECT DISTINCT file_code FROM imports WHERE file_code IS NOT NULL AND file_code <> '' ORDER BY file_code ASC"
+    );
+    res.json(result.rows.map(r => r.file_code));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /admin/assignments/months - Get available years and months for a selected MRU
+router.get('/months', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { mru } = req.query;
+    if (!mru) {
+      return res.status(400).json({ error: 'mru parameter is required.' });
+    }
+    const result = await db.query(
+      `SELECT DISTINCT 
+         EXTRACT(YEAR FROM scheduled_date)::int as year,
+         EXTRACT(MONTH FROM scheduled_date)::int as month
+       FROM imports 
+       WHERE file_code = $1 
+       ORDER BY year DESC, month DESC`,
+      [mru]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /admin/assignments/cycles - Get list of billing cycles
 router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
@@ -161,12 +195,24 @@ router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET /admin/assignments/societies - Get list of distinct society names
+// GET /admin/assignments/societies - Get list of distinct society names (optionally filtered by MRU, year, month)
 router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const result = await db.query(
-      "SELECT DISTINCT society FROM properties WHERE society IS NOT NULL AND society <> '' ORDER BY society ASC"
-    );
+    const { mru, year, month } = req.query;
+    let queryText = "SELECT DISTINCT society FROM properties WHERE society IS NOT NULL AND society <> ''";
+    let params = [];
+    if (mru && year && month) {
+      queryText += ` AND import_id = (
+        SELECT id FROM imports 
+        WHERE file_code = $1 
+          AND EXTRACT(YEAR FROM scheduled_date) = $2 
+          AND EXTRACT(MONTH FROM scheduled_date) = $3 
+        LIMIT 1
+      )`;
+      params = [mru, parseInt(year), parseInt(month)];
+    }
+    queryText += " ORDER BY society ASC";
+    const result = await db.query(queryText, params);
     res.json(result.rows.map(r => r.society));
   } catch (error) {
     next(error);
@@ -176,20 +222,32 @@ router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) =>
 // GET /admin/assignments/search-properties - Query properties with status and society groupings
 router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { q, cycle_id, status, societies } = req.query;
+    const { q, mru, year, month, status, societies, agent_filter_id } = req.query;
     
-    // Resolve target cycle: active default if not defined
-    let targetCycleId = cycle_id;
-    if (!targetCycleId || targetCycleId === 'undefined') {
-      const activeCycleRes = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
-      if (activeCycleRes.rows.length > 0) {
-        targetCycleId = activeCycleRes.rows[0].id;
-      }
+    // Resolve matching import and cycle from the mru, year, and month
+    if (!mru || !year || !month) {
+      return res.json({ properties: [], cycleId: null }); // Require the initial key filters to load properties
     }
 
-    if (!targetCycleId) {
-      return res.json([]); // No cycles in database yet
+    const importRes = await db.query(
+      `SELECT i.id as import_id, c.id as cycle_id
+       FROM imports i
+       LEFT JOIN cycles c ON c.label = i.billing_month
+       WHERE i.file_code = $1 
+         AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
+         AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+       LIMIT 1`,
+      [mru, parseInt(year), parseInt(month)]
+    );
+
+    if (importRes.rows.length === 0) {
+      return res.json({ properties: [], cycleId: null }); // No matching import dataset found
     }
+
+    const { import_id, cycle_id } = importRes.rows[0];
+
+    // cycle_id can be null if cycle is not created yet, handle safely
+    const targetCycleId = cycle_id || '00000000-0000-0000-0000-000000000000'; 
 
     let queryText = `
       SELECT 
@@ -211,11 +269,11 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE 1=1
+      WHERE p.import_id = $2
     `;
     
-    const params = [targetCycleId];
-    let paramCount = 2;
+    const params = [targetCycleId, import_id];
+    let paramCount = 3;
     
     if (q && q.trim()) {
       queryText += ` AND (p.consumer_name ILIKE $${paramCount} OR p.serial_no ILIKE $${paramCount} OR p.address ILIKE $${paramCount} OR p.society ILIKE $${paramCount})`;
@@ -240,13 +298,74 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       } else if (status === 'doorlocked') {
         queryText += ` AND r.status_code = 'door_locked'`;
       } else if (status === 'completed') {
-        queryText += ` AND r.status_code = 'completed'`;
+        queryText += ` AND (r.status_code = 'completed' OR r.status_code = 'reading_taken')`;
       }
+    }
+
+    if (agent_filter_id && agent_filter_id !== 'all') {
+      queryText += ` AND asg.agent_id = $${paramCount}`;
+      params.push(agent_filter_id);
+      paramCount++;
     }
     
     queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`; // safe performance ceiling
     
     const result = await db.query(queryText, params);
+    res.json({
+      properties: result.rows,
+      cycleId: cycle_id
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /admin/assignments/export - Export properties, readings, and assignment logs for a given MRU, year, and month
+router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { mru, year, month } = req.query;
+    if (!mru || !year || !month) {
+      return res.status(400).json({ error: 'mru, year, and month are required.' });
+    }
+
+    const importRes = await db.query(
+      `SELECT i.id as import_id, c.id as cycle_id
+       FROM imports i
+       LEFT JOIN cycles c ON c.label = i.billing_month
+       WHERE i.file_code = $1 
+         AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
+         AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+       LIMIT 1`,
+      [mru, parseInt(year), parseInt(month)]
+    );
+
+    if (importRes.rows.length === 0) {
+      return res.status(404).json({ error: 'No matching import data found.' });
+    }
+
+    const { import_id, cycle_id } = importRes.rows[0];
+    const targetCycleId = cycle_id || '00000000-0000-0000-0000-000000000000';
+
+    const result = await db.query(`
+      SELECT 
+        p.serial_no,
+        p.consumer_name,
+        p.address,
+        p.meter_no,
+        p.property_type,
+        p.society,
+        ag.name as agent_name,
+        COALESCE(r.status_code, 'pending') as status,
+        r.reading_value,
+        r.submitted_at
+      FROM properties p
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
+      LEFT JOIN readings r ON r.assignment_id = asg.id
+      WHERE p.import_id = $2
+      ORDER BY p.serial_no ASC
+    `, [targetCycleId, import_id]);
+
     res.json(result.rows);
   } catch (error) {
     next(error);

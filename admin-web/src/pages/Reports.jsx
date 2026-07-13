@@ -10,18 +10,32 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // MRU wise export states
+  const [mrus, setMrus] = useState([]);
+  const [selectedMru, setSelectedMru] = useState('');
+  const [availableMonths, setAvailableMonths] = useState([]);
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [exportMruLoading, setExportMruLoading] = useState(false);
+
   const fetchReportsData = async () => {
     try {
-      const [dbData, cyclesData] = await Promise.all([
+      const [dbData, cyclesData, mrusData] = await Promise.all([
         api.get('/admin/dashboard'),
-        api.get('/admin/assignments/coverage') // using coverage as proxy for cycle listing
+        api.get('/admin/assignments/coverage'), // using coverage as proxy for cycle listing
+        api.get('/admin/assignments/mrus')
       ]);
       setData(dbData);
+      setMrus(mrusData);
       // Mock cycle options since we don't have separate cycle CRUD page (standard YAGNI fallback)
       setCycles([
         { id: dbData.active_cycle_id, label: 'Active Billing Cycle' }
       ]);
       setSelectedCycleId(dbData.active_cycle_id);
+
+      if (mrusData.length > 0) {
+        setSelectedMru(mrusData[0]);
+      }
     } catch (err) {
       setError(err.message || 'Failed to retrieve reports.');
     } finally {
@@ -29,9 +43,32 @@ const Reports = () => {
     }
   };
 
+  const fetchMonthsForMru = async (mru) => {
+    if (!mru) return;
+    try {
+      const monthsData = await api.get('/admin/assignments/months', { params: { mru } });
+      setAvailableMonths(monthsData);
+      if (monthsData.length > 0) {
+        setSelectedYear(monthsData[0].year.toString());
+        setSelectedMonth(monthsData[0].month.toString());
+      } else {
+        setSelectedYear('');
+        setSelectedMonth('');
+      }
+    } catch (err) {
+      console.error('Failed to load months for report:', err);
+    }
+  };
+
   useEffect(() => {
     fetchReportsData();
   }, []);
+
+  useEffect(() => {
+    if (selectedMru) {
+      fetchMonthsForMru(selectedMru);
+    }
+  }, [selectedMru]);
 
   // Anime.js entrance animations
   useEffect(() => {
@@ -100,6 +137,65 @@ const Reports = () => {
       document.body.removeChild(link);
     } catch (err) {
       alert('CSV compile failed: ' + err.message);
+    }
+  };
+
+  const handleExportMruCSV = async () => {
+    if (!selectedMru || !selectedYear || !selectedMonth) {
+      alert('Please select MRU, Year, and Month first.');
+      return;
+    }
+
+    try {
+      setExportMruLoading(true);
+      const res = await api.get('/admin/assignments/export', {
+        params: {
+          mru: selectedMru,
+          year: selectedYear,
+          month: selectedMonth
+        }
+      });
+
+      if (!res || res.length === 0) {
+        alert('No data found for this selection to export.');
+        return;
+      }
+
+      const exportRows = [];
+      // Headers
+      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Society', 'Agent Name', 'Status', 'Reading Value (kWh)', 'Submitted At']);
+
+      res.forEach(r => {
+        exportRows.push([
+          r.serial_no,
+          r.consumer_name,
+          `"${r.address.replace(/"/g, '""')}"`, // escape quotes for CSV
+          r.meter_no || 'N/A',
+          r.property_type,
+          r.society || '-',
+          r.agent_name || '-',
+          r.status,
+          r.reading_value !== null ? r.reading_value : '-',
+          r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'
+        ]);
+      });
+
+      // Compile CSV String
+      const csvContent = '\uFEFF' + exportRows.map(e => e.join(',')).join('\n'); // added BOM for Excel compatibility
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      const dateName = new Date(2000, parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'short' });
+      link.setAttribute('download', `FieldWatt_${selectedMru}_${dateName}_${selectedYear}_Export.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert('CSV export failed: ' + err.message);
+    } finally {
+      setExportMruLoading(false);
     }
   };
 
@@ -227,6 +323,82 @@ const Reports = () => {
             <button onClick={handleExportCSV} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
               <FileDown size={16} />
               Export Cycle Data to CSV
+            </button>
+          </div>
+
+          {/* MRU-wise Data Exporter */}
+          <div className="animate-card" style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            opacity: 0
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={18} style={{ color: 'var(--accent2)' }} />
+              MRU Data Exporter
+            </h3>
+            
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Area (MRU)</label>
+              <select
+                className="form-input"
+                value={selectedMru}
+                onChange={(e) => setSelectedMru(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select MRU --</option>
+                {mrus.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Year</label>
+              <select
+                className="form-input"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Year --</option>
+                {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Month</label>
+              <select
+                className="form-input"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Month --</option>
+                {availableMonths
+                  .filter(m => m.year.toString() === selectedYear)
+                  .map(m => {
+                    const date = new Date(2000, m.month - 1);
+                    const monthName = date.toLocaleString('default', { month: 'long' });
+                    return (
+                      <option key={m.month} value={m.month}>{monthName}</option>
+                    );
+                  })}
+              </select>
+            </div>
+
+            <button
+              onClick={handleExportMruCSV}
+              disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}
+            >
+              {exportMruLoading ? <RefreshCw size={16} className="spin" /> : <FileDown size={16} />}
+              Export MRU Data to CSV
             </button>
           </div>
 

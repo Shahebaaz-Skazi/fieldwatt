@@ -81,8 +81,11 @@ router.post('/agent/login', async (req, res, next) => {
       return res.json({ token, user: { id: admin.id, name: admin.name, phone: admin.email, role: 'admin' } });
     }
 
-    // Standard agent name login
-    const result = await db.query('SELECT * FROM agents WHERE UPPER(name) = $1 AND is_active = true', [loginIdentifier.toUpperCase()]);
+    // Standard agent name or username login
+    const result = await db.query(
+      'SELECT * FROM agents WHERE (UPPER(username) = $1 OR UPPER(name) = $1) AND is_active = true',
+      [loginIdentifier.toUpperCase()]
+    );
     const agent = result.rows[0];
     
     if (!agent) {

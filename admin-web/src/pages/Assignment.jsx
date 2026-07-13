@@ -5,20 +5,27 @@ import { Search, MapPin, Users, Calendar, Filter, CheckSquare, Square, Check, Re
 const Assignment = () => {
   const [properties, setProperties] = useState([]);
   const [agents, setAgents] = useState([]);
-  const [cycles, setCycles] = useState([]);
   const [societies, setSocieties] = useState([]);
+  
+  // Filter and selection options list
+  const [mrus, setMrus] = useState([]);
+  const [availableMonths, setAvailableMonths] = useState([]);
   
   // Selection states
   const [selectedPropIds, setSelectedPropIds] = useState(new Set());
-  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [selectedAgentId, setSelectedAgentId] = useState(''); // Below-data agent filter to assign task
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCycleId, setSelectedCycleId] = useState('');
+  const [selectedMru, setSelectedMru] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedSocieties, setSelectedSocieties] = useState([]);
   const [societySearch, setSocietySearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState(''); // debounced version of searchQuery
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [aboveAgentFilterId, setAboveAgentFilterId] = useState('all'); // Above data agent filter to view assigned data
+  const [resolvedCycleId, setResolvedCycleId] = useState(null); // Resolved cycle ID for current search
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -26,32 +33,23 @@ const Assignment = () => {
 
   // UI states
   const [showSocietyDropdown, setShowSocietyDropdown] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
 
-  const fetchData = async () => {
+  const fetchMrusAndAgents = async () => {
     try {
       setLoading(true);
       setMessage({ text: '', type: '' });
-      
-      // Parallel fetches for speed
-      const [cyclesData, societiesData, agentsData] = await Promise.all([
-        api.get('/admin/assignments/cycles'),
-        api.get('/admin/assignments/societies'),
+      const [mrusData, agentsData] = await Promise.all([
+        api.get('/admin/assignments/mrus'),
         api.get('/admin/agents'),
       ]);
-      
-      setCycles(cyclesData);
-      setSocieties(societiesData);
+      setMrus(mrusData);
       setAgents(agentsData.filter(a => a.is_active));
       
-      // Set default active cycle
-      const activeCycle = cyclesData.find(c => c.is_active);
-      if (activeCycle) {
-        setSelectedCycleId(activeCycle.id);
-      } else if (cyclesData.length > 0) {
-        setSelectedCycleId(cyclesData[0].id);
+      if (mrusData.length > 0) {
+        setSelectedMru(mrusData[0]);
       }
     } catch (err) {
       setMessage({ text: err.message || 'Failed to load filter metadata.', type: 'error' });
@@ -60,32 +58,70 @@ const Assignment = () => {
     }
   };
 
+  const fetchMonthsForMru = async (mru) => {
+    if (!mru) return;
+    try {
+      const monthsData = await api.get('/admin/assignments/months', { params: { mru } });
+      setAvailableMonths(monthsData);
+      if (monthsData.length > 0) {
+        setSelectedYear(monthsData[0].year.toString());
+        setSelectedMonth(monthsData[0].month.toString());
+      } else {
+        setSelectedYear('');
+        setSelectedMonth('');
+      }
+    } catch (err) {
+      console.error('Failed to load months:', err);
+    }
+  };
+
+  const fetchSocietiesForImport = async (mru, year, month) => {
+    if (!mru || !year || !month) return;
+    try {
+      const societiesData = await api.get('/admin/assignments/societies', {
+        params: { mru, year, month }
+      });
+      setSocieties(societiesData);
+      setSelectedSocieties([]); // reset society selections
+    } catch (err) {
+      console.error('Failed to load societies:', err);
+    }
+  };
+
   const fetchProperties = async () => {
-    if (!selectedCycleId) return;
+    if (!selectedMru || !selectedYear || !selectedMonth) {
+      setMessage({ text: 'Please select Area (MRU), Year, and Month first.', type: 'error' });
+      return;
+    }
     try {
       setLoading(true);
+      setMessage({ text: '', type: '' });
       const societiesQuery = selectedSocieties.join(',');
-      const data = await api.get('/admin/assignments/search-properties', {
+      const res = await api.get('/admin/assignments/search-properties', {
         params: {
           q: debouncedSearch,
-          cycle_id: selectedCycleId,
+          mru: selectedMru,
+          year: selectedYear,
+          month: selectedMonth,
           status: selectedStatus,
-          societies: societiesQuery
+          societies: societiesQuery,
+          agent_filter_id: aboveAgentFilterId
         }
       });
-      setProperties(data);
-      
+      const props = res.properties || [];
+      setProperties(props);
+      setResolvedCycleId(res.cycleId);
+
       // Auto-check properties if their society is in selectedSocieties
       const nextSelection = new Set();
       if (selectedSocieties.length > 0) {
-        data.forEach(p => {
+        props.forEach(p => {
           if (selectedSocieties.includes(p.society)) {
             nextSelection.add(p.id);
           }
         });
       }
       setSelectedPropIds(nextSelection);
-      
       setCurrentPage(1); // Reset pagination on data load
     } catch (err) {
       setMessage({ text: err.message || 'Failed to search properties.', type: 'error' });
@@ -95,8 +131,20 @@ const Assignment = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchMrusAndAgents();
   }, []);
+
+  useEffect(() => {
+    if (selectedMru) {
+      fetchMonthsForMru(selectedMru);
+    }
+  }, [selectedMru]);
+
+  useEffect(() => {
+    if (selectedMru && selectedYear && selectedMonth) {
+      fetchSocietiesForImport(selectedMru, selectedYear, selectedMonth);
+    }
+  }, [selectedMru, selectedYear, selectedMonth]);
 
   // Debounce search input — only fire backend query 400ms after user stops typing
   useEffect(() => {
@@ -105,8 +153,10 @@ const Assignment = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    fetchProperties();
-  }, [debouncedSearch, selectedCycleId, selectedStatus, selectedSocieties]);
+    if (properties.length > 0 || debouncedSearch) {
+      fetchProperties();
+    }
+  }, [debouncedSearch]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -162,7 +212,7 @@ const Assignment = () => {
       const payload = {
         agent_id: selectedAgentId,
         property_ids: Array.from(selectedPropIds),
-        cycle_id: selectedCycleId
+        cycle_id: resolvedCycleId
       };
       
       const res = await api.post('/admin/assignments/bulk', payload);
@@ -228,50 +278,59 @@ const Assignment = () => {
         gap: '16px'
       }}>
         {/* Row 1: Filters */}
-        <div className="dual-column" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
           
-          {/* Search bar */}
+          {/* Area (MRU) Dropdown */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Search size={14} /> Search properties</label>
-            <input
-              type="text"
-              autoFocus
-              className="form-input"
-              placeholder="Search Name, Serial, or Address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Billing Cycle */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={14} /> Billing Cycle</label>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={14} /> Area (MRU)</label>
             <select
               className="form-input"
-              value={selectedCycleId}
-              onChange={(e) => setSelectedCycleId(e.target.value)}
+              value={selectedMru}
+              onChange={(e) => setSelectedMru(e.target.value)}
               style={{ cursor: 'pointer' }}
             >
-              {cycles.map(c => (
-                <option key={c.id} value={c.id}>{c.label} {c.is_active ? '(Active)' : ''}</option>
+              <option value="">-- Select MRU --</option>
+              {mrus.map(m => (
+                <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
 
-          {/* Assignment Status */}
+          {/* Year Dropdown */}
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Filter size={14} /> Assign Status</label>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={14} /> Year</label>
             <select
               className="form-input"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
               style={{ cursor: 'pointer' }}
             >
-              <option value="all">All Properties</option>
-              <option value="unassigned">Unassigned</option>
-              <option value="assigned">Assigned</option>
-              <option value="doorlocked">Door Locked</option>
-              <option value="completed">Completed</option>
+              <option value="">-- Select Year --</option>
+              {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month Dropdown */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={14} /> Month</label>
+            <select
+              className="form-input"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{ cursor: 'pointer' }}
+            >
+              <option value="">-- Select Month --</option>
+              {availableMonths
+                .filter(m => m.year.toString() === selectedYear)
+                .map(m => {
+                  const date = new Date(2000, m.month - 1);
+                  const monthName = date.toLocaleString('default', { month: 'long' });
+                  return (
+                    <option key={m.month} value={m.month}>{monthName}</option>
+                  );
+                })}
             </select>
           </div>
 
@@ -398,47 +457,65 @@ const Assignment = () => {
               </>
             )}
           </div>
-        </div>
 
-        {/* Row 2: Bulk assignment triggers */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderTop: '1px solid var(--border)',
-          paddingTop: '16px',
-          marginTop: '4px',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}>
-          <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckSquare size={16} />
-            Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{properties.length.toLocaleString()}</strong> loaded properties.
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text)' }}>Assign to Agent:</span>
+          {/* Above-Data Agent Filter */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={14} /> Agent Filter</label>
             <select
               className="form-input"
-              value={selectedAgentId}
-              onChange={(e) => setSelectedAgentId(e.target.value)}
-              style={{ width: '200px', cursor: 'pointer', height: '40px', padding: '0 12px' }}
+              value={aboveAgentFilterId}
+              onChange={(e) => setAboveAgentFilterId(e.target.value)}
+              style={{ cursor: 'pointer' }}
             >
-              <option value="">-- Choose Agent --</option>
+              <option value="all">All Agents</option>
               {agents.map(a => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
-            
-            <button
-              onClick={handleBulkAssign}
-              disabled={actionLoading || selectedPropIds.size === 0 || !selectedAgentId}
-              className="btn btn-primary"
-              style={{ height: '40px', padding: '0 20px' }}
+          </div>
+
+          {/* Assignment Status */}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Filter size={14} /> Assign Status</label>
+            <select
+              className="form-input"
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              style={{ cursor: 'pointer' }}
             >
-              {actionLoading ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
-              Assign Workload
+              <option value="all">All Properties</option>
+              <option value="unassigned">Unassigned</option>
+              <option value="assigned">Assigned</option>
+              <option value="doorlocked">Door Locked</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          {/* Show Data Button */}
+          <div className="form-group" style={{ margin: 0, display: 'flex', alignItems: 'flex-end' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={fetchProperties}
+              style={{ width: '100%', height: '40px', justifyContent: 'center' }}
+            >
+              Show Data
             </button>
+          </div>
+
+        </div>
+
+        {/* Row 2: Search Query Input (keeps direct keystroke/debounce filters working) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Search size={14} /> Search properties within loaded list</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search Name, Serial, or Address..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
       </div>
@@ -554,6 +631,50 @@ const Assignment = () => {
               </div>
             </div>
           )}
+
+          {/* Below-data assignment triggers */}
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            padding: '20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '16px',
+            marginTop: '16px'
+          }}>
+            <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckSquare size={16} />
+              Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{properties.length.toLocaleString()}</strong> loaded properties.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text)' }}>Assign to Agent:</span>
+              <select
+                className="form-input"
+                value={selectedAgentId}
+                onChange={(e) => setSelectedAgentId(e.target.value)}
+                style={{ width: '200px', cursor: 'pointer', height: '40px', padding: '0 12px' }}
+              >
+                <option value="">-- Choose Agent --</option>
+                {agents.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+              
+              <button
+                onClick={handleBulkAssign}
+                disabled={actionLoading || selectedPropIds.size === 0 || !selectedAgentId}
+                className="btn btn-primary"
+                style={{ height: '40px', padding: '0 20px' }}
+              >
+                {actionLoading ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
+                Assign Workload
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

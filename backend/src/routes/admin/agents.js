@@ -10,6 +10,7 @@ const createAgentSchema = z.object({
   name: z.string().min(2),
   phone: z.string().min(5),
   email: z.string().email().optional().nullable(),
+  username: z.string().min(3),
   password: z.string().min(6),
 });
 
@@ -17,6 +18,7 @@ const updateAgentSchema = z.object({
   name: z.string().min(2).optional(),
   phone: z.string().min(5).optional(),
   email: z.string().email().optional().nullable(),
+  username: z.string().min(3).optional(),
   is_active: z.boolean().optional(),
 });
 
@@ -29,6 +31,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
         a.name, 
         a.phone, 
         a.email, 
+        a.username,
         a.is_active, 
         a.last_login,
         a.created_at
@@ -45,10 +48,10 @@ router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
 // POST /admin/agents - Create a new agent
 router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { name, phone, email, password } = createAgentSchema.parse(req.body);
+    const { name, phone, email, username, password } = createAgentSchema.parse(req.body);
     
-    // Ensure agent name is unique (since it is the login handle)
-    const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(name) = $1', [name.toUpperCase().trim()]);
+    // Ensure agent username is unique
+    const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(username) = $1', [username.toUpperCase().trim()]);
     if (duplicate.rows.length > 0) {
       return res.status(400).json({ error: 'An agent with this username already exists.' });
     }
@@ -58,10 +61,10 @@ router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
     const passwordHash = await bcrypt.hash(password, salt);
     
     const result = await db.query(
-      `INSERT INTO agents (name, phone, email, password_hash) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, name, phone, email, is_active, created_at`,
-      [name, phone, email || null, passwordHash]
+      `INSERT INTO agents (name, phone, email, username, password_hash) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, name, phone, email, username, is_active, created_at`,
+      [name, phone, email || null, username.toLowerCase().trim(), passwordHash]
     );
     
     res.status(201).json(result.rows[0]);
@@ -76,8 +79,8 @@ router.patch('/:id', authMiddleware, requireAdmin, async (req, res, next) => {
     const agentId = req.params.id;
     const updates = updateAgentSchema.parse(req.body);
     
-    if (updates.name) {
-      const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(name) = $1 AND id <> $2', [updates.name.toUpperCase().trim(), agentId]);
+    if (updates.username) {
+      const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(username) = $1 AND id <> $2', [updates.username.toUpperCase().trim(), agentId]);
       if (duplicate.rows.length > 0) {
         return res.status(400).json({ error: 'An agent with this username already exists.' });
       }
@@ -103,7 +106,7 @@ router.patch('/:id', authMiddleware, requireAdmin, async (req, res, next) => {
       UPDATE agents 
       SET ${fields.join(', ')} 
       WHERE id = $${index} 
-      RETURNING id, name, phone, email, is_active, last_login, created_at
+      RETURNING id, name, phone, email, username, is_active, last_login, created_at
     `;
     
     const result = await db.query(queryText, values);
@@ -125,7 +128,7 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res, next) => {
       `UPDATE agents 
        SET is_active = false 
        WHERE id = $1 
-       RETURNING id, name, is_active`,
+       RETURNING id, name, username, is_active`,
       [agentId]
     );
     
