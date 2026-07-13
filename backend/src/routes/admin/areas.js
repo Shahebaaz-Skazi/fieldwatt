@@ -48,16 +48,14 @@ router.get('/files/:fileCode/months', authMiddleware, requireAdmin, async (req, 
 router.get('/imports/:importId/areas', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const importId = req.params.importId;
-    
-    // Resolve the cycle linked to this import's month
-    const importRes = await db.query('SELECT billing_month FROM imports WHERE id = $1', [importId]);
-    if (importRes.rows.length === 0) return res.status(404).json({ error: 'Import not found' });
-    const billingMonth = importRes.rows[0].billing_month;
-
-    const cycleRes = await db.query('SELECT id FROM cycles WHERE label = $1 LIMIT 1', [billingMonth]);
-    const cycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].id : null;
-
+    // Single query: resolve cycle via CTE, eliminating 2 sequential round-trips
     const result = await db.query(`
+      WITH imp AS (
+        SELECT billing_month FROM imports WHERE id = $1
+      ),
+      cyc AS (
+        SELECT c.id FROM cycles c JOIN imp ON c.label = imp.billing_month LIMIT 1
+      )
       SELECT 
         a.id, 
         a.name, 
@@ -69,10 +67,11 @@ router.get('/imports/:importId/areas', authMiddleware, requireAdmin, async (req,
         COUNT(asg.id)::int as assigned_properties
       FROM areas a
       INNER JOIN properties p ON a.id = p.area_id AND p.import_id = $1
-      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $2
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = (SELECT id FROM cyc)
       GROUP BY a.id, a.name, a.city
       ORDER BY a.name ASC
-    `, [importId, cycleId]);
+    `, [importId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Import not found or no areas' });
     res.json(result.rows);
   } catch (err) {
     next(err);
@@ -83,15 +82,13 @@ router.get('/imports/:importId/areas', authMiddleware, requireAdmin, async (req,
 router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { importId, areaId } = req.params;
-    
-    const importRes = await db.query('SELECT billing_month FROM imports WHERE id = $1', [importId]);
-    if (importRes.rows.length === 0) return res.status(404).json({ error: 'Import not found' });
-    const billingMonth = importRes.rows[0].billing_month;
-
-    const cycleRes = await db.query('SELECT id FROM cycles WHERE label = $1 LIMIT 1', [billingMonth]);
-    const cycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].id : null;
-
+    // Single query: resolve cycle via CTE, eliminating 2 sequential round-trips
     const result = await db.query(`
+      WITH cyc AS (
+        SELECT c.id FROM cycles c
+        JOIN imports i ON c.label = i.billing_month
+        WHERE i.id = $1 LIMIT 1
+      )
       SELECT
         p.id,
         p.serial_no,
@@ -102,6 +99,7 @@ router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmi
         p.lat,
         p.lng,
         p.society,
+        (SELECT id FROM cyc) AS cycle_id,
         asg.id          AS assignment_id,
         ag.name         AS agent_name,
         ag.id           AS agent_id,
@@ -113,17 +111,17 @@ router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmi
         r.gps_lat,
         r.gps_lng
       FROM properties p
-      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = (SELECT id FROM cyc)
       LEFT JOIN agents ag ON ag.id = asg.agent_id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE p.import_id = $1 AND p.area_id = $2
       ORDER BY p.serial_no ASC
       LIMIT 5000
-    `, [importId, areaId, cycleId]);
+    `, [importId, areaId]);
 
     res.json({
       properties: result.rows,
-      cycleId
+      cycleId: result.rows[0]?.cycle_id || null
     });
   } catch (err) {
     next(err);

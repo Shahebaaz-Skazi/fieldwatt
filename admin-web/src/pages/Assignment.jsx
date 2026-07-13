@@ -18,6 +18,7 @@ const Assignment = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedSocieties, setSelectedSocieties] = useState([]);
   const [societySearch, setSocietySearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(''); // debounced version of searchQuery
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -66,7 +67,7 @@ const Assignment = () => {
       const societiesQuery = selectedSocieties.join(',');
       const data = await api.get('/admin/assignments/search-properties', {
         params: {
-          q: searchQuery,
+          q: debouncedSearch,
           cycle_id: selectedCycleId,
           status: selectedStatus,
           societies: societiesQuery
@@ -97,9 +98,15 @@ const Assignment = () => {
     fetchData();
   }, []);
 
+  // Debounce search input — only fire backend query 400ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   useEffect(() => {
     fetchProperties();
-  }, [searchQuery, selectedCycleId, selectedStatus, selectedSocieties]);
+  }, [debouncedSearch, selectedCycleId, selectedStatus, selectedSocieties]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
