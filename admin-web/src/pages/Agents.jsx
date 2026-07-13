@@ -179,6 +179,7 @@ const Agents = () => {
                 <input
                   type="text"
                   required
+                  autoFocus
                   className="form-input"
                   placeholder="e.g. John Doe"
                   value={formData.name}
@@ -242,6 +243,7 @@ const Agents = () => {
                 <input
                   type="text"
                   required
+                  autoFocus
                   className="form-input"
                   value={editingAgent.name}
                   onChange={(e) => setEditingAgent({ ...editingAgent, name: e.target.value })}

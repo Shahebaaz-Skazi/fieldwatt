@@ -150,6 +150,7 @@ const Login = () => {
               <input
                 type="email"
                 required
+                autoFocus
                 className="form-input"
                 placeholder="admin@fieldwatt.com"
                 value={email}
@@ -237,7 +238,7 @@ const Login = () => {
             <CheckCircle2 size={12} /> Live Demo Login Details:
           </span>
           <p>Email: <strong style={{ color: '#111827' }}>admin@fieldwatt.com</strong></p>
-          <p>Password: <strong style={{ color: '#111827' }}>admin123</strong></p>
+          <p>Password: <strong style={{ color: '#111827' }}>password123</strong></p>
         </div>
       </div>
     </div>

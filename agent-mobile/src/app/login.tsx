@@ -95,6 +95,7 @@ export default function LoginScreen() {
                 style={styles.input}
                 placeholder="e.g. Default Agent"
                 placeholderTextColor="#94a3b8"
+                autoFocus
                 autoCapitalize="none"
                 value={phone}
                 onChangeText={setPhone}
@@ -146,8 +147,8 @@ export default function LoginScreen() {
             <Ionicons name="information-circle-outline" size={14} color="#6b7280" style={{ marginRight: 4 }} />
             <View style={{ flex: 1 }}>
               <Text style={styles.demoTitle}>Demo Agent Access Details:</Text>
-              <Text style={styles.demoText}>Phone: <Text style={{ color: '#111827', fontWeight: 'bold' }}>9876543210</Text></Text>
-              <Text style={styles.demoText}>Password: <Text style={{ color: '#111827', fontWeight: 'bold' }}>agent123</Text></Text>
+              <Text style={styles.demoText}>Username: <Text style={{ color: '#111827', fontWeight: 'bold' }}>Default Agent</Text></Text>
+              <Text style={styles.demoText}>Password: <Text style={{ color: '#111827', fontWeight: 'bold' }}>password123</Text></Text>
             </View>
           </View>
 

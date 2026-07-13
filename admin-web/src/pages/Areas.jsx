@@ -193,6 +193,10 @@ const Areas = () => {
   // Key Event Listener: Ctrl+A / Cmd+A for Left Column
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedProperty(null);
+      }
+
       // Check if inside input fields to prevent hijacking normal text selection
       if (
         document.activeElement.tagName === 'INPUT' ||

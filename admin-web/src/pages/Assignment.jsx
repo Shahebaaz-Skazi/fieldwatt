@@ -100,6 +100,16 @@ const Assignment = () => {
     fetchProperties();
   }, [searchQuery, selectedCycleId, selectedStatus, selectedSocieties]);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowSocietyDropdown(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       setSelectedPropIds(new Set(properties.map(p => p.id)));
@@ -216,6 +226,7 @@ const Assignment = () => {
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Search size={14} /> Search properties</label>
             <input
               type="text"
+              autoFocus
               className="form-input"
               placeholder="Search Name, Serial, or Address..."
               value={searchQuery}

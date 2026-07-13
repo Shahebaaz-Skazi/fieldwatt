@@ -26,6 +26,16 @@ const Alerts = () => {
     fetchAnomalies();
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setZoomPhoto(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleApprove = async (id) => {
     if (!window.confirm('Are you sure you want to approve this reading? This will clear the anomaly alert.')) return;
 
