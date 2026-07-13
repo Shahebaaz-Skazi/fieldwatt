@@ -274,7 +274,9 @@ const Assignment = () => {
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedSocieties.length === 0 
                   ? 'All Societies' 
-                  : `${selectedSocieties.length} Selected`}
+                  : selectedSocieties.join(', ').length > 25 
+                    ? selectedSocieties.join(', ').slice(0, 22) + '...' 
+                    : selectedSocieties.join(', ')}
               </span>
               <span style={{ fontSize: '10px' }}>▼</span>
             </button>
@@ -319,7 +321,8 @@ const Assignment = () => {
                           borderRadius: '4px',
                           cursor: 'pointer',
                           fontSize: '13px',
-                          color: 'var(--text)'
+                          color: selectedSocieties.includes(soc) ? '#10b981' : 'var(--text)',
+                          fontWeight: selectedSocieties.includes(soc) ? '600' : 'normal'
                         }}
                         className="hover-light"
                       >
