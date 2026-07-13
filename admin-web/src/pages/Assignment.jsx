@@ -72,7 +72,18 @@ const Assignment = () => {
         }
       });
       setProperties(data);
-      setSelectedPropIds(new Set()); // Reset selection on reload
+      
+      // Auto-check properties if their society is in selectedSocieties
+      const nextSelection = new Set();
+      if (selectedSocieties.length > 0) {
+        data.forEach(p => {
+          if (selectedSocieties.includes(p.society)) {
+            nextSelection.add(p.id);
+          }
+        });
+      }
+      setSelectedPropIds(nextSelection);
+      
       setCurrentPage(1); // Reset pagination on data load
     } catch (err) {
       setMessage({ text: err.message || 'Failed to search properties.', type: 'error' });
@@ -108,31 +119,11 @@ const Assignment = () => {
   };
 
   const handleSocietyToggle = (society) => {
-    const isSelected = selectedSocieties.includes(society);
-    let nextSocieties;
-    if (isSelected) {
-      nextSocieties = selectedSocieties.filter(s => s !== society);
-      // Automatically uncheck all loaded properties belonging to this society
-      const nextPropIds = new Set(selectedPropIds);
-      properties.forEach(p => {
-        if (p.society === society) {
-          nextPropIds.delete(p.id);
-        }
-      });
-      setSelectedPropIds(nextPropIds);
+    if (selectedSocieties.includes(society)) {
+      setSelectedSocieties(selectedSocieties.filter(s => s !== society));
     } else {
-      nextSocieties = [...selectedSocieties, society];
-      // Automatically check all loaded properties belonging to this society
-      const nextPropIds = new Set(selectedPropIds);
-      properties.forEach(p => {
-        if (p.society === society) {
-          nextPropIds.add(p.id);
-        }
-      });
-      setSelectedPropIds(nextPropIds);
+      setSelectedSocieties([...selectedSocieties, society]);
     }
-    setSelectedSocieties(nextSocieties);
-    setCurrentPage(1); // Reset page on filter changes
   };
 
   const handleBulkAssign = async () => {
