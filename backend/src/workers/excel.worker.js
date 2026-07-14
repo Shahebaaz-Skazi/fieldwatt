@@ -42,12 +42,13 @@ const mapPropertyType = (supplement) => {
 // ─────────────────────────────────────────────
 const buildAddress = (row) => {
   const parts = [
-    row['House number supplement'], // FLAT / PLOT
-    row['House Number'],            // 1003, 10A, 2, etc.
-    row['Floor in building'],       // 10TH FLOOR, GROUND FLO, etc.
+    row['House number supplement'],   // FLAT / PLOT
+    row['House Number'],              // 1003, 10A, 2, etc.
+    row['Building (Number or Code)'], // Wing / Building code (e.g. "A WING")
+    row['Floor in building'],         // 10TH FLOOR, GROUND FLO, etc.
     row['Street 2'],
     row['Street 3'],
-    row['Street'],                  // Society / building name (primary)
+    row['Street'],                    // Society / building name (primary)
     row['Location'],
   ]
     .map(normalise)
