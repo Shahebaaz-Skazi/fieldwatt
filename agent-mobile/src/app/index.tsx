@@ -81,7 +81,7 @@ export default function WorkListScreen() {
       }
     }
     
-    if (!code || /^wing$/i.test(code)) return 'Main Wing';
+    if (!code || /^wing$/i.test(code)) return 'General';
     
     if (/wing/i.test(code)) {
       return code.replace(/\s+/g, ' ').toUpperCase();
@@ -220,10 +220,23 @@ export default function WorkListScreen() {
       const cached = await getCachedProperties();
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
+      triggerSilentRefresh();
     } catch (e) {
       console.error('Error loading SQLite properties cache:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const triggerSilentRefresh = async () => {
+    try {
+      const freshAssignments = await api.get('/agent/assignments');
+      await saveProperties(freshAssignments);
+      const cached = await getCachedProperties();
+      setProperties(cached);
+      applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
+    } catch (err) {
+      console.warn('Silent startup sync failed:', err);
     }
   };
 
@@ -501,7 +514,7 @@ export default function WorkListScreen() {
     const handleGoBack = () => {
       if (drillLevel === 'flats') {
         const wings = getWingsForSociety(drillArea || '', drillSociety || '');
-        if (wings.length === 1 && wings[0] === 'Main Wing') {
+        if (wings.length === 1 && wings[0] === 'General') {
           setDrillLevel('societies');
           setDrillSociety(null);
           setDrillWing(null);
@@ -545,7 +558,7 @@ export default function WorkListScreen() {
                   <Text style={styles.breadcrumbItem}>{drillSociety}</Text>
                 </>
               )}
-              {drillWing && drillWing !== 'Main Wing' && (
+              {drillWing && drillWing !== 'General' && (
                 <>
                   <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
                   <Text style={styles.breadcrumbItem}>{drillWing}</Text>
@@ -617,8 +630,8 @@ export default function WorkListScreen() {
                     onPress={() => {
                       setDrillSociety(item.name);
                       const wings = getWingsForSociety(drillArea || '', item.name);
-                      if (wings.length === 1 && wings[0] === 'Main Wing') {
-                        setDrillWing('Main Wing');
+                      if (wings.length === 1 && wings[0] === 'General') {
+                        setDrillWing('General');
                         setDrillLevel('flats');
                       } else {
                         setDrillLevel('wings');
