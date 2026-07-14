@@ -161,23 +161,94 @@ const Reports = () => {
         return;
       }
 
+      const headers = [
+        'MR ORDER ID',
+        'MRU NAME',
+        'BP No.',
+        'Installation No.',
+        'BPNAME',
+        'Regional structure g',
+        'Device Serial No.',
+        'c/o name',
+        'Building (Number or Code)',
+        'House number supplement',
+        'House Number',
+        'Floor in building',
+        'Street 2',
+        'Street 3',
+        'Street',
+        'Location',
+        'Area',
+        'city',
+        'City postal code',
+        'Register',
+        'Scheduled meter reading date',
+        'Current meter reading date',
+        'Current MR',
+        'MR Note',
+        'Comment',
+        'Excl. SD Amount',
+        'SD Amount',
+        'Total Amount',
+        'Telephone No.',
+        'Mobile No.'
+      ];
+
+      const escapeCsv = (val) => {
+        if (val === null || val === undefined) return '';
+        const str = val.toString();
+        if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
       const exportRows = [];
-      // Headers
-      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Society', 'Agent Name', 'Status', 'Reading Value (kWh)', 'Submitted At']);
+      // Headers Row
+      exportRows.push(headers);
 
       res.forEach(r => {
-        exportRows.push([
-          r.serial_no,
-          r.consumer_name,
-          `"${r.address.replace(/"/g, '""')}"`, // escape quotes for CSV
-          r.meter_no || 'N/A',
-          r.property_type,
-          r.society || '-',
-          r.agent_name || '-',
-          r.status,
-          r.reading_value !== null ? r.reading_value : '-',
-          r.submitted_at ? new Date(r.submitted_at).toLocaleString() : '-'
-        ]);
+        // Start with raw sap data if saved, or build fallback mapping
+        const rowObj = r.raw_sap_data ? { ...r.raw_sap_data } : {
+          'MR ORDER ID': r.serial_no,
+          'MRU NAME': selectedMru === 'all' ? r.area_name || '' : selectedMru,
+          'BPNAME': r.consumer_name,
+          'Device Serial No.': r.meter_no || '',
+          'Street': r.society || '',
+          'city': 'PUNE',
+          'House number supplement': r.property_type === 'flat' ? 'FLAT' : 'PLOT'
+        };
+
+        // Format reading dates as DD.MM.YYYY
+        let readingDate = '';
+        if (r.submitted_at) {
+          const d = new Date(r.submitted_at);
+          const day = String(d.getDate()).padStart(2, '0');
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const yearStr = d.getFullYear();
+          readingDate = `${day}.${monthStr}.${yearStr}`;
+        }
+        rowObj['Current meter reading date'] = readingDate;
+
+        // Current MR (value)
+        rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
+
+        // MR Note status mapping
+        let mrNote = '';
+        if (r.status && r.status !== 'pending') {
+          if (r.status === 'reading_taken') mrNote = '';
+          else if (r.status === 'door_locked') mrNote = 'Door Locked';
+          else if (r.status === 'not_reachable') mrNote = 'Not Reachable';
+          else mrNote = r.status.replace(/_/g, ' ').toUpperCase();
+        }
+        rowObj['MR Note'] = mrNote;
+
+        // Comment
+        rowObj['Comment'] = r.reading_note || '';
+
+        // Map to standard columns order
+        const csvRow = headers.map(h => escapeCsv(rowObj[h]));
+        exportRows.push(csvRow);
       });
 
       // Compile CSV String

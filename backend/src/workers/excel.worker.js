@@ -319,13 +319,23 @@ const processExcel = async () => {
 
         if (format === 'SAP') {
           parsed = parseSAPRow(raw);
+          if (parsed) {
+            parsed.raw_sap_data = raw;
+          }
         } else {
           parsed = parseGenericRow(raw, genericMapping);
+          if (parsed) {
+            const obj = {};
+            headers.forEach((h, idx) => {
+              obj[h] = raw[idx] !== undefined ? raw[idx] : null;
+            });
+            parsed.raw_sap_data = obj;
+          }
         }
 
         if (!parsed) continue;
 
-        const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society } = parsed;
+        const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society, raw_sap_data } = parsed;
 
         // 1. Resolve area (deduplication-safe lookup from memory cache)
         const areaId = await resolveArea(area_name, city);
@@ -337,7 +347,8 @@ const processExcel = async () => {
           address,
           meter_no,
           property_type,
-          society
+          society,
+          raw_sap_data
         });
       }
 
@@ -347,13 +358,13 @@ const processExcel = async () => {
         let paramCount = 1;
 
         for (const row of parsedChunkRows) {
-          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7})`);
-          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society);
-          paramCount += 8;
+          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}::jsonb)`);
+          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, JSON.stringify(row.raw_sap_data));
+          paramCount += 9;
         }
 
         const bulkQuery = `
-          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society)
+          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society, raw_sap_data)
           VALUES ${valueStrings.join(', ')}
           ON CONFLICT (serial_no)
           DO UPDATE SET
@@ -363,7 +374,8 @@ const processExcel = async () => {
             meter_no       = EXCLUDED.meter_no,
             property_type  = EXCLUDED.property_type,
             import_id      = EXCLUDED.import_id,
-            society        = EXCLUDED.society
+            society        = EXCLUDED.society,
+            raw_sap_data   = EXCLUDED.raw_sap_data
         `;
 
         await dbClient.query(bulkQuery, values);
