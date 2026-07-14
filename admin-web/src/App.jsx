@@ -70,6 +70,7 @@ const App = () => {
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="logo">
+          <img src="/logo.png" alt="Logo" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
           Field<span>Watt</span>
         </div>
         
