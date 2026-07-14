@@ -351,6 +351,7 @@ const Reports = () => {
                 style={{ fontSize: '13px', cursor: 'pointer' }}
               >
                 <option value="">-- Select MRU --</option>
+                <option value="all">-- All Areas --</option>
                 {mrus.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
