@@ -22,7 +22,8 @@ export const initDb = async () => {
       lat REAL,
       lng REAL,
       area_name TEXT,
-      society TEXT
+      society TEXT,
+      building_code TEXT
     );
 
     CREATE TABLE IF NOT EXISTS readings_queue (
@@ -54,6 +55,12 @@ export const initDb = async () => {
     // Column already exists, safe to ignore
   }
 
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN building_code TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
   console.log('Local SQLite database initialized.');
   return db;
 };
@@ -72,8 +79,8 @@ export const saveProperties = async (properties: any[]) => {
   
   for (const prop of properties) {
     await database.runAsync(
-      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, building_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         prop.property_id,
         prop.assignment_id,
@@ -85,7 +92,8 @@ export const saveProperties = async (properties: any[]) => {
         prop.property_lat ? parseFloat(prop.property_lat) : null,
         prop.property_lng ? parseFloat(prop.property_lng) : null,
         prop.area_name || null,
-        prop.society || null
+        prop.society || null,
+        prop.building_code || null
       ]
     );
   }

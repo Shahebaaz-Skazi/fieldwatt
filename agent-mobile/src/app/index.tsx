@@ -60,21 +60,33 @@ export default function WorkListScreen() {
   const [drillSearch, setDrillSearch] = useState('');
 
   // Wing parser helper
-  const getWingFromAddress = (address: string) => {
-    if (!address) return 'No Wing';
-    const upper = address.toUpperCase();
-    const match = upper.match(/(?:WING|BLDG|BUILDING|BLDG-|WING-)\s*([A-Z0-9]+)/i) || 
-                  upper.match(/([A-Z0-9]+)\s*(?:WING|BLDG|BUILDING)/i);
-    if (match) {
-      return match[1].trim() + ' Wing';
+  const getWingName = (p: any) => {
+    let code = p.building_code ? p.building_code.trim() : '';
+    if (!code) {
+      const addr = p.address ? p.address.toUpperCase() : '';
+      const match = addr.match(/(?:WING|BLDG|BUILDING|BLDG-|WING-)\s*([A-Z0-9]+)/i) || 
+                    addr.match(/([A-Z0-9]+)\s*(?:WING|BLDG|BUILDING)/i);
+      if (match && match[1].trim()) {
+        code = match[1].trim();
+      } else {
+        const flatMatch = addr.match(/(?:FLAT|APT|ROOM|NO)?\s*\b([A-Z])[-/\s]?\d{2,4}\b/i);
+        if (flatMatch && flatMatch[1].trim()) {
+          code = flatMatch[1].trim();
+        } else {
+          const suffixMatch = addr.match(/\b\d{1,4}[-/\s]?([A-Z])\b/i);
+          if (suffixMatch && suffixMatch[1].trim()) {
+            code = suffixMatch[1].trim();
+          }
+        }
+      }
     }
     
-    const flatMatch = upper.match(/(?:FLAT|APT|ROOM|NO)?\s*\b([A-Z])[-/\s]?\d{2,4}\b/i);
-    if (flatMatch) {
-      return flatMatch[1].trim() + ' Wing';
-    }
+    if (!code || /^wing$/i.test(code)) return 'Main Wing';
     
-    return 'Main Wing';
+    if (/wing/i.test(code)) {
+      return code.replace(/\s+/g, ' ').toUpperCase();
+    }
+    return `Wing ${code.toUpperCase()}`;
   };
 
   // Compute unique areas for drilldown
@@ -128,7 +140,7 @@ export default function WorkListScreen() {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
       if (area !== drillArea || soc !== drillSociety) return;
-      const wing = getWingFromAddress(p.address);
+      const wing = getWingName(p);
       if (!counts[wing]) {
         counts[wing] = { total: 0, pending: 0 };
       }
@@ -152,7 +164,7 @@ export default function WorkListScreen() {
       const soc = p.society ? p.society.trim() : 'No Society';
       return area === drillArea && 
              soc === drillSociety && 
-             getWingFromAddress(p.address) === drillWing;
+             getWingName(p) === drillWing;
     });
     
     if (drillSearch) {
@@ -693,7 +705,7 @@ export default function WorkListScreen() {
                         )}
                       </View>
                       <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
-                      <Text style={styles.itemAddress}>{item.address}</Text>
+                      <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
                       {item.meter_no ? (
                         <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
                       ) : null}
@@ -925,7 +937,7 @@ export default function WorkListScreen() {
                     </View>
 
                     <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
-                    <Text style={styles.itemAddress}>{item.address}</Text>
+                    <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
 
                     {item.meter_no ? (
                       <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>

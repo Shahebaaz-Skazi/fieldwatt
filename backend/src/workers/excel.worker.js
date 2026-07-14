@@ -38,13 +38,25 @@ const mapPropertyType = (supplement) => {
 };
 
 // ─────────────────────────────────────────────
+const cleanBuildingCode = (val) => {
+  if (val === null || val === undefined) return '';
+  return val
+    .toString()
+    .replace(/(?:flat|plot|room|apt|no|number|code)\.?\s*(?:no)?\.?\s*:\s*$/i, '')
+    .replace(/\s*(?:flat|plot|room|apt|no|number|code)\.?\s*(?:no)?\.?\s*:\s*/i, ' ')
+    .trim();
+};
+
 // Build a human-readable address from address component columns
 // ─────────────────────────────────────────────
 const buildAddress = (row) => {
+  const bldg = row['Building (Number or Code)'];
+  const cleanedBldg = bldg ? cleanBuildingCode(bldg) : '';
+
   const parts = [
     row['House number supplement'],   // FLAT / PLOT
     row['House Number'],              // 1003, 10A, 2, etc.
-    row['Building (Number or Code)'], // Wing / Building code (e.g. "A WING")
+    cleanedBldg,                      // Wing / Building code (e.g. "A WING")
     row['Floor in building'],         // 10TH FLOOR, GROUND FLO, etc.
     row['Street 2'],
     row['Street 3'],
