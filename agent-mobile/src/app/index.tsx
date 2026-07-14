@@ -486,10 +486,29 @@ export default function WorkListScreen() {
 
   // ── Tab 1: Hierarchical Worklist Tab ──
   const renderWorklistTab = () => {
+    const getWingsForSociety = (areaName: string, societyName: string) => {
+      const unique = new Set<string>();
+      properties.forEach(p => {
+        const area = p.area_name ? p.area_name.trim() : 'No Area';
+        const soc = p.society ? p.society.trim() : 'No Society';
+        if (area === areaName && soc === societyName) {
+          unique.add(getWingName(p));
+        }
+      });
+      return Array.from(unique);
+    };
+
     const handleGoBack = () => {
       if (drillLevel === 'flats') {
-        setDrillLevel('wings');
-        setDrillWing(null);
+        const wings = getWingsForSociety(drillArea || '', drillSociety || '');
+        if (wings.length === 1 && wings[0] === 'Main Wing') {
+          setDrillLevel('societies');
+          setDrillSociety(null);
+          setDrillWing(null);
+        } else {
+          setDrillLevel('wings');
+          setDrillWing(null);
+        }
       } else if (drillLevel === 'wings') {
         setDrillLevel('societies');
         setDrillSociety(null);
@@ -526,7 +545,7 @@ export default function WorkListScreen() {
                   <Text style={styles.breadcrumbItem}>{drillSociety}</Text>
                 </>
               )}
-              {drillWing && (
+              {drillWing && drillWing !== 'Main Wing' && (
                 <>
                   <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
                   <Text style={styles.breadcrumbItem}>{drillWing}</Text>
@@ -597,7 +616,13 @@ export default function WorkListScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       setDrillSociety(item.name);
-                      setDrillLevel('wings');
+                      const wings = getWingsForSociety(drillArea || '', item.name);
+                      if (wings.length === 1 && wings[0] === 'Main Wing') {
+                        setDrillWing('Main Wing');
+                        setDrillLevel('flats');
+                      } else {
+                        setDrillLevel('wings');
+                      }
                     }}
                     style={styles.drillCard}
                   >
