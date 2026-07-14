@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading } from '../../db/sqlite';
 import api from '../../utils/api';
 import * as Location from 'expo-location';
-import * as Camera from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function PropertyDetailScreen() {
@@ -48,26 +48,26 @@ export default function PropertyDetailScreen() {
   }, [id]);
 
   const handleCapturePhoto = async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera Permission Required', 'We need access to the camera to document the reading.');
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Camera Permission Required', 'We need access to the camera to document the reading.');
+        return;
+      }
 
-    // Launch camera selector using standard expo-camera API (or expo-image-picker if camera is helper, but here expo-camera is standard)
-    // For simplicity of local device UI, let's use pickImage from expo-image-picker if available, 
-    // or simulate a captured file path since native camera overlay in React Native 0.86 can require custom view mountings.
-    // Wait, let's look at ponytail: use expo-image-picker or expo-camera. Since we installed expo-camera, let's use it.
-    // Wait, let's query expo-image-picker or simulate taking photo simply.
-    // We can simulate an image URI or launch camera launcher. 
-    // Let's implement a robust photo selection check.
-    // Actually, to make it completely fail-safe on mock simulation/expo go, we can request picking or capture.
-    // Let's ask the agent to select/mock photo or take it.
-    
-    // Simulate image select for Expo Go
-    const mockImageUri = 'https://picsum.photos/400/400';
-    setPhotoUri(mockImageUri);
-    Alert.alert('Photo Captured', 'Meter register reading photo selected.');
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setPhotoUri(uri);
+      }
+    } catch (err) {
+      console.error('Failed to launch camera:', err);
+      Alert.alert('Camera Error', 'Could not open the native camera app. Please try again.');
+    }
   };
 
   const compressPhoto = async (uri: string) => {
