@@ -95,3 +95,26 @@ export const getPropertyById = async (id: string) => {
   }
   return null;
 };
+
+export const getStoredAgentId = async (): Promise<string | null> => {
+  return localStorage.getItem('fieldwatt_current_agent_id');
+};
+
+export const setStoredAgentId = async (agentId: string) => {
+  localStorage.setItem('fieldwatt_current_agent_id', agentId);
+};
+
+export const clearPropertiesCache = async () => {
+  localStorage.removeItem('fieldwatt_properties');
+  localStorage.removeItem('fieldwatt_readings_queue');
+  console.log('Web mock cache wiped — agent identity changed.');
+};
+
+export const getStoredVersion = async (): Promise<string | null> => {
+  return localStorage.getItem('fieldwatt_app_build_version');
+};
+
+export const setStoredVersion = async (version: string) => {
+  localStorage.setItem('fieldwatt_app_build_version', version);
+};
+
