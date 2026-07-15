@@ -80,8 +80,11 @@ const initDb = async () => {
       await db.query(sql);
       console.log('Database initialized successfully (migrations applied).');
     }
+    // Auto-migrate schema updates (e.g. raw_sap_data column)
+    await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS raw_sap_data JSONB DEFAULT NULL;`);
+    console.log('Database schema updates checked/applied.');
   } catch (error) {
-    console.error('Failed to apply initial migrations on database:', error);
+    console.error('Failed to apply database migrations/updates:', error);
   }
 };
 
