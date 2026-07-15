@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshC
 import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
-import { initDb, getCachedProperties, saveProperties } from '../db/sqlite';
+import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache } from '../db/sqlite';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
 import * as Location from 'expo-location';
@@ -217,6 +217,17 @@ export default function WorkListScreen() {
   const loadCachedData = async () => {
     try {
       await initDb();
+      
+      // Auto-invalidate cache if build version changed (for fast updates propagation)
+      const storedVersion = await getStoredVersion();
+      const currentVersion = '2026-07-15_v2';
+      
+      if (storedVersion !== currentVersion) {
+        console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
+        await clearPropertiesCache();
+        await setStoredVersion(currentVersion);
+      }
+      
       const cached = await getCachedProperties();
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);

@@ -207,3 +207,26 @@ export const getPropertyById = async (id: string) => {
   }
   return null;
 };
+
+// Retrieve app build version from SQLite meta table
+export const getStoredVersion = async (): Promise<string | null> => {
+  const database = getDb();
+  try {
+    const row: any = await database.getFirstAsync(
+      "SELECT value FROM meta WHERE key = 'app_build_version'"
+    );
+    return row ? row.value : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Update app build version in SQLite meta table
+export const setStoredVersion = async (version: string) => {
+  const database = getDb();
+  await database.runAsync(
+    "INSERT OR REPLACE INTO meta (key, value) VALUES ('app_build_version', ?)",
+    [version]
+  );
+};
+
