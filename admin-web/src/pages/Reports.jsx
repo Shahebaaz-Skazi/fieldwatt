@@ -18,6 +18,14 @@ const Reports = () => {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [exportMruLoading, setExportMruLoading] = useState(false);
 
+  // Meter image downloader states
+  const [imageMru, setImageMru] = useState('all');
+  const [imageYear, setImageYear] = useState('');
+  const [imageMonth, setImageMonth] = useState('');
+  const [imageSociety, setImageSociety] = useState('');
+  const [imageQuery, setImageQuery] = useState('');
+  const [downloadImagesLoading, setDownloadImagesLoading] = useState(false);
+
   const fetchReportsData = async () => {
     try {
       const [dbData, cyclesData, mrusData] = await Promise.all([
@@ -69,6 +77,13 @@ const Reports = () => {
       fetchMonthsForMru(selectedMru);
     }
   }, [selectedMru]);
+
+  useEffect(() => {
+    if (availableMonths.length > 0) {
+      if (!imageYear) setImageYear(availableMonths[0].year.toString());
+      if (!imageMonth) setImageMonth(availableMonths[0].month.toString());
+    }
+  }, [availableMonths]);
 
   // Anime.js entrance animations
   useEffect(() => {
@@ -267,6 +282,56 @@ const Reports = () => {
       alert('CSV export failed: ' + err.message);
     } finally {
       setExportMruLoading(false);
+    }
+  };
+
+  const handleDownloadImages = async () => {
+    if (!imageYear || !imageMonth) {
+      alert('Please select Year and Month first.');
+      return;
+    }
+
+    try {
+      setDownloadImagesLoading(true);
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({
+        mru: imageMru,
+        year: imageYear,
+        month: imageMonth,
+        society: imageSociety,
+        q: imageQuery
+      });
+
+      const response = await fetch(`${api.API_BASE_URL}/admin/dashboard/download-images?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let errorMsg = 'Failed to download images.';
+        try {
+          const errJson = JSON.parse(text);
+          errorMsg = errJson.error || errorMsg;
+        } catch {
+          errorMsg = text || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `FieldWatt_Images_${imageMru}_${imageMonth}_${imageYear}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert('Download failed: ' + err.message);
+    } finally {
+      setDownloadImagesLoading(false);
     }
   };
 
@@ -471,6 +536,106 @@ const Reports = () => {
             >
               {exportMruLoading ? <RefreshCw size={16} className="spin" /> : <FileDown size={16} />}
               Export MRU Data to CSV
+            </button>
+          </div>
+
+          {/* Meter Image Downloader Card */}
+          <div className="animate-card" style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            opacity: 0
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={18} style={{ color: 'var(--accent3)' }} />
+              Meter Image Downloader
+            </h3>
+            
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Area (MRU)</label>
+              <select
+                className="form-input"
+                value={imageMru}
+                onChange={(e) => setImageMru(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="all">-- All Areas --</option>
+                {mrus.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Year</label>
+              <select
+                className="form-input"
+                value={imageYear}
+                onChange={(e) => setImageYear(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Year --</option>
+                {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Month</label>
+              <select
+                className="form-input"
+                value={imageMonth}
+                onChange={(e) => setImageMonth(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Month --</option>
+                {availableMonths
+                  .filter(m => m.year.toString() === imageYear)
+                  .map(m => {
+                    const date = new Date(2000, m.month - 1);
+                    const monthName = date.toLocaleString('default', { month: 'long' });
+                    return (
+                      <option key={m.month} value={m.month}>{monthName}</option>
+                    );
+                  })}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Society Name (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Krishna Nayan"
+                value={imageSociety}
+                onChange={(e) => setImageSociety(e.target.value)}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Flat / BP / Name Search (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. 50319006"
+                value={imageQuery}
+                onChange={(e) => setImageQuery(e.target.value)}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+
+            <button
+              onClick={handleDownloadImages}
+              disabled={downloadImagesLoading || !imageYear || !imageMonth}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px', background: 'var(--accent3)', borderColor: 'var(--accent3)' }}
+            >
+              {downloadImagesLoading ? <RefreshCw size={16} className="spin" style={{ animation: 'spin 2s linear infinite' }} /> : <FileDown size={16} />}
+              Download Images (ZIP)
             </button>
           </div>
 
