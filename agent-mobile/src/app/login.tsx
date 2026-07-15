@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import api from '../utils/api';
-import { initDb, saveProperties } from '../db/sqlite';
+import { initDb, saveProperties, getStoredAgentId, setStoredAgentId, clearPropertiesCache } from '../db/sqlite';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -29,24 +29,35 @@ export default function LoginScreen() {
     try {
       const data = await api.post('/auth/agent/login', { phone, password });
       
-      // Save auth details in global store
+      // Save auth details in global store (memory)
       login(data.user, data.token);
 
       // Initialize local database
       await initDb();
 
-      // Download today's assigned property list and cache it
-      try {
-        const properties = await api.get('/agent/assignments');
-        await saveProperties(properties);
-      } catch (err: any) {
-        console.warn('Could not sync properties list on login (working with existing cache):', err.message);
+      // ─── CRITICAL: Agent Identity Check ───────────────────────────────────
+      // If a different agent logs in on this device, we MUST wipe the local
+      // SQLite cache completely so they never see the previous agent's data.
+      const storedAgentId = await getStoredAgentId();
+      const incomingAgentId = data.user.id;
+
+      if (storedAgentId && storedAgentId !== incomingAgentId) {
+        console.log(`Agent switch detected: ${storedAgentId} → ${incomingAgentId}. Wiping local cache.`);
+        await clearPropertiesCache();
       }
+
+      // Always sync fresh assignments from server on login — never use stale cache
+      // for a freshly authenticated session.
+      const properties = await api.get('/agent/assignments');
+      await saveProperties(properties);
+
+      // Stamp this agent's ID so the next login can detect a switch
+      await setStoredAgentId(incomingAgentId);
 
       // Route to WorkList
       useRouterInstance.replace('/');
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check credentials.');
+      setError(err.message || 'Login failed. Please check your credentials and network connection.');
     } finally {
       setLoading(false);
     }

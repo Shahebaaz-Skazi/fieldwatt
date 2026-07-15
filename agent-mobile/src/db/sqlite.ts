@@ -40,6 +40,11 @@ export const initDb = async () => {
       submitted_at TEXT NOT NULL,
       is_synced INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // Handle migration upgrades for existing local db instances
@@ -68,6 +73,32 @@ export const initDb = async () => {
 export const getDb = () => {
   if (!db) throw new Error('Database not initialized. Call initDb() first.');
   return db;
+};
+
+// Get the agent ID that last populated this device's local cache
+export const getStoredAgentId = async (): Promise<string | null> => {
+  const database = getDb();
+  const row: any = await database.getFirstAsync(
+    "SELECT value FROM meta WHERE key = 'current_agent_id'"
+  );
+  return row ? row.value : null;
+};
+
+// Persist the agent ID into meta so we can detect agent switches on next login
+export const setStoredAgentId = async (agentId: string) => {
+  const database = getDb();
+  await database.runAsync(
+    "INSERT OR REPLACE INTO meta (key, value) VALUES ('current_agent_id', ?)",
+    [agentId]
+  );
+};
+
+// Wipe all properties from the cache (used when a different agent logs in)
+export const clearPropertiesCache = async () => {
+  const database = getDb();
+  await database.runAsync('DELETE FROM properties');
+  await database.runAsync('DELETE FROM readings_queue');
+  console.log('Local cache wiped — agent identity changed.');
 };
 
 // Cache today's assignments locally
