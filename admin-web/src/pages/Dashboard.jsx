@@ -13,6 +13,13 @@ const Dashboard = () => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Global search states
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [globalResults, setGlobalResults] = useState([]);
+  const [searchActive, setSearchActive] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [viewingReading, setViewingReading] = useState(null);
+
   // Agent detail view modals
   const [viewingAgent, setViewingAgent] = useState(null);
   const [agentReadings, setAgentReadings] = useState([]);
@@ -50,6 +57,7 @@ const Dashboard = () => {
         setViewingAgent(null);
         setReassignAgent(null);
         setZoomPhoto(null);
+        setViewingReading(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -121,6 +129,32 @@ const Dashboard = () => {
     }
   };
 
+  const handleGlobalSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!globalQuery || !globalQuery.trim()) return;
+
+    setSearching(true);
+    setError('');
+    setSuccess('');
+    try {
+      const results = await api.get('/admin/dashboard/global-search', {
+        params: { q: globalQuery.trim() }
+      });
+      setGlobalResults(results);
+      setSearchActive(true);
+    } catch (err) {
+      setError(err.message || 'Failed to execute global database search.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const clearGlobalSearch = () => {
+    setGlobalQuery('');
+    setGlobalResults([]);
+    setSearchActive(false);
+  };
+
   if (loading) {
     return <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>Loading dashboard metrics...</div>;
   }
@@ -158,6 +192,162 @@ const Dashboard = () => {
       {success && (
         <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent3)', borderRadius: '8px', border: '1px solid var(--accent3)' }}>
           {success}
+        </div>
+      )}
+
+      {/* Global Property Search Bar */}
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '24px',
+        boxShadow: 'var(--shadow)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>Global Database Search</h3>
+          <p style={{ color: 'var(--muted)', fontSize: '12px' }}>Search properties across all zones and history by BP No, Name, Meter, Mobile, Address, Area or Agent name</p>
+        </div>
+
+        <form onSubmit={handleGlobalSearch} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Enter name, BP no, meter no, mobile..."
+              value={globalQuery}
+              onChange={(e) => setGlobalQuery(e.target.value)}
+              style={{ width: '100%', paddingLeft: '48px', paddingRight: '16px', height: '48px', fontSize: '14px', borderRadius: '10px' }}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ height: '48px', padding: '0 24px' }} disabled={searching}>
+            {searching ? 'Searching...' : 'Search'}
+          </button>
+          {searchActive && (
+            <button type="button" onClick={clearGlobalSearch} className="btn btn-secondary" style={{ height: '48px', padding: '0 24px' }}>
+              Clear
+            </button>
+          )}
+        </form>
+      </div>
+
+      {/* Global Property Search Results */}
+      {searchActive && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '24px',
+          boxShadow: 'var(--shadow)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          animation: 'slideIn 0.3s ease-out'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '700', color: 'var(--text)' }}>
+                Search Results ({globalResults.length})
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>Showing matching records found in the system</p>
+            </div>
+            <button onClick={clearGlobalSearch} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+              Close Results
+            </button>
+          </div>
+
+          <div className="table-container" style={{ maxHeight: '450px', overflowY: 'auto' }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>BP Order No.</th>
+                  <th>Consumer Details</th>
+                  <th>Meter Number</th>
+                  <th>Area / MRU</th>
+                  <th>Society & Address</th>
+                  <th>Status</th>
+                  <th>Assigned Agent</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalResults.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', color: 'var(--muted)', padding: '32px' }}>
+                      No properties found matching your query.
+                    </td>
+                  </tr>
+                ) : (
+                  globalResults.map((prop) => {
+                    const mobile = prop.raw_sap_data?.['Mobile No.'] || prop.raw_sap_data?.['Telephone No.'] || 'N/A';
+                    const bpNo = prop.raw_sap_data?.['BP No.'] || '-';
+                    return (
+                      <tr key={prop.id}>
+                        <td>
+                          <div style={{ fontWeight: '700', color: 'var(--text)' }}>{prop.serial_no}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>BP: {bpNo}</div>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Mob: {mobile}</div>
+                        </td>
+                        <td style={{ fontWeight: '600' }}>{prop.meter_no || '-'}</td>
+                        <td>
+                          <span className="badge badge-pending" style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}>
+                            {prop.area_name}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: '500', color: 'var(--text)', fontSize: '12px' }}>{prop.society || 'No Society'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }} title={prop.address}>
+                            {prop.address}
+                          </div>
+                        </td>
+                        <td>
+                          {prop.assignment_id ? (
+                            prop.status_code ? (
+                              <span className={`badge ${prop.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`}>
+                                {prop.status_code.replace('_', ' ')}
+                              </span>
+                            ) : (
+                              <span className="badge badge-pending">Assigned</span>
+                            )
+                          ) : (
+                            <span className="badge badge-pending" style={{ background: '#f3f4f6', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+                              Unassigned
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {prop.agent_name ? (
+                            <div style={{ fontWeight: '500' }}>{prop.agent_name}</div>
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {prop.agent_name && prop.status_code ? (
+                            <button
+                              onClick={() => setViewingReading(prop)}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '12px' }}
+                            >
+                              View Reading
+                            </button>
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>No Reading</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -458,6 +648,109 @@ const Dashboard = () => {
               alt="Meter register zoom verification" 
               style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '12px', border: '2px solid var(--border)', boxShadow: 'var(--shadow)' }} 
             />
+          </div>
+        </div>
+      )}
+
+      {/* Property Reading Details Modal */}
+      {viewingReading && (
+        <div className="modal-overlay" onClick={() => setViewingReading(null)}>
+          <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+              <div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Reading Details</h2>
+                <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>Consumer Order Sr. {viewingReading.serial_no}</p>
+              </div>
+              <button onClick={() => setViewingReading(null)} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', margin: '8px 0' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Consumer Name</span>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{viewingReading.consumer_name}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Mobile / Contact</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text)' }}>
+                    {viewingReading.raw_sap_data?.['Mobile No.'] || viewingReading.raw_sap_data?.['Telephone No.'] || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Meter Number</span>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{viewingReading.meter_no || 'N/A'}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Area / Zone</span>
+                  <span style={{ fontSize: '14px', color: 'var(--text)' }}>{viewingReading.area_name}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Status</span>
+                  <span className={`badge ${viewingReading.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
+                    {viewingReading.status_code.replace('_', ' ')}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Value</span>
+                  <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text)' }}>
+                    {viewingReading.reading_value !== null ? `${viewingReading.reading_value} kWh` : 'No Reading'}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Society & Address</span>
+                <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+                  <b>{viewingReading.society}</b> {viewingReading.address}
+                </span>
+              </div>
+
+              {viewingReading.note && (
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Agent Note</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text)', fontStyle: 'italic' }}>"{viewingReading.note}"</span>
+                </div>
+              )}
+
+              {viewingReading.is_anomalous && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent4)', padding: '12px', borderRadius: '8px', display: 'flex', gap: '10px' }}>
+                  <AlertTriangle size={18} style={{ color: 'var(--accent4)', flexShrink: 0 }} />
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent4)', display: 'block' }}>Anomaly Detected</span>
+                    <span style={{ fontSize: '12px', color: 'var(--text)' }}>{viewingReading.anomaly_reason}</span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Assigned Field Agent</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>{viewingReading.agent_name}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Submission Date</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text)' }}>{new Date(viewingReading.submitted_at).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {viewingReading.photo_url && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Verification Photo</span>
+                  <div style={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoomPhoto(viewingReading.photo_url)}>
+                    <img 
+                      src={viewingReading.photo_url} 
+                      alt="Verification meter upload" 
+                      style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} 
+                    />
+                    <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <ZoomIn size={12} /> Click to zoom
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

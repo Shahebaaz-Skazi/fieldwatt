@@ -175,6 +175,7 @@ const getBillingMonthLabel = (date) => {
 const processExcel = async () => {
   const { fileName } = workerData;
   const dbClient = await pool.connect();
+  let importId = null;
 
   try {
     const workbook = XLSX.readFile(filePath, { cellDates: true });
@@ -211,7 +212,7 @@ const processExcel = async () => {
       throw new Error('Excel must contain "Serial No" and "Consumer Name" columns.');
     }
 
-    let importId = null;
+    importId = null;
     const total = format === 'SAP' ? dataObjects.length : rawRows.length - 1;
 
     // Resolve date and file properties

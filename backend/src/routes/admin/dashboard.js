@@ -280,4 +280,61 @@ router.post('/readings/:id/revisit', authMiddleware, requireAdmin, async (req, r
   }
 });
 
+// GET /admin/dashboard/global-search - Global property search across multiple fields
+router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.json([]);
+    }
+
+    const searchTerm = `%${q.trim()}%`;
+    const queryText = `
+      SELECT 
+        p.id,
+        p.serial_no,
+        p.consumer_name,
+        p.address,
+        p.meter_no,
+        p.property_type,
+        p.society,
+        p.raw_sap_data,
+        a.name as area_name,
+        ag.name as agent_name,
+        asg.id as assignment_id,
+        r.status_code,
+        r.reading_value,
+        r.photo_url,
+        r.note,
+        r.is_anomalous,
+        r.anomaly_reason,
+        r.submitted_at
+      FROM properties p
+      LEFT JOIN areas a ON p.area_id = a.id
+      LEFT JOIN cycles cy ON cy.is_active = true
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = cy.id
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
+      LEFT JOIN readings r ON r.assignment_id = asg.id
+      WHERE 
+        p.consumer_name ILIKE $1 OR
+        p.serial_no ILIKE $1 OR
+        p.meter_no ILIKE $1 OR
+        p.address ILIKE $1 OR
+        p.society ILIKE $1 OR
+        p.raw_sap_data->>'Mobile No.' ILIKE $1 OR
+        p.raw_sap_data->>'Telephone No.' ILIKE $1 OR
+        p.raw_sap_data->>'BP No.' ILIKE $1 OR
+        p.raw_sap_data->>'Installation No.' ILIKE $1 OR
+        a.name ILIKE $1 OR
+        ag.name ILIKE $1
+      ORDER BY p.consumer_name ASC
+      LIMIT 100
+    `;
+    const result = await db.query(queryText, [searchTerm]);
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
