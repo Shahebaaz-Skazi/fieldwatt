@@ -220,7 +220,7 @@ export default function WorkListScreen() {
       
       // Auto-invalidate cache if build version changed (for fast updates propagation)
       const storedVersion = await getStoredVersion();
-      const currentVersion = '2026-07-15_v2';
+      const currentVersion = '2026-07-16_v1';
       
       if (storedVersion !== currentVersion) {
         console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);

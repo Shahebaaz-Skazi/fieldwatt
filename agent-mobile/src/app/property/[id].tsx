@@ -46,20 +46,23 @@ const applyWatermarkToImage = async (
       const serialStr = serialNo || 'N/A';
       const bpStr = bpNo || 'N/A';
       
+      const marginX = Math.round(canvas.width * 0.04);
+      const marginY = Math.round(canvas.height * 0.04);
+
       // Top Right: Timestamp
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
-      ctx.fillText(dateStr, canvas.width - 20, 20);
+      ctx.fillText(dateStr, canvas.width - marginX, marginY);
       
       // Bottom Left: Device Serial No.
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(serialStr, 20, canvas.height - 20);
+      ctx.fillText(serialStr, marginX, canvas.height - marginY);
       
       // Bottom Right: BP No.
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(bpStr, canvas.width - 20, canvas.height - 20);
+      ctx.fillText(bpStr, canvas.width - marginX, canvas.height - marginY);
       
       try {
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -363,7 +366,7 @@ export default function PropertyDetailScreen() {
               <Text style={styles.label}>Verification Photo (Mandatory)</Text>
               {photoUri ? (
                 <View style={styles.photoContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                  <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="contain" />
                   <TouchableOpacity onPress={() => setPhotoUri(null)} style={styles.removePhotoBtn}>
                     <Text style={styles.removePhotoText}>Remove & Retake</Text>
                   </TouchableOpacity>
