@@ -6,6 +6,78 @@ import api from '../../utils/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+const applyWatermarkToImage = async (
+  uri: string, 
+  serialNo: string, 
+  bpNo: string, 
+  submittedAt: string
+): Promise<string> => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return uri; // Fallback for non-web environments
+  }
+  
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(uri);
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0);
+      
+      const fontSize = Math.max(Math.round(canvas.width * 0.035), 18);
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = '#FFFF00'; // Yellow
+      
+      const d = new Date(submittedAt);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hour = String(d.getHours()).padStart(2, '0');
+      const minute = String(d.getMinutes()).padStart(2, '0');
+      const dateStr = `${day}-${month}-${year} ${hour}:${minute}`;
+      
+      const serialStr = serialNo || 'N/A';
+      const bpStr = bpNo || 'N/A';
+      
+      // Top Right: Timestamp
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText(dateStr, canvas.width - 20, 20);
+      
+      // Bottom Left: Device Serial No.
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(serialStr, 20, canvas.height - 20);
+      
+      // Bottom Right: BP No.
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(bpStr, canvas.width - 20, canvas.height - 20);
+      
+      try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl);
+      } catch (err) {
+        console.warn('Canvas toDataURL export failed:', err);
+        resolve(uri);
+      }
+    };
+    
+    img.onerror = () => {
+      console.warn('Failed to load image for watermarking');
+      resolve(uri);
+    };
+    
+    img.src = uri;
+  });
+};
 
 export default function PropertyDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -62,7 +134,16 @@ export default function PropertyDetailScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const uri = result.assets[0].uri;
-        setPhotoUri(uri);
+        
+        const bpNoStr = (property?.bp_no || 'N/A').toString();
+        const watermarked = await applyWatermarkToImage(
+          uri,
+          property?.meter_no || 'N/A',
+          bpNoStr,
+          new Date().toISOString()
+        );
+        
+        setPhotoUri(watermarked);
       }
     } catch (err) {
       console.error('Failed to launch camera:', err);

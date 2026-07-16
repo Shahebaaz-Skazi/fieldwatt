@@ -39,6 +39,7 @@ export const getCachedProperties = async () => {
       lng: p.property_lng ? parseFloat(p.property_lng) : p.lng,
       area_name: p.area_name || null,
       society: p.society || null,
+      bp_no: p.bp_no || null,
       reading_value: q ? q.reading_value : null,
       reading_status: q ? q.status_code : null,
       photo_url: q ? q.photo_url : null,

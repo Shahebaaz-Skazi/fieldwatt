@@ -23,7 +23,8 @@ export const initDb = async () => {
       lng REAL,
       area_name TEXT,
       society TEXT,
-      building_code TEXT
+      building_code TEXT,
+      bp_no TEXT
     );
 
     CREATE TABLE IF NOT EXISTS readings_queue (
@@ -62,6 +63,12 @@ export const initDb = async () => {
 
   try {
     await db.execAsync('ALTER TABLE properties ADD COLUMN building_code TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN bp_no TEXT;');
   } catch (err) {
     // Column already exists, safe to ignore
   }
@@ -110,8 +117,8 @@ export const saveProperties = async (properties: any[]) => {
   
   for (const prop of properties) {
     await database.runAsync(
-      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, building_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, building_code, bp_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         prop.property_id,
         prop.assignment_id,
@@ -124,7 +131,8 @@ export const saveProperties = async (properties: any[]) => {
         prop.property_lng ? parseFloat(prop.property_lng) : null,
         prop.area_name || null,
         prop.society || null,
-        prop.building_code || null
+        prop.building_code || null,
+        prop.bp_no || null
       ]
     );
   }
