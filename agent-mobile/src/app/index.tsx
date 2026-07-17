@@ -796,8 +796,7 @@ export default function WorkListScreen() {
                       try {
                         console.log(`Force wiping SQLite cache for society: ${societyName}...`);
                         const database = getDb();
-                        // Step 1: Wipe local cache for this society
-                        await database.runAsync("DELETE FROM properties WHERE society = ?", [societyName]);
+                        await database.execAsync(`DELETE FROM properties WHERE society = '${societyName.replace(/'/g, "''")}'`);
                         
                         // Fetch fresh from the API and re-insert into SQLite
                         const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
