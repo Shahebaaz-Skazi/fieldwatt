@@ -122,8 +122,11 @@ export const clearCachedPropertiesForSociety = async (societyName: string): Prom
   const all = (await getCachedProperties()) as any[];
   const filtered = all.filter(p => (p.society || '').trim() !== societyName.trim());
   
-  // Wipe all properties from the local SQLite cache table
-  await database.runAsync('DELETE FROM properties');
+  // Copy exactly how clearPropertiesCache does the delete:
+  await database.runAsync('DROP TABLE IF EXISTS properties');
+  
+  // Recreate the table schema fresh
+  await initDb();
   
   // Re-save only the filtered list (all properties except the ones for the target society)
   await saveProperties(filtered);
