@@ -291,8 +291,28 @@ const Dashboard = () => {
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>BP: {bpNo}</div>
                         </td>
                         <td>
-                          <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Mob: {mobile}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {prop.photo_url && (
+                              <img 
+                                src={prop.photo_url} 
+                                alt="Meter Reading"
+                                onClick={() => setZoomPhoto(prop.photo_url)}
+                                style={{ 
+                                  width: '36px', 
+                                  height: '36px', 
+                                  borderRadius: '6px', 
+                                  objectFit: 'cover', 
+                                  cursor: 'zoom-in',
+                                  border: '1px solid var(--border)'
+                                }} 
+                                title="Click to zoom photo"
+                              />
+                            )}
+                            <div>
+                              <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
+                              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Mob: {mobile}</div>
+                            </div>
+                          </div>
                         </td>
                         <td style={{ fontWeight: '600' }}>{prop.meter_no || '-'}</td>
                         <td>
