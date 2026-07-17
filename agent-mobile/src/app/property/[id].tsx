@@ -107,7 +107,7 @@ export default function PropertyDetailScreen() {
       
       // Fetch reading history for property (last 3 months)
       try {
-        const historyData = await api.get(`/agent/properties/${id}/history`);
+        const historyData = await api.get(`/agent/properties/${id}/history?_t=${Date.now()}`);
         setHistory(historyData);
       } catch (err) {
         console.warn('Could not load history from API (offline fallback active):', err);
