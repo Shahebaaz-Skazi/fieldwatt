@@ -82,6 +82,10 @@ const initDb = async () => {
     }
     // Auto-migrate schema updates (e.g. raw_sap_data column)
     await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS raw_sap_data JSONB DEFAULT NULL;`);
+    await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS sub_society VARCHAR(255);`);
+    await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS wing_code VARCHAR(100);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_sub_society ON properties(sub_society);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_wing_code ON properties(wing_code);`);
     console.log('Database schema updates checked/applied.');
   } catch (error) {
     console.error('Failed to apply database migrations/updates:', error);
