@@ -32,7 +32,7 @@ export const initDb = async () => {
       id TEXT PRIMARY KEY,
       assignment_id TEXT NOT NULL,
       idempotency_key TEXT UNIQUE NOT NULL,
-      reading_value REAL,
+      reading_value TEXT,
       status_code TEXT NOT NULL,
       photo_url TEXT,
       note TEXT,
@@ -196,7 +196,7 @@ export const getCachedProperties = async () => {
 export const queueReading = async (reading: {
   assignment_id: string;
   idempotency_key: string;
-  reading_value?: number | null;
+  reading_value?: string | null;
   status_code: string;
   photo_url?: string | null;
   note?: string | null;

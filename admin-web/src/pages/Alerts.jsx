@@ -124,7 +124,7 @@ const Alerts = () => {
                   <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.address}</td>
                   <td>{a.agent_name}</td>
                   <td style={{ fontWeight: '600' }}>
-                    {a.reading_value !== null ? `${a.reading_value} kWh` : '-'}
+                    {a.reading_value !== null ? a.reading_value : '-'}
                   </td>
                   <td style={{ color: 'var(--accent4)', fontSize: '13px', fontWeight: '500', maxWidth: '250px' }}>
                     {a.anomaly_reason}

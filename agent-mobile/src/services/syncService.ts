@@ -25,7 +25,7 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
       const payload = chunk.map(r => ({
         assignment_id: r.assignment_id,
         idempotency_key: r.idempotency_key,
-        reading_value: r.reading_value !== null ? parseFloat(r.reading_value.toString()) : null,
+        reading_value: r.reading_value !== null ? r.reading_value.toString() : null,
         status_code: r.status_code,
         photo_url: r.photo_url || null,
         note: r.note || null,

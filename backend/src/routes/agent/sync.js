@@ -11,7 +11,7 @@ const { detectAnomaly } = require('../../services/anomaly');
 const readingItemSchema = z.object({
   assignment_id: z.string().uuid(),
   idempotency_key: z.string().uuid(),
-  reading_value: z.number().nullable().optional(),
+  reading_value: z.string().nullable().optional(),
   status_code: z.enum([
     'reading_taken', 'door_locked', 'not_reachable',
     'access_denied', 'meter_not_found', 'meter_damaged',

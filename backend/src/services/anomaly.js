@@ -23,20 +23,25 @@ const detectAnomaly = async (propertyId, readingValue, submittedAt) => {
       return { isAnomalous: false, reason: null };
     }
 
+    const currValue = parseFloat(readingValue);
     const prevValue = parseFloat(result.rows[0].reading_value);
     
-    if (readingValue < prevValue) {
+    if (isNaN(currValue) || isNaN(prevValue)) {
+      return { isAnomalous: false, reason: null };
+    }
+    
+    if (currValue < prevValue) {
       return {
         isAnomalous: true,
-        reason: `Current reading (${readingValue}) is lower than the previous reading (${prevValue}).`
+        reason: `Current reading (${currValue}) is lower than the previous reading (${prevValue}).`
       };
     }
 
     // Flag if reading is abnormally high (e.g. 50% increase or 10x normal, let's keep it simple: 2x increase)
-    if (readingValue > prevValue * 2) {
+    if (currValue > prevValue * 2) {
       return {
         isAnomalous: true,
-        reason: `Current reading (${readingValue}) is abnormally high compared to previous reading (${prevValue}).`
+        reason: `Current reading (${currValue}) is abnormally high compared to previous reading (${prevValue}).`
       };
     }
 

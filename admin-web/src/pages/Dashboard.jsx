@@ -557,7 +557,7 @@ const Dashboard = () => {
                             </span>
                           </td>
                           <td style={{ fontWeight: '600' }}>
-                            {reading.reading_value !== null ? `${reading.reading_value} kWh` : '-'}
+                            {reading.reading_value !== null ? reading.reading_value : '-'}
                           </td>
                           <td>
                             {reading.photo_url ? (
@@ -715,7 +715,7 @@ const Dashboard = () => {
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Value</span>
                   <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text)' }}>
-                    {viewingReading.reading_value !== null ? `${viewingReading.reading_value} kWh` : 'No Reading'}
+                    {viewingReading.reading_value !== null ? viewingReading.reading_value : 'No Reading'}
                   </span>
                 </div>
               </div>

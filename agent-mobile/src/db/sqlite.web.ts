@@ -59,7 +59,7 @@ export const getCachedProperties = async () => {
 export const queueReading = async (reading: {
   assignment_id: string;
   idempotency_key: string;
-  reading_value?: number | null;
+  reading_value?: string | null;
   status_code: string;
   photo_url?: string | null;
   note?: string | null;

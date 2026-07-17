@@ -271,7 +271,7 @@ export default function PropertyDetailScreen() {
       await queueReading({
         assignment_id: property.assignment_id,
         idempotency_key: uuid,
-        reading_value: readingValue ? parseFloat(readingValue) : null,
+        reading_value: readingValue || null,
         status_code: statusCode,
         photo_url: finalPhotoUrl,
         note,
@@ -370,12 +370,11 @@ export default function PropertyDetailScreen() {
           {/* Reading Value input */}
           {statusCode === 'reading_taken' ? (
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Reading Value (kWh)</Text>
+              <Text style={styles.label}>Reading Value</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter numbers only..."
+                placeholder="Enter reading..."
                 placeholderTextColor="#8b9bb4"
-                keyboardType="numeric"
                 value={readingValue}
                 onChangeText={setReadingValue}
               />

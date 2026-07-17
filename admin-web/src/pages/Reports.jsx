@@ -115,7 +115,7 @@ const Reports = () => {
       // Fetch all readings for all agents in this cycle to format
       const exportRows = [];
       // Headers
-      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Agent Name', 'Status', 'Reading Value (kWh)', 'Submitted At']);
+      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Agent Name', 'Status', 'Reading Value', 'Submitted At']);
 
       for (const agent of data.agents) {
         const readings = await api.get(`/admin/dashboard/agents/${agent.id}/readings?cycle_id=${selectedCycleId}`);

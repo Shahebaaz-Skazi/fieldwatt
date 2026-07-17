@@ -1025,7 +1025,7 @@ const Areas = () => {
                     </span>
                     {selectedProperty.reading_value !== null && (
                       <p style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>
-                        Value: {selectedProperty.reading_value} kWh
+                        Value: {selectedProperty.reading_value}
                       </p>
                     )}
                     {selectedProperty.photo_url && (
@@ -1067,11 +1067,11 @@ const Areas = () => {
                   {/* Reading Value input */}
                   {adminStatusCode === 'reading_taken' && (
                     <div>
-                      <label style={{ fontSize: '11px', color: 'var(--muted)' }}>Reading Value (kWh)</label>
+                      <label style={{ fontSize: '11px', color: 'var(--muted)' }}>Reading Value</label>
                       <input 
-                        type="number"
+                        type="text"
                         className="form-input"
-                        placeholder="e.g. 142.50"
+                        placeholder="Enter reading..."
                         value={adminReadingValue}
                         onChange={(e) => setAdminReadingValue(e.target.value)}
                         style={{ width: '100%', marginTop: '4px', fontSize: '12px', padding: '6px', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '4px' }}
