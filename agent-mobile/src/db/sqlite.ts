@@ -107,12 +107,13 @@ export const setStoredAgentId = async (agentId: string) => {
   );
 };
 
-// Wipe all properties from the cache (used when a different agent logs in)
+// Wipe all properties and drop database tables to force schema recreation
 export const clearPropertiesCache = async () => {
   const database = getDb();
-  await database.runAsync('DELETE FROM properties');
-  await database.runAsync('DELETE FROM readings_queue');
-  console.log('Local cache wiped — agent identity changed.');
+  await database.runAsync('DROP TABLE IF EXISTS properties');
+  await database.runAsync('DROP TABLE IF EXISTS readings_queue');
+  await database.runAsync('DROP TABLE IF EXISTS meta');
+  console.log('Local cache wiped — database dropped for schema recreation.');
 };
 
 // Cache today's assignments locally

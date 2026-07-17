@@ -244,11 +244,12 @@ export default function WorkListScreen() {
       
       // Auto-invalidate cache if build version changed (for fast updates propagation)
       const storedVersion = await getStoredVersion();
-      const currentVersion = '2026-07-17_v2';
+      const currentVersion = '2026-07-17_v3';
       
       if (storedVersion !== currentVersion) {
         console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
         await clearPropertiesCache();
+        await initDb(); // Recreate fresh tables with latest schema
         await setStoredVersion(currentVersion);
       }
       
