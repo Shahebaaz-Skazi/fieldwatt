@@ -118,6 +118,15 @@ export const clearPropertiesCache = async () => {
 // Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
   const database = getDb();
+  console.log(`saveProperties: Saving ${properties.length} properties to SQLite...`);
+  if (properties.length > 0) {
+    console.log('saveProperties: sample item:', {
+      id: properties[0].property_id,
+      society: properties[0].society,
+      sub_society: properties[0].sub_society,
+      building_code: properties[0].building_code
+    });
+  }
   
   // Clear old properties before caching new ones
   await database.runAsync('DELETE FROM properties');

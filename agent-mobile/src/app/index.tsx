@@ -244,7 +244,7 @@ export default function WorkListScreen() {
       
       // Auto-invalidate cache if build version changed (for fast updates propagation)
       const storedVersion = await getStoredVersion();
-      const currentVersion = '2026-07-17_v1';
+      const currentVersion = '2026-07-17_v2';
       
       if (storedVersion !== currentVersion) {
         console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
@@ -252,7 +252,16 @@ export default function WorkListScreen() {
         await setStoredVersion(currentVersion);
       }
       
-      const cached = await getCachedProperties();
+      const cached = (await getCachedProperties()) as any[];
+      console.log(`loadCachedData: Loaded ${cached.length} properties from SQLite.`);
+      if (cached.length > 0) {
+        console.log('loadCachedData: sample cached item:', {
+          id: cached[0].id,
+          society: cached[0].society,
+          sub_society: cached[0].sub_society,
+          building_code: cached[0].building_code
+        });
+      }
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
       triggerSilentRefresh();
@@ -266,6 +275,7 @@ export default function WorkListScreen() {
   const triggerSilentRefresh = async () => {
     try {
       const freshAssignments = await api.get('/agent/assignments');
+      console.log(`triggerSilentRefresh: Fetched ${freshAssignments.length} fresh assignments from API.`);
       await saveProperties(freshAssignments);
       const cached = await getCachedProperties();
       setProperties(cached);
