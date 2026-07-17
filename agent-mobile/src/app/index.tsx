@@ -105,20 +105,38 @@ export default function WorkListScreen() {
     return Object.keys(counts).sort().map(k => ({ name: k, ...counts[k] }));
   }, [properties, drillArea]);
 
-  // LEVEL 3 — unique sub-societies (Street 3) — nulls EXCLUDED (they bypass this level)
+  // LEVEL 3 — unique sub-societies (Street 3)
   const drillSubSocietiesList = React.useMemo(() => {
     if (!drillArea || !drillSociety) return [];
     const counts: Record<string, { total: number; pending: number }> = {};
+    let emptySubSocCount = 0;
+    let emptySubSocPending = 0;
+    let hasEmptySubSoc = false;
+
     properties.forEach(p => {
       if ((p.area_name || 'No Area').trim() !== drillArea) return;
       if ((p.society || 'No Society').trim() !== drillSociety) return;
       const subSoc = (p.sub_society || '').trim();
-      if (!subSoc) return; // no Street 3 → this flat bypasses the sub-society level
+      if (!subSoc) {
+        hasEmptySubSoc = true;
+        emptySubSocCount++;
+        if (!p.reading_status) emptySubSocPending++;
+        return;
+      }
       if (!counts[subSoc]) counts[subSoc] = { total: 0, pending: 0 };
       counts[subSoc].total++;
       if (!p.reading_status) counts[subSoc].pending++;
     });
-    return Object.keys(counts).sort().map(k => ({ name: k, ...counts[k] }));
+
+    const list = Object.keys(counts).sort().map(k => ({ name: k, ...counts[k] }));
+    if (hasEmptySubSoc) {
+      list.push({
+        name: 'No Sub-Society',
+        total: emptySubSocCount,
+        pending: emptySubSocPending
+      });
+    }
+    return list;
   }, [properties, drillArea, drillSociety]);
 
   // LEVEL 4 — unique wings (Building code) for the current path
@@ -821,8 +839,9 @@ export default function WorkListScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       const subSocName = item.name;
-                      setDrillSubSociety(subSocName);
-                      goToWingsOrFlats(drillArea!, drillSociety!, subSocName);
+                      const filterVal = subSocName === 'No Sub-Society' ? SUB_SOC_SKIP : subSocName;
+                      setDrillSubSociety(filterVal);
+                      goToWingsOrFlats(drillArea!, drillSociety!, filterVal);
                     }}
                     style={styles.drillCard}
                   >
