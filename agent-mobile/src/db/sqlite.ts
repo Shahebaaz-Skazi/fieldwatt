@@ -121,6 +121,7 @@ export const saveProperties = async (properties: any[]) => {
   const database = getDb();
   console.log(`saveProperties: Saving ${properties.length} properties to SQLite...`);
   if (properties.length > 0) {
+    console.log('saveProperties: raw first item:', JSON.stringify(properties[0]));
     console.log('saveProperties: sample item:', {
       id: properties[0].property_id,
       society: properties[0].society,
