@@ -562,9 +562,25 @@ export default function WorkListScreen() {
     // subSocFilter: SUB_SOC_SKIP → match properties with NO sub_society; string → match that sub_society
     const getWingsForPath = (areaName: string, societyName: string, subSocFilter: string): string[] => {
       const unique = new Set<string>();
+      let matchCount = 0;
+      let sampleProp: any = null;
+      
       properties.forEach(p => {
-        if ((p.area_name || 'No Area').trim() !== areaName) return;
-        if ((p.society || 'No Society').trim() !== societyName) return;
+        const pArea = (p.area_name || 'No Area').trim();
+        const pSoc = (p.society || 'No Society').trim();
+        if (pArea !== areaName) return;
+        if (pSoc !== societyName) return;
+        
+        matchCount++;
+        if (!sampleProp) {
+          sampleProp = {
+            id: p.id,
+            building_code: p.building_code,
+            sub_society: p.sub_society,
+            address: p.address
+          };
+        }
+        
         if (subSocFilter === SUB_SOC_SKIP) {
           if ((p.sub_society || '').trim()) return; // skip those WITH sub_society
         } else {
@@ -572,12 +588,26 @@ export default function WorkListScreen() {
         }
         unique.add(getWingName(p));
       });
+      
+      console.log('getWingsForPath stats:', {
+        areaName,
+        societyName,
+        subSocFilter,
+        matchCount,
+        sampleProp,
+        computedWings: Array.from(unique)
+      });
+      
       return Array.from(unique);
     };
 
     // Decide whether to go to wings screen or skip straight to flats
     const goToWingsOrFlats = (areaName: string, societyName: string, subSocFilter: string) => {
       const wings = getWingsForPath(areaName, societyName, subSocFilter);
+      console.log('goToWingsOrFlats decision:', {
+        wings,
+        shouldSkip: (wings.length === 0 || (wings.length === 1 && wings[0] === 'General'))
+      });
       if (wings.length === 0 || (wings.length === 1 && wings[0] === 'General')) {
         // All flats in this path have no building code — skip wing level
         setDrillWing('General');
