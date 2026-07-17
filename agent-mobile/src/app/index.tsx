@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshC
 import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
-import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache } from '../db/sqlite';
+import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb } from '../db/sqlite';
 import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
@@ -568,9 +568,9 @@ export default function WorkListScreen() {
   const renderWorklistTab = () => {
 
     // Returns only real (non-empty) Street 3 values for a society
-    const getSubSocietiesForSociety = (areaName: string, societyName: string): string[] => {
+    const getSubSocietiesForSociety = (areaName: string, societyName: string, dataSrc: any[] = properties): string[] => {
       const unique = new Set<string>();
-      properties.forEach(p => {
+      dataSrc.forEach(p => {
         if ((p.area_name || 'No Area').trim() !== areaName) return;
         if ((p.society || 'No Society').trim() !== societyName) return;
         const subSoc = (p.sub_society || '').trim();
@@ -581,12 +581,12 @@ export default function WorkListScreen() {
 
     // Returns wing names for a given path.
     // subSocFilter: SUB_SOC_SKIP → match properties with NO sub_society; string → match that sub_society
-    const getWingsForPath = (areaName: string, societyName: string, subSocFilter: string): string[] => {
+    const getWingsForPath = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties): string[] => {
       const unique = new Set<string>();
       let matchCount = 0;
       let sampleProp: any = null;
       
-      properties.forEach(p => {
+      dataSrc.forEach(p => {
         const pArea = (p.area_name || 'No Area').trim();
         const pSoc = (p.society || 'No Society').trim();
         if (pArea !== areaName) return;
@@ -623,8 +623,8 @@ export default function WorkListScreen() {
     };
 
     // Decide whether to go to wings screen or skip straight to flats
-    const goToWingsOrFlats = (areaName: string, societyName: string, subSocFilter: string) => {
-      const wings = getWingsForPath(areaName, societyName, subSocFilter);
+    const goToWingsOrFlats = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties) => {
+      const wings = getWingsForPath(areaName, societyName, subSocFilter, dataSrc);
       console.log('goToWingsOrFlats decision:', {
         wings,
         shouldSkip: (wings.length === 0 || (wings.length === 1 && wings[0] === 'General'))
@@ -789,18 +789,38 @@ export default function WorkListScreen() {
                 }
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    onPress={() => {
+                    onPress={async () => {
                       const societyName = item.name;
                       setDrillSociety(societyName);
-                      const subSocs = getSubSocietiesForSociety(drillArea!, societyName);
-                      if (subSocs.length > 0) {
-                        // Has Street 3 values → show sub-society level
-                        setDrillSubSociety(null);
-                        setDrillLevel('sub_societies');
-                      } else {
-                        // No Street 3 → skip sub-society, go straight to wings
-                        setDrillSubSociety(SUB_SOC_SKIP);
-                        goToWingsOrFlats(drillArea!, societyName, SUB_SOC_SKIP);
+                      
+                      try {
+                        console.log(`Force wiping SQLite cache for society: ${societyName}...`);
+                        const database = getDb();
+                        // Step 1: Wipe local cache for this society
+                        await database.runAsync("DELETE FROM properties WHERE society = ?", [societyName]);
+                        
+                        // Fetch fresh from the API and re-insert into SQLite
+                        const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
+                        await saveProperties(freshAssignments);
+                        
+                        // Read back out from SQLite
+                        const cached = (await getCachedProperties()) as any[];
+                        setProperties(cached);
+                        applyFilters(cached, search, activeTab, drillArea!, societyName);
+                        
+                        // Step 2: Make sure the grouping fix runs on the freshly fetched data
+                        const subSocs = getSubSocietiesForSociety(drillArea!, societyName, cached);
+                        if (subSocs.length > 0) {
+                          // Has Street 3 values → show sub-society level
+                          setDrillSubSociety(null);
+                          setDrillLevel('sub_societies');
+                        } else {
+                          // No Street 3 → skip sub-society, go straight to wings
+                          setDrillSubSociety(SUB_SOC_SKIP);
+                          goToWingsOrFlats(drillArea!, societyName, SUB_SOC_SKIP, cached);
+                        }
+                      } catch (err) {
+                        console.error('Failed to wipe cache and fetch fresh assignments:', err);
                       }
                     }}
                     style={styles.drillCard}
