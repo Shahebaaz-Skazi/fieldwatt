@@ -113,7 +113,7 @@ export default function WorkListScreen() {
     }));
   }, [properties, drillArea]);
 
-  // Compute unique sub-societies for selected area and society
+  // Compute unique sub-societies for selected area and society (only REAL sub-society values — nulls are skipped)
   const drillSubSocietiesList = React.useMemo(() => {
     if (!drillArea || !drillSociety) return [];
     const counts: { [key: string]: { total: number; pending: number } } = {};
@@ -121,8 +121,9 @@ export default function WorkListScreen() {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
       if (area !== drillArea || soc !== drillSociety) return;
-      
-      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
+      // Skip properties with no sub_society — they bypass this level entirely
+      if (!p.sub_society || !p.sub_society.trim()) return;
+      const subSoc = p.sub_society.trim();
       if (!counts[subSoc]) {
         counts[subSoc] = { total: 0, pending: 0 };
       }
@@ -138,15 +139,24 @@ export default function WorkListScreen() {
     }));
   }, [properties, drillArea, drillSociety]);
 
-  // Compute unique wings for selected area, society, and sub-society
+  // Compute unique wings.
+  // drillSubSociety === null means "no sub_society" (skipped level) — filter those properties.
+  // drillSubSociety === string means a specific sub_society was selected.
   const drillWingsList = React.useMemo(() => {
-    if (!drillArea || !drillSociety || !drillSubSociety) return [];
+    if (!drillArea || !drillSociety || drillLevel !== 'wings') return [];
     const counts: { [key: string]: { total: number; pending: number } } = {};
     properties.forEach(p => {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
-      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
-      if (area !== drillArea || soc !== drillSociety || subSoc !== drillSubSociety) return;
+      if (area !== drillArea || soc !== drillSociety) return;
+      if (drillSubSociety !== null) {
+        // Came through a specific sub_society
+        const subSoc = p.sub_society ? p.sub_society.trim() : '';
+        if (subSoc !== drillSubSociety) return;
+      } else {
+        // sub_society was skipped — only show properties with no sub_society
+        if (p.sub_society && p.sub_society.trim()) return;
+      }
       const wing = getWingName(p);
       if (!counts[wing]) {
         counts[wing] = { total: 0, pending: 0 };
@@ -161,19 +171,23 @@ export default function WorkListScreen() {
       total: counts[name].total,
       pending: counts[name].pending
     }));
-  }, [properties, drillArea, drillSociety, drillSubSociety]);
+  }, [properties, drillArea, drillSociety, drillSubSociety, drillLevel]);
 
-  // Compute unique flats for selected area, society, sub-society, and wing
+  // Compute flats for the selected wing.
+  // Same sub_society null-awareness as drillWingsList.
   const drillFlatsList = React.useMemo(() => {
-    if (!drillArea || !drillSociety || !drillSubSociety || !drillWing) return [];
+    if (!drillArea || !drillSociety || !drillWing) return [];
     let list = properties.filter(p => {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
-      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
-      return area === drillArea && 
-             soc === drillSociety && 
-             subSoc === drillSubSociety &&
-             getWingName(p) === drillWing;
+      if (area !== drillArea || soc !== drillSociety) return false;
+      if (drillSubSociety !== null) {
+        const subSoc = p.sub_society ? p.sub_society.trim() : '';
+        if (subSoc !== drillSubSociety) return false;
+      } else {
+        if (p.sub_society && p.sub_society.trim()) return false;
+      }
+      return getWingName(p) === drillWing;
     });
     
     if (drillSearch) {
@@ -519,63 +533,55 @@ export default function WorkListScreen() {
 
   // ── Tab 1: Hierarchical Worklist Tab ──
   const renderWorklistTab = () => {
+    // Returns ONLY real sub_society values (nulls excluded — those bypass this level)
     const getSubSocietiesForSociety = (areaName: string, societyName: string) => {
       const unique = new Set<string>();
       properties.forEach(p => {
         const area = p.area_name ? p.area_name.trim() : 'No Area';
         const soc = p.society ? p.society.trim() : 'No Society';
-        if (area === areaName && soc === societyName) {
-          unique.add(p.sub_society ? p.sub_society.trim() : 'General');
+        if (area === areaName && soc === societyName && p.sub_society && p.sub_society.trim()) {
+          unique.add(p.sub_society.trim());
         }
       });
       return Array.from(unique);
     };
 
-    const getWingsForSubSociety = (areaName: string, societyName: string, subSocietyName: string) => {
+    // subSocietyName === null means "match properties with no sub_society"
+    const getWingsForSubSociety = (areaName: string, societyName: string, subSocietyName: string | null) => {
       const unique = new Set<string>();
       properties.forEach(p => {
         const area = p.area_name ? p.area_name.trim() : 'No Area';
         const soc = p.society ? p.society.trim() : 'No Society';
-        const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
-        if (area === areaName && soc === societyName && subSoc === subSocietyName) {
-          unique.add(getWingName(p));
+        if (area !== areaName || soc !== societyName) return;
+        if (subSocietyName !== null) {
+          const subSoc = p.sub_society ? p.sub_society.trim() : '';
+          if (subSoc !== subSocietyName) return;
+        } else {
+          if (p.sub_society && p.sub_society.trim()) return;
         }
+        unique.add(getWingName(p));
       });
       return Array.from(unique);
     };
 
     const handleGoBack = () => {
       if (drillLevel === 'flats') {
-        const wings = getWingsForSubSociety(drillArea || '', drillSociety || '', drillSubSociety || 'General');
-        if (wings.length === 1 && wings[0] === 'General') {
-          const subSocieties = getSubSocietiesForSociety(drillArea || '', drillSociety || '');
-          if (subSocieties.length === 1 && subSocieties[0] === 'General') {
-            setDrillLevel('societies');
-            setDrillSociety(null);
-            setDrillSubSociety(null);
-            setDrillWing(null);
-          } else {
-            setDrillLevel('sub_societies');
-            setDrillSubSociety(null);
-            setDrillWing(null);
-          }
-        } else {
-          setDrillLevel('wings');
-          setDrillWing(null);
-        }
+        setDrillLevel('wings');
+        setDrillWing(null);
       } else if (drillLevel === 'wings') {
-        const subSocieties = getSubSocietiesForSociety(drillArea || '', drillSociety || '');
-        if (subSocieties.length === 1 && subSocieties[0] === 'General') {
-          setDrillLevel('societies');
-          setDrillSociety(null);
-          setDrillSubSociety(null);
-        } else {
+        if (drillSubSociety !== null) {
+          // Came from a real sub_society — go back to sub_societies list
           setDrillLevel('sub_societies');
           setDrillSubSociety(null);
+        } else {
+          // sub_society was skipped — go straight back to societies
+          setDrillLevel('societies');
+          setDrillSociety(null);
         }
       } else if (drillLevel === 'sub_societies') {
         setDrillLevel('societies');
         setDrillSociety(null);
+        setDrillSubSociety(null);
       } else if (drillLevel === 'societies') {
         setDrillLevel('areas');
         setDrillArea(null);
@@ -687,9 +693,11 @@ export default function WorkListScreen() {
                     onPress={() => {
                       setDrillSociety(item.name);
                       const subSocieties = getSubSocietiesForSociety(drillArea || '', item.name);
-                      if (subSocieties.length === 1 && subSocieties[0] === 'General') {
-                        setDrillSubSociety('General');
-                        const wings = getWingsForSubSociety(drillArea || '', item.name, 'General');
+                      if (subSocieties.length === 0) {
+                        // No real sub_societies — skip that level, go straight to wings
+                        // drillSubSociety stays null (signals "no sub_society filter")
+                        setDrillSubSociety(null);
+                        const wings = getWingsForSubSociety(drillArea || '', item.name, null);
                         if (wings.length === 1 && wings[0] === 'General') {
                           setDrillWing('General');
                           setDrillLevel('flats');
@@ -697,6 +705,7 @@ export default function WorkListScreen() {
                           setDrillLevel('wings');
                         }
                       } else {
+                        // Has real sub_societies — show sub_societies screen
                         setDrillLevel('sub_societies');
                       }
                     }}
