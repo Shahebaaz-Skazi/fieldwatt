@@ -1284,9 +1284,17 @@ export default function WorkListScreen() {
             onPress={async () => {
               try {
                 await clearReadingsQueue();
-                Alert.alert('Queue Cleared', 'The local readings queue has been wiped successfully. You can now re-submit readings.');
+                if (typeof window !== 'undefined' && window.alert) {
+                  window.alert('The local readings queue has been wiped successfully. You can now re-submit readings.');
+                } else {
+                  Alert.alert('Queue Cleared', 'The local readings queue has been wiped successfully. You can now re-submit readings.');
+                }
               } catch (err: any) {
-                Alert.alert('Wipe Failed', err.message || 'Failed to wipe queue.');
+                if (typeof window !== 'undefined' && window.alert) {
+                  window.alert(err.message || 'Failed to wipe queue.');
+                } else {
+                  Alert.alert('Wipe Failed', err.message || 'Failed to wipe queue.');
+                }
               }
             }} 
             style={{
