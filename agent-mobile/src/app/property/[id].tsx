@@ -16,6 +16,14 @@ const generateUUID = (): string => {
   });
 };
 
+const showAlert = (title: string, message: string) => {
+  if (typeof window !== 'undefined' && window.alert) {
+    window.alert(`${title}: ${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 const applyWatermarkToImage = async (
   uri: string, 
   serialNo: string, 
@@ -136,7 +144,7 @@ export default function PropertyDetailScreen() {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Camera Permission Required', 'We need access to the camera to document the reading.');
+        showAlert('Camera Permission Required', 'We need access to the camera to document the reading.');
         return;
       }
 
@@ -160,7 +168,7 @@ export default function PropertyDetailScreen() {
       }
     } catch (err) {
       console.error('Failed to launch camera:', err);
-      Alert.alert('Camera Error', 'Could not open the native camera app. Please try again.');
+      showAlert('Camera Error', 'Could not open the native camera app. Please try again.');
     }
   };
 
@@ -221,13 +229,13 @@ export default function PropertyDetailScreen() {
   const handleSubmit = async () => {
     // Validations
     if (statusCode === 'reading_taken' && !readingValue) {
-      Alert.alert('Validation Error', 'Reading value is required.');
+      showAlert('Validation Error', 'Reading value is required.');
       return;
     }
 
     const requiresPhoto = ['reading_taken', 'door_locked', 'meter_damaged', 'meter_not_found'].includes(statusCode);
     if (requiresPhoto && !photoUri) {
-      Alert.alert('Validation Error', 'Photo verification is mandatory for this status.');
+      showAlert('Validation Error', 'Photo verification is mandatory for this status.');
       return;
     }
 
@@ -278,10 +286,10 @@ export default function PropertyDetailScreen() {
         console.warn('Immediate auto-sync failure:', err.message);
       });
 
-      Alert.alert('Reading Saved', 'Meter reading successfully logged to sync queue.');
+      showAlert('Reading Saved', 'Meter reading successfully logged to sync queue.');
       goBackSafe();
     } catch (err: any) {
-      Alert.alert('Submission Error', err.message || 'Failed to save reading.');
+      showAlert('Submission Error', err.message || 'Failed to save reading.');
     } finally {
       setSubmitting(false);
     }
