@@ -54,8 +54,8 @@ const seedData = async () => {
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(agentPw, salt);
       const insertAgent = await client.query(
-        `INSERT INTO agents (name, phone, password_hash, is_active) 
-         VALUES ('Default Agent', $1, $2, true) RETURNING id`,
+        `INSERT INTO agents (name, phone, username, password_hash, is_active) 
+         VALUES ('Default Agent', $1, 'default_agent', $2, true) RETURNING id`,
         [agentPhone, passwordHash]
       );
       agentId = insertAgent.rows[0].id;

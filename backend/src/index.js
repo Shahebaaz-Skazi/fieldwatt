@@ -86,6 +86,7 @@ const initDb = async () => {
     await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS wing_code VARCHAR(100);`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_sub_society ON properties(sub_society);`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_wing_code ON properties(wing_code);`);
+    await db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE DEFAULT NULL;`);
     console.log('Database schema updates checked/applied.');
   } catch (error) {
     console.error('Failed to apply database migrations/updates:', error);
