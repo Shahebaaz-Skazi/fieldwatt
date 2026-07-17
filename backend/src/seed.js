@@ -69,23 +69,59 @@ const seedData = async () => {
     if (propCheck.rows.length === 0) {
       // Create area
       const insertArea = await client.query(
-        `INSERT INTO areas (name) VALUES ('Manhattan North') RETURNING id`
+        `INSERT INTO areas (name) VALUES ('KOT006_E') RETURNING id`
       );
       const areaId = insertArea.rows[0].id;
 
-      // Create properties
+      // Create properties with full hierarchy columns
       const props = [
-        { serial: '1001', name: 'John Doe', address: '123 Main St, Apt 4B', meter: 'MTR-88910', type: 'flat' },
-        { serial: '1002', name: 'Jane Smith', address: '456 Broadway Ave', meter: 'MTR-88911', type: 'flat' },
-        { serial: '1003', name: 'Acme Corp Office', address: '789 Seventh Ave, Fl 12', meter: 'MTR-88912', type: 'flat' },
-        { serial: '1004', name: 'Robert Johnson', address: '102 Park Ave', meter: 'MTR-88913', type: 'bungalow' }
+        { 
+          serial: '15870736', 
+          name: 'SWATI VATSARAJ', 
+          address: 'FLAT, 6, A, 1ST FLOOR, MADHAV BAUG, PARAM NAVANATH PARK, NEAR KINARA HOTEL', 
+          meter: '13323423', 
+          type: 'flat',
+          society: 'PARAM NAVANATH PARK',
+          sub_society: 'MADHAV BAUG',
+          wing_code: 'A'
+        },
+        { 
+          serial: '15870739', 
+          name: 'ANURADHA SONAK', 
+          address: 'FLAT, 4, B, 1ST FLOOR, MADHAV BAUG, PARAM NAVANATH PARK, NR HOTEL KINARA', 
+          meter: '13322083', 
+          type: 'flat',
+          society: 'PARAM NAVANATH PARK',
+          sub_society: 'MADHAV BAUG',
+          wing_code: 'B'
+        },
+        { 
+          serial: '15867459', 
+          name: 'SHANKAR LIPARE', 
+          address: 'FLAT, 14, F1, 3RD FLOOR, STATE BANK NAGAR, KOTHRUD', 
+          meter: 'RAY12275822', 
+          type: 'flat',
+          society: 'STATE BANK NAGAR',
+          sub_society: null,
+          wing_code: 'F1'
+        },
+        { 
+          serial: '15867462', 
+          name: 'VINAYAK SUDHAKAR KULKARNI', 
+          address: 'FLAT, 15, F3, 3RD FLOOR, STATE BANK NAGAR, KOTHRUD', 
+          meter: 'RAY12275824', 
+          type: 'flat',
+          society: 'STATE BANK NAGAR',
+          sub_society: null,
+          wing_code: 'F3'
+        }
       ];
 
       for (const p of props) {
         const insertProp = await client.query(
-          `INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type) 
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [areaId, p.serial, p.name, p.address, p.meter, p.type]
+          `INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, society, sub_society, wing_code) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+          [areaId, p.serial, p.name, p.address, p.meter, p.type, p.society, p.sub_society, p.wing_code]
         );
         
         // Assign to our agent
@@ -95,7 +131,7 @@ const seedData = async () => {
           [agentId, insertProp.rows[0].id, cycleId]
         );
       }
-      console.log('✔ 4 Seed Properties created and assigned to Default Agent.');
+      console.log('✔ 4 Seed Hierarchical Properties created and assigned to Default Agent.');
     }
 
     await client.query('COMMIT');
