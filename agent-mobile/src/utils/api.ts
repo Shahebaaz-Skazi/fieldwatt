@@ -1,6 +1,7 @@
 import useAuthStore from '../store/authStore';
 
-const API_BASE_URL = 'https://fieldwatt-backend.onrender.com'; // ponytail: adjust during deployment
+const isDev = (typeof window !== 'undefined' && window.location.hostname === 'localhost') || (typeof __DEV__ !== 'undefined' && __DEV__);
+const API_BASE_URL = isDev ? 'http://localhost:3000' : 'https://fieldwatt-backend.onrender.com';
 
 export const apiRequest = async (endpoint: string, options: any = {}) => {
   const token = useAuthStore.getState().token;
