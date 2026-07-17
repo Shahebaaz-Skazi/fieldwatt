@@ -47,6 +47,15 @@ const cleanBuildingCode = (val) => {
     .trim();
 };
 
+const cleanWingCode = (val) => {
+  if (val === null || val === undefined) return '';
+  const cleaned = val.toString().trim().replace(/\s+/g, ' ').toUpperCase();
+  const meaningless = ['', '_', '-', '.', '/', 'NA', 'N/A', 'NONE', 'NULL', 'GENERAL', 'GEN', 'GENRAL'];
+  if (meaningless.includes(cleaned)) return '';
+  return cleaned;
+};
+
+
 // Build a human-readable address from address component columns
 // ─────────────────────────────────────────────
 const buildAddress = (row) => {
@@ -93,6 +102,8 @@ const parseSAPRow = (row) => {
   const ptype     = mapPropertyType(row['House number supplement']);
   const address   = buildAddress(row);
   const society   = normalise(row['Street']) || null; // Extract Street as society
+  const sub_society = normalise(row['Street 3']) || null; // Extract Street 3 as sub-society
+  const wing_code   = cleanWingCode(row['Building (Number or Code)']) || null;
 
   if (!orderId || !bpName) return null;
 
@@ -105,6 +116,8 @@ const parseSAPRow = (row) => {
     meter_no: deviceNo || null,
     property_type: ptype,
     society,
+    sub_society,
+    wing_code,
   };
 };
 
@@ -112,7 +125,7 @@ const parseSAPRow = (row) => {
 // Generic format: use flexible column mapping (legacy support)
 // ─────────────────────────────────────────────
 const getGenericMapping = (headers) => {
-  const mapping = { area: -1, serial_no: -1, consumer_name: -1, address: -1, meter_no: -1, property_type: -1, society: -1 };
+  const mapping = { area: -1, serial_no: -1, consumer_name: -1, address: -1, meter_no: -1, property_type: -1, society: -1, sub_society: -1, wing_code: -1 };
   headers.forEach((h, idx) => {
     const k = normalise(h?.toString() || '').replace(/[^A-Z0-9]/g, '');
     if (['AREA', 'AREANAME', 'ZONE', 'REGION'].includes(k))                         mapping.area = idx;
@@ -122,6 +135,8 @@ const getGenericMapping = (headers) => {
     else if (['METERNO', 'METERNUMBER', 'METER', 'METERCODE'].includes(k))          mapping.meter_no = idx;
     else if (['PROPERTYTYPE', 'TYPE', 'BUILDINGTYPE'].includes(k))                  mapping.property_type = idx;
     else if (['SOCIETY', 'COLONY', 'STREET'].includes(k))                           mapping.society = idx;
+    else if (['SUBSOCIETY', 'STREET3', 'COLONY3', 'SUBCOLONY'].includes(k))         mapping.sub_society = idx;
+    else if (['WING', 'WINGCODE', 'BUILDING', 'BUILDINGCODE', 'BLOCK'].includes(k))  mapping.wing_code = idx;
   });
   return mapping;
 };
@@ -139,6 +154,8 @@ const parseGenericRow = (row, mapping) => {
     meter_no: get(mapping.meter_no) || null,
     property_type: mapPropertyType(get(mapping.property_type)),
     society: get(mapping.society) || null,
+    sub_society: get(mapping.sub_society) || null,
+    wing_code: cleanWingCode(get(mapping.wing_code)) || null,
   };
 };
 
@@ -349,7 +366,7 @@ const processExcel = async () => {
 
         if (!parsed) continue;
 
-        const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society, raw_sap_data } = parsed;
+                const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society, sub_society, wing_code, raw_sap_data } = parsed;
 
         // 1. Resolve area (deduplication-safe lookup from memory cache)
         const areaId = await resolveArea(area_name, city);
@@ -362,6 +379,8 @@ const processExcel = async () => {
           meter_no,
           property_type,
           society,
+          sub_society,
+          wing_code,
           raw_sap_data
         });
       }
@@ -372,13 +391,13 @@ const processExcel = async () => {
         let paramCount = 1;
 
         for (const row of parsedChunkRows) {
-          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}::jsonb)`);
-          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, JSON.stringify(row.raw_sap_data));
-          paramCount += 9;
+          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}, $${paramCount+9}, $${paramCount+10}::jsonb)`);
+          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, row.sub_society, row.wing_code, JSON.stringify(row.raw_sap_data));
+          paramCount += 11;
         }
 
         const bulkQuery = `
-          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society, raw_sap_data)
+          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society, sub_society, wing_code, raw_sap_data)
           VALUES ${valueStrings.join(', ')}
           ON CONFLICT (serial_no)
           DO UPDATE SET
@@ -389,6 +408,8 @@ const processExcel = async () => {
             property_type  = EXCLUDED.property_type,
             import_id      = EXCLUDED.import_id,
             society        = EXCLUDED.society,
+            sub_society    = EXCLUDED.sub_society,
+            wing_code      = EXCLUDED.wing_code,
             raw_sap_data   = EXCLUDED.raw_sap_data
         `;
 

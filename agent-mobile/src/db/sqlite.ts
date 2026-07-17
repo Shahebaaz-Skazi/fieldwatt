@@ -23,6 +23,7 @@ export const initDb = async () => {
       lng REAL,
       area_name TEXT,
       society TEXT,
+      sub_society TEXT,
       building_code TEXT,
       bp_no TEXT
     );
@@ -57,6 +58,12 @@ export const initDb = async () => {
 
   try {
     await db.execAsync('ALTER TABLE properties ADD COLUMN society TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN sub_society TEXT;');
   } catch (err) {
     // Column already exists, safe to ignore
   }
@@ -117,8 +124,8 @@ export const saveProperties = async (properties: any[]) => {
   
   for (const prop of properties) {
     await database.runAsync(
-      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, building_code, bp_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         prop.property_id,
         prop.assignment_id,
@@ -131,6 +138,7 @@ export const saveProperties = async (properties: any[]) => {
         prop.property_lng ? parseFloat(prop.property_lng) : null,
         prop.area_name || null,
         prop.society || null,
+        prop.sub_society || null,
         prop.building_code || null,
         prop.bp_no || null
       ]

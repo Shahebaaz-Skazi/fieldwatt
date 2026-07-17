@@ -53,36 +53,17 @@ export default function WorkListScreen() {
   const [selectedMapProperty, setSelectedMapProperty] = useState<any | null>(null);
 
   // Hierarchical view states
-  const [drillLevel, setDrillLevel] = useState<'areas' | 'societies' | 'wings' | 'flats'>('areas');
+  const [drillLevel, setDrillLevel] = useState<'areas' | 'societies' | 'sub_societies' | 'wings' | 'flats'>('areas');
   const [drillArea, setDrillArea] = useState<string | null>(null);
   const [drillSociety, setDrillSociety] = useState<string | null>(null);
+  const [drillSubSociety, setDrillSubSociety] = useState<string | null>(null);
   const [drillWing, setDrillWing] = useState<string | null>(null);
   const [drillSearch, setDrillSearch] = useState('');
 
   // Wing parser helper
   const getWingName = (p: any) => {
-    let code = p.building_code ? p.building_code.trim() : '';
-    if (!code) {
-      const addr = p.address ? p.address.toUpperCase() : '';
-      const match = addr.match(/(?:WING|BLDG|BUILDING|BLDG-|WING-)\s*([A-Z0-9]+)/i) || 
-                    addr.match(/([A-Z0-9]+)\s*(?:WING|BLDG|BUILDING)/i);
-      if (match && match[1].trim()) {
-        code = match[1].trim();
-      } else {
-        const flatMatch = addr.match(/(?:FLAT|APT|ROOM|NO)?\s*\b([A-Z])[-/\s]?\d{2,4}\b/i);
-        if (flatMatch && flatMatch[1].trim()) {
-          code = flatMatch[1].trim();
-        } else {
-          const suffixMatch = addr.match(/\b\d{1,4}[-/\s]?([A-Z])\b/i);
-          if (suffixMatch && suffixMatch[1].trim()) {
-            code = suffixMatch[1].trim();
-          }
-        }
-      }
-    }
-    
-    if (!code || /^wing$/i.test(code)) return 'General';
-    
+    const code = p.building_code ? p.building_code.trim() : '';
+    if (!code) return 'General';
     if (/wing/i.test(code)) {
       return code.replace(/\s+/g, ' ').toUpperCase();
     }
@@ -132,14 +113,40 @@ export default function WorkListScreen() {
     }));
   }, [properties, drillArea]);
 
-  // Compute unique wings for selected area and society
-  const drillWingsList = React.useMemo(() => {
+  // Compute unique sub-societies for selected area and society
+  const drillSubSocietiesList = React.useMemo(() => {
     if (!drillArea || !drillSociety) return [];
     const counts: { [key: string]: { total: number; pending: number } } = {};
     properties.forEach(p => {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
       if (area !== drillArea || soc !== drillSociety) return;
+      
+      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
+      if (!counts[subSoc]) {
+        counts[subSoc] = { total: 0, pending: 0 };
+      }
+      counts[subSoc].total += 1;
+      if (!p.reading_status) {
+        counts[subSoc].pending += 1;
+      }
+    });
+    return Object.keys(counts).sort().map(name => ({
+      name,
+      total: counts[name].total,
+      pending: counts[name].pending
+    }));
+  }, [properties, drillArea, drillSociety]);
+
+  // Compute unique wings for selected area, society, and sub-society
+  const drillWingsList = React.useMemo(() => {
+    if (!drillArea || !drillSociety || !drillSubSociety) return [];
+    const counts: { [key: string]: { total: number; pending: number } } = {};
+    properties.forEach(p => {
+      const area = p.area_name ? p.area_name.trim() : 'No Area';
+      const soc = p.society ? p.society.trim() : 'No Society';
+      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
+      if (area !== drillArea || soc !== drillSociety || subSoc !== drillSubSociety) return;
       const wing = getWingName(p);
       if (!counts[wing]) {
         counts[wing] = { total: 0, pending: 0 };
@@ -154,16 +161,18 @@ export default function WorkListScreen() {
       total: counts[name].total,
       pending: counts[name].pending
     }));
-  }, [properties, drillArea, drillSociety]);
+  }, [properties, drillArea, drillSociety, drillSubSociety]);
 
-  // Compute unique flats for selected area, society, and wing
+  // Compute unique flats for selected area, society, sub-society, and wing
   const drillFlatsList = React.useMemo(() => {
-    if (!drillArea || !drillSociety || !drillWing) return [];
+    if (!drillArea || !drillSociety || !drillSubSociety || !drillWing) return [];
     let list = properties.filter(p => {
       const area = p.area_name ? p.area_name.trim() : 'No Area';
       const soc = p.society ? p.society.trim() : 'No Society';
+      const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
       return area === drillArea && 
              soc === drillSociety && 
+             subSoc === drillSubSociety &&
              getWingName(p) === drillWing;
     });
     
@@ -176,7 +185,7 @@ export default function WorkListScreen() {
       );
     }
     return list;
-  }, [properties, drillArea, drillSociety, drillWing, drillSearch]);
+  }, [properties, drillArea, drillSociety, drillSubSociety, drillWing, drillSearch]);
 
   // Compute unique societies for selected area (old filters)
   const availableSocieties = React.useMemo(() => {
@@ -220,7 +229,7 @@ export default function WorkListScreen() {
       
       // Auto-invalidate cache if build version changed (for fast updates propagation)
       const storedVersion = await getStoredVersion();
-      const currentVersion = '2026-07-16_v1';
+      const currentVersion = '2026-07-17_v1';
       
       if (storedVersion !== currentVersion) {
         console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
@@ -510,12 +519,25 @@ export default function WorkListScreen() {
 
   // ── Tab 1: Hierarchical Worklist Tab ──
   const renderWorklistTab = () => {
-    const getWingsForSociety = (areaName: string, societyName: string) => {
+    const getSubSocietiesForSociety = (areaName: string, societyName: string) => {
       const unique = new Set<string>();
       properties.forEach(p => {
         const area = p.area_name ? p.area_name.trim() : 'No Area';
         const soc = p.society ? p.society.trim() : 'No Society';
         if (area === areaName && soc === societyName) {
+          unique.add(p.sub_society ? p.sub_society.trim() : 'General');
+        }
+      });
+      return Array.from(unique);
+    };
+
+    const getWingsForSubSociety = (areaName: string, societyName: string, subSocietyName: string) => {
+      const unique = new Set<string>();
+      properties.forEach(p => {
+        const area = p.area_name ? p.area_name.trim() : 'No Area';
+        const soc = p.society ? p.society.trim() : 'No Society';
+        const subSoc = p.sub_society ? p.sub_society.trim() : 'General';
+        if (area === areaName && soc === societyName && subSoc === subSocietyName) {
           unique.add(getWingName(p));
         }
       });
@@ -524,16 +546,34 @@ export default function WorkListScreen() {
 
     const handleGoBack = () => {
       if (drillLevel === 'flats') {
-        const wings = getWingsForSociety(drillArea || '', drillSociety || '');
+        const wings = getWingsForSubSociety(drillArea || '', drillSociety || '', drillSubSociety || 'General');
         if (wings.length === 1 && wings[0] === 'General') {
-          setDrillLevel('societies');
-          setDrillSociety(null);
-          setDrillWing(null);
+          const subSocieties = getSubSocietiesForSociety(drillArea || '', drillSociety || '');
+          if (subSocieties.length === 1 && subSocieties[0] === 'General') {
+            setDrillLevel('societies');
+            setDrillSociety(null);
+            setDrillSubSociety(null);
+            setDrillWing(null);
+          } else {
+            setDrillLevel('sub_societies');
+            setDrillSubSociety(null);
+            setDrillWing(null);
+          }
         } else {
           setDrillLevel('wings');
           setDrillWing(null);
         }
       } else if (drillLevel === 'wings') {
+        const subSocieties = getSubSocietiesForSociety(drillArea || '', drillSociety || '');
+        if (subSocieties.length === 1 && subSocieties[0] === 'General') {
+          setDrillLevel('societies');
+          setDrillSociety(null);
+          setDrillSubSociety(null);
+        } else {
+          setDrillLevel('sub_societies');
+          setDrillSubSociety(null);
+        }
+      } else if (drillLevel === 'sub_societies') {
         setDrillLevel('societies');
         setDrillSociety(null);
       } else if (drillLevel === 'societies') {
@@ -567,6 +607,12 @@ export default function WorkListScreen() {
                 <>
                   <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
                   <Text style={styles.breadcrumbItem}>{drillSociety}</Text>
+                </>
+              )}
+              {drillSubSociety && drillSubSociety !== 'General' && (
+                <>
+                  <Ionicons name="chevron-forward" size={12} color="#94a3b8" style={{ marginHorizontal: 2 }} />
+                  <Text style={styles.breadcrumbItem}>{drillSubSociety}</Text>
                 </>
               )}
               {drillWing && drillWing !== 'General' && (
@@ -640,7 +686,56 @@ export default function WorkListScreen() {
                   <TouchableOpacity
                     onPress={() => {
                       setDrillSociety(item.name);
-                      const wings = getWingsForSociety(drillArea || '', item.name);
+                      const subSocieties = getSubSocietiesForSociety(drillArea || '', item.name);
+                      if (subSocieties.length === 1 && subSocieties[0] === 'General') {
+                        setDrillSubSociety('General');
+                        const wings = getWingsForSubSociety(drillArea || '', item.name, 'General');
+                        if (wings.length === 1 && wings[0] === 'General') {
+                          setDrillWing('General');
+                          setDrillLevel('flats');
+                        } else {
+                          setDrillLevel('wings');
+                        }
+                      } else {
+                        setDrillLevel('sub_societies');
+                      }
+                    }}
+                    style={styles.drillCard}
+                  >
+                    <View style={styles.drillCardHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                          <Ionicons name="business" size={20} color="#3b82f6" />
+                        </View>
+                        <View>
+                          <Text style={styles.drillCardName}>{item.name}</Text>
+                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+
+            {drillLevel === 'sub_societies' && (
+              <FlatList
+                data={drillSubSocietiesList}
+                keyExtractor={(item) => item.name}
+                ListHeaderComponent={
+                  <Text style={styles.drillSectionTitle}>Select Sub-Society ({drillSubSocietiesList.length})</Text>
+                }
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No sub-societies found in this society.</Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setDrillSubSociety(item.name);
+                      const wings = getWingsForSubSociety(drillArea || '', drillSociety || '', item.name);
                       if (wings.length === 1 && wings[0] === 'General') {
                         setDrillWing('General');
                         setDrillLevel('flats');
@@ -652,8 +747,8 @@ export default function WorkListScreen() {
                   >
                     <View style={styles.drillCardHeader}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-                          <Ionicons name="business" size={20} color="#3b82f6" />
+                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
+                          <Ionicons name="git-branch" size={20} color="#6366f1" />
                         </View>
                         <View>
                           <Text style={styles.drillCardName}>{item.name}</Text>
