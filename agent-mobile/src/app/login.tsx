@@ -48,7 +48,7 @@ export default function LoginScreen() {
 
       // Always sync fresh assignments from server on login — never use stale cache
       // for a freshly authenticated session.
-      const properties = await api.get('/agent/assignments');
+      const properties = await api.get(`/agent/assignments?_t=${Date.now()}`);
       await saveProperties(properties);
 
       // Stamp this agent's ID so the next login can detect a switch

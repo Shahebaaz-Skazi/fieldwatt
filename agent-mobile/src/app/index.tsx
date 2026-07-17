@@ -275,7 +275,7 @@ export default function WorkListScreen() {
 
   const triggerSilentRefresh = async () => {
     try {
-      const freshAssignments = await api.get('/agent/assignments');
+      const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
       console.log(`triggerSilentRefresh: Fetched ${freshAssignments.length} fresh assignments from API.`);
       await saveProperties(freshAssignments);
       const cached = await getCachedProperties();
@@ -289,7 +289,7 @@ export default function WorkListScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const freshAssignments = await api.get('/agent/assignments');
+      const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
       await saveProperties(freshAssignments);
       const cached = await getCachedProperties();
       setProperties(cached);
