@@ -4,6 +4,7 @@ import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache } from '../db/sqlite';
+import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
 import * as Location from 'expo-location';
@@ -201,6 +202,40 @@ export default function WorkListScreen() {
       getAgentGPS();
       loadCachedData();
     }
+  }, [token]);
+
+  // Background auto-sync (push readings) & auto-pull (refresh assignments)
+  useEffect(() => {
+    if (!token) return;
+
+    // 1. Auto-push: upload any unsynced offline readings (runs every 10 seconds)
+    const pushInterval = setInterval(async () => {
+      try {
+        const syncRes = await syncOfflineReadings();
+        if (syncRes.success && syncRes.count > 0) {
+          console.log(`Auto-sync (push): Synced ${syncRes.count} pending readings.`);
+          // Reload sqlite cache to reflect completion badges
+          const cached = await getCachedProperties();
+          setProperties(cached);
+        }
+      } catch (err) {
+        console.warn('Auto-push background task error:', err);
+      }
+    }, 10000);
+
+    // 2. Auto-pull: retrieve new task assignments from admin (runs every 30 seconds)
+    const pullInterval = setInterval(async () => {
+      try {
+        await triggerSilentRefresh();
+      } catch (err) {
+        console.warn('Auto-pull background task error:', err);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(pushInterval);
+      clearInterval(pullInterval);
+    };
   }, [token]);
 
   const loadCachedData = async () => {

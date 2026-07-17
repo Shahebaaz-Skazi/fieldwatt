@@ -47,7 +47,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000); // refresh every 30 seconds
+    const interval = setInterval(fetchDashboardData, 10000); // refresh every 10 seconds
     return () => clearInterval(interval);
   }, []);
 

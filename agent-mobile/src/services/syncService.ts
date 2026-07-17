@@ -1,10 +1,17 @@
 import { getUnsyncedReadings, markReadingsAsSynced } from '../db/sqlite';
 import api from '../utils/api';
 
+let isSyncing = false;
+
 export const syncOfflineReadings = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+  if (isSyncing) {
+    return { success: true, count: 0 };
+  }
+  isSyncing = true;
   try {
-    const readings = await getUnsyncedReadings();
+    const readings = (await getUnsyncedReadings()) as any[];
     if (readings.length === 0) {
+      isSyncing = false;
       return { success: true, count: 0 };
     }
 
@@ -45,5 +52,7 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
   } catch (error: any) {
     console.error('Sync pipeline crash:', error);
     return { success: false, count: 0, error: error.message };
+  } finally {
+    isSyncing = false;
   }
 };

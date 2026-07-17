@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { z } = require('zod');
-const { syncQueue } = require('../../dbQueue');
+const { syncQueue, connection } = require('../../dbQueue');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAgent } = require('../../middleware/roleGuard');
@@ -141,8 +141,8 @@ router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
 
     const agentId = req.user.id;
 
-    // Drop to Redis sync queue if queue is active
-    if (syncQueue) {
+    // Drop to Redis sync queue if queue is active and Redis is ready
+    if (syncQueue && connection && connection.status === 'ready') {
       await syncQueue.add('process-sync-readings', {
         agentId,
         readings,

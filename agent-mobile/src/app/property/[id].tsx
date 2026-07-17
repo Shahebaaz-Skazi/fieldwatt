@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading } from '../../db/sqlite';
+import { syncOfflineReadings } from '../../services/syncService';
 import api from '../../utils/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -262,6 +263,11 @@ export default function PropertyDetailScreen() {
         gps_lng: gpsLng,
         gps_accuracy: gpsAccuracy,
         submitted_at: new Date().toISOString()
+      });
+
+      // Fire auto-sync immediately in background (fails silently if offline, queue persists)
+      syncOfflineReadings().catch((err) => {
+        console.warn('Immediate auto-sync failure:', err.message);
       });
 
       Alert.alert('Reading Saved', 'Meter reading successfully logged to sync queue.');
