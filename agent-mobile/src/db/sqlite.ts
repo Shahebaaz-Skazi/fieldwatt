@@ -132,6 +132,13 @@ export const clearCachedPropertiesForSociety = async (societyName: string): Prom
   await saveProperties(filtered);
 };
 
+// Wipe the readings queue completely (used to resolve stuck validation payloads)
+export const clearReadingsQueue = async (): Promise<void> => {
+  const database = getDb();
+  await database.runAsync('DELETE FROM readings_queue');
+  console.log('Local readings queue wiped.');
+};
+
 // Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
   const database = getDb();

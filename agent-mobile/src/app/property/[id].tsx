@@ -7,6 +7,15 @@ import api from '../../utils/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+
+const generateUUID = (): string => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 const applyWatermarkToImage = async (
   uri: string, 
   serialNo: string, 
@@ -249,8 +258,7 @@ export default function PropertyDetailScreen() {
       }
 
       // 3. Queue reading locally
-      const idempotencyKey = crypto.randomUUID(); // Wait, React Native has crypto.randomUUID() in newer versions, or we can mock it
-      const uuid = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
+      const uuid = generateUUID();
       
       await queueReading({
         assignment_id: property.assignment_id,

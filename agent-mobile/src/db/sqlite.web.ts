@@ -119,6 +119,11 @@ export const clearCachedPropertiesForSociety = async (societyName: string): Prom
   localStorage.setItem('fieldwatt_properties', JSON.stringify(filtered));
 };
 
+export const clearReadingsQueue = async (): Promise<void> => {
+  localStorage.removeItem('fieldwatt_readings_queue');
+  console.log('Web readings queue wiped.');
+};
+
 export const getStoredVersion = async (): Promise<string | null> => {
   return localStorage.getItem('fieldwatt_app_build_version');
 };

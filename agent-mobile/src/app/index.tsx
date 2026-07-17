@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
 import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
-import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety } from '../db/sqlite';
+import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety, clearReadingsQueue } from '../db/sqlite';
 import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
@@ -1278,6 +1278,33 @@ export default function WorkListScreen() {
               <Text style={{ color: '#111827', fontSize: 13 }}>{properties.length} Cache Nodes</Text>
             </View>
           </View>
+
+          {/* Clear stuck queue Action */}
+          <TouchableOpacity 
+            onPress={async () => {
+              try {
+                await clearReadingsQueue();
+                Alert.alert('Queue Cleared', 'The local readings queue has been wiped successfully. You can now re-submit readings.');
+              } catch (err: any) {
+                Alert.alert('Wipe Failed', err.message || 'Failed to wipe queue.');
+              }
+            }} 
+            style={{
+              backgroundColor: '#fffbeb',
+              borderColor: '#fcd34d',
+              borderWidth: 1,
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: 12
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="trash-outline" size={18} color="#d97706" />
+              <Text style={{ color: '#d97706', fontWeight: '700', fontSize: 14 }}>Clear Stuck Queue</Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Logout Action */}
           <TouchableOpacity 
