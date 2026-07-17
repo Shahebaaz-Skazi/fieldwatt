@@ -116,6 +116,19 @@ export const clearPropertiesCache = async () => {
   console.log('Local cache wiped — database dropped for schema recreation.');
 };
 
+// Wipe cached properties for a specific society name
+export const clearCachedPropertiesForSociety = async (societyName: string): Promise<void> => {
+  const database = getDb();
+  const all = (await getCachedProperties()) as any[];
+  const filtered = all.filter(p => (p.society || '').trim() !== societyName.trim());
+  
+  // Wipe all properties from the local SQLite cache table
+  await database.runAsync('DELETE FROM properties');
+  
+  // Re-save only the filtered list (all properties except the ones for the target society)
+  await saveProperties(filtered);
+};
+
 // Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
   const database = getDb();

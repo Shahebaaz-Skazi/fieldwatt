@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshC
 import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
-import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb } from '../db/sqlite';
+import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety } from '../db/sqlite';
 import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
@@ -794,9 +794,8 @@ export default function WorkListScreen() {
                       setDrillSociety(societyName);
                       
                       try {
-                        console.log(`Force wiping SQLite cache for society: ${societyName}...`);
-                        const database = getDb();
-                        await database.execAsync(`DELETE FROM properties WHERE society = '${societyName.replace(/'/g, "''")}'`);
+                        // Step 1: Wipe local cache for this society
+                        await clearCachedPropertiesForSociety(societyName);
                         
                         // Fetch fresh from the API and re-insert into SQLite
                         const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
