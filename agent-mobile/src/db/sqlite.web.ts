@@ -39,6 +39,8 @@ export const getCachedProperties = async () => {
       lng: p.property_lng ? parseFloat(p.property_lng) : p.lng,
       area_name: p.area_name || null,
       society: p.society || null,
+      sub_society: p.sub_society || null,
+      building_code: p.building_code || null,
       bp_no: p.bp_no || null,
       reading_value: q ? q.reading_value : null,
       reading_status: q ? q.status_code : null,
@@ -109,6 +111,12 @@ export const clearPropertiesCache = async () => {
   localStorage.removeItem('fieldwatt_properties');
   localStorage.removeItem('fieldwatt_readings_queue');
   console.log('Web mock cache wiped — agent identity changed.');
+};
+
+export const clearCachedPropertiesForSociety = async (societyName: string): Promise<void> => {
+  const all = (await getCachedProperties()) as any[];
+  const filtered = all.filter(p => (p.society || '').trim() !== societyName.trim());
+  localStorage.setItem('fieldwatt_properties', JSON.stringify(filtered));
 };
 
 export const getStoredVersion = async (): Promise<string | null> => {
