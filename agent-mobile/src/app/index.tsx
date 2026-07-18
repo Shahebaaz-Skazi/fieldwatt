@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
-import { useRouter, Redirect } from 'expo-router';
+import { useRouter, Redirect, useRootNavigationState } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety, clearReadingsQueue } from '../db/sqlite';
@@ -34,6 +34,18 @@ export default function WorkListScreen() {
   const user = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isMounted && !token && rootNavigationState?.key) {
+      router.replace('/login');
+    }
+  }, [token, isMounted, rootNavigationState]);
 
   const [properties, setProperties] = useState<any[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
@@ -405,8 +417,12 @@ export default function WorkListScreen() {
     }
   }, [properties, agentLocation]);
 
-  if (!token) {
-    return <Redirect href="/login" />;
+  if (!isMounted || !rootNavigationState?.key || !token) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0b0d12', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#10b981" />
+      </View>
+    );
   }
 
   // ─────────────────────────────────────────────
