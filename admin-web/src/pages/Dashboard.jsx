@@ -310,9 +310,9 @@ const Dashboard = () => {
                               alt="Meter Reading"
                               onClick={() => setZoomPhoto(prop.photo_url)}
                               style={{ 
-                                width: '36px', 
-                                height: '36px', 
-                                borderRadius: '6px', 
+                                width: '70px', 
+                                height: '70px', 
+                                borderRadius: '8px', 
                                 objectFit: 'cover', 
                                 cursor: 'zoom-in',
                                 border: '1px solid var(--border)'
