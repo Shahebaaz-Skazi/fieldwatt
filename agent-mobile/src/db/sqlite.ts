@@ -275,3 +275,34 @@ export const setStoredVersion = async (version: string) => {
   );
 };
 
+// Retrieve persistent auth credentials from SQLite meta table
+export const getStoredAuth = async (): Promise<{ user: any; token: string } | null> => {
+  const database = getDb();
+  try {
+    const row: any = await database.getFirstAsync(
+      "SELECT value FROM meta WHERE key = 'auth_data'"
+    );
+    if (row && row.value) {
+      return JSON.parse(row.value);
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+};
+
+// Save persistent auth credentials to SQLite meta table
+export const setStoredAuth = async (user: any, token: string): Promise<void> => {
+  const database = getDb();
+  await database.runAsync(
+    "INSERT OR REPLACE INTO meta (key, value) VALUES ('auth_data', ?)",
+    [JSON.stringify({ user, token })]
+  );
+};
+
+// Delete persistent auth credentials from SQLite meta table
+export const clearStoredAuth = async (): Promise<void> => {
+  const database = getDb();
+  await database.runAsync("DELETE FROM meta WHERE key = 'auth_data'");
+};
+

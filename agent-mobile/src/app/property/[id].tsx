@@ -238,14 +238,7 @@ export default function PropertyDetailScreen() {
         console.warn('Location fetching failed:', err);
       }
 
-      // 2. Compress and upload photo directly
-      let finalPhotoUrl = photoUri;
-      if (photoUri) {
-        const compressed = await compressPhoto(photoUri);
-        finalPhotoUrl = await uploadPhotoToSupabase(compressed);
-      }
-
-      // 3. Queue reading locally
+      // 2. Queue reading locally with raw local photoUri (upload happens during background sync)
       const uuid = generateUUID();
       
       await queueReading({
@@ -253,7 +246,7 @@ export default function PropertyDetailScreen() {
         idempotency_key: uuid,
         reading_value: readingValue || null,
         status_code: statusCode,
-        photo_url: finalPhotoUrl,
+        photo_url: photoUri || null,
         note,
         gps_lat: gpsLat,
         gps_lng: gpsLng,

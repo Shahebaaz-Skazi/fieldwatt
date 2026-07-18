@@ -132,3 +132,16 @@ export const setStoredVersion = async (version: string) => {
   localStorage.setItem('fieldwatt_app_build_version', version);
 };
 
+export const getStoredAuth = async (): Promise<{ user: any; token: string } | null> => {
+  const data = localStorage.getItem('fieldwatt_auth');
+  return data ? JSON.parse(data) : null;
+};
+
+export const setStoredAuth = async (user: any, token: string): Promise<void> => {
+  localStorage.setItem('fieldwatt_auth', JSON.stringify({ user, token }));
+};
+
+export const clearStoredAuth = async (): Promise<void> => {
+  localStorage.removeItem('fieldwatt_auth');
+};
+

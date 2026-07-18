@@ -3,7 +3,8 @@ import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshC
 import { useRouter, Redirect, useRootNavigationState } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
-import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety, clearReadingsQueue } from '../db/sqlite';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { initDb, getCachedProperties, saveProperties, getStoredVersion, setStoredVersion, clearPropertiesCache, getDb, clearCachedPropertiesForSociety, clearReadingsQueue, getStoredAuth, clearStoredAuth } from '../db/sqlite';
 import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
@@ -36,16 +37,46 @@ export default function WorkListScreen() {
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
   const [isMounted, setIsMounted] = useState(false);
+  const insets = useSafeAreaInsets();
+  const [initAuthDone, setInitAuthDone] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    const initializeApp = async () => {
+      try {
+        await initDb();
+        
+        // Auto-invalidate cache if build version changed (for fast updates propagation)
+        const storedVersion = await getStoredVersion();
+        const currentVersion = '2026-07-17_v3';
+        
+        if (storedVersion !== currentVersion) {
+          console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
+          await clearPropertiesCache();
+          await initDb(); // Recreate fresh tables with latest schema
+          await setStoredVersion(currentVersion);
+        }
+
+        // Try restoring local session from SQLite
+        const localAuth = await getStoredAuth();
+        if (localAuth && localAuth.user && localAuth.token) {
+          console.log('Restoring persistent SQLite session for agent:', localAuth.user.name);
+          useAuthStore.getState().login(localAuth.user, localAuth.token);
+        }
+      } catch (err) {
+        console.error('Error during startup session restore:', err);
+      } finally {
+        setInitAuthDone(true);
+      }
+    };
+    initializeApp();
   }, []);
 
   useEffect(() => {
-    if (isMounted && !token && rootNavigationState?.key) {
+    if (isMounted && initAuthDone && !token && rootNavigationState?.key) {
       router.replace('/login');
     }
-  }, [token, isMounted, rootNavigationState]);
+  }, [token, isMounted, initAuthDone, rootNavigationState]);
 
   const [properties, setProperties] = useState<any[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
@@ -270,29 +301,8 @@ export default function WorkListScreen() {
 
   const loadCachedData = async () => {
     try {
-      await initDb();
-      
-      // Auto-invalidate cache if build version changed (for fast updates propagation)
-      const storedVersion = await getStoredVersion();
-      const currentVersion = '2026-07-17_v3';
-      
-      if (storedVersion !== currentVersion) {
-        console.log(`App update detected: ${storedVersion} -> ${currentVersion}. Clearing old cache.`);
-        await clearPropertiesCache();
-        await initDb(); // Recreate fresh tables with latest schema
-        await setStoredVersion(currentVersion);
-      }
-      
       const cached = (await getCachedProperties()) as any[];
       console.log(`loadCachedData: Loaded ${cached.length} properties from SQLite.`);
-      if (cached.length > 0) {
-        console.log('loadCachedData: sample cached item:', {
-          id: cached[0].id,
-          society: cached[0].society,
-          sub_society: cached[0].sub_society,
-          building_code: cached[0].building_code
-        });
-      }
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
       triggerSilentRefresh();
@@ -417,12 +427,16 @@ export default function WorkListScreen() {
     }
   }, [properties, agentLocation]);
 
-  if (!isMounted || !rootNavigationState?.key || !token) {
+  if (!isMounted || !rootNavigationState?.key || !initAuthDone) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0b0d12', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#10b981" />
       </View>
     );
+  }
+
+  if (!token) {
+    return <Redirect href="/login" />;
   }
 
   // ─────────────────────────────────────────────
@@ -1332,7 +1346,14 @@ export default function WorkListScreen() {
 
           {/* Logout Action */}
           <TouchableOpacity 
-            onPress={() => logout()} 
+            onPress={async () => {
+              try {
+                await clearStoredAuth();
+              } catch (e) {
+                console.error(e);
+              }
+              logout();
+            }} 
             style={{
               backgroundColor: '#fef2f2',
               borderColor: '#fca5a5',
@@ -1352,7 +1373,7 @@ export default function WorkListScreen() {
 
   const renderBottomTabBar = () => {
     return (
-      <View style={styles.bottomTab}>
+      <View style={[styles.bottomTab, { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 }]}>
         <TouchableOpacity
           onPress={() => setCurrentNavTab('assignments')}
           style={styles.bottomTabButton}
@@ -1400,7 +1421,7 @@ export default function WorkListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={{ flex: 1, marginBottom: 60 }}>
+      <View style={{ flex: 1, marginBottom: 60 + (insets.bottom > 0 ? insets.bottom - 12 : 0) }}>
         {currentNavTab === 'assignments' && renderWorklistTab()}
         {currentNavTab === 'radar' && renderRadarScopeTab()}
         {currentNavTab === 'profile' && renderProfileTab()}
@@ -1835,7 +1856,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    paddingVertical: 10,
+    paddingTop: 10,
     justifyContent: 'space-around',
     alignItems: 'center',
     position: 'absolute',

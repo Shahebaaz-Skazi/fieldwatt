@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import api from '../utils/api';
-import { initDb, saveProperties, getStoredAgentId, setStoredAgentId, clearPropertiesCache } from '../db/sqlite';
+import { initDb, saveProperties, getStoredAgentId, setStoredAgentId, clearPropertiesCache, setStoredAuth } from '../db/sqlite';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -53,6 +53,9 @@ export default function LoginScreen() {
 
       // Stamp this agent's ID so the next login can detect a switch
       await setStoredAgentId(incomingAgentId);
+
+      // Save auth details persistently in SQLite meta table
+      await setStoredAuth(data.user, data.token);
 
       // Route to WorkList
       useRouterInstance.replace('/');
