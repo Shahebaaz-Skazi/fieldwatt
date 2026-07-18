@@ -137,34 +137,32 @@ export default function PropertyDetailScreen() {
     }
   };
 
-  const uploadPhotoToSupabase = async (uri: string) => {
-    if (uri.startsWith('http')) return uri; // Simulated remote url
+  const uploadPhotoToSupabase = async (uri: string): Promise<string> => {
+    if (uri.startsWith('http')) return uri;
     
     const filename = `meter_${Date.now()}.jpg`;
     
-    // 1. Get presigned upload URL from backend
     const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
       filename,
       contentType: 'image/jpeg'
     });
 
-    // 2. PUT binary file directly to signed URL
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: blob,
-      headers: {
-        'Content-Type': 'image/jpeg',
-      }
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', 'image/jpeg');
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200 || xhr.status === 201) {
+            resolve(photoUrl);
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send({ uri, type: 'image/jpeg', name: filename } as any);
     });
-
-    if (!uploadRes.ok) {
-      throw new Error('Supabase binary upload failed.');
-    }
-
-    return photoUrl; // Public URL
   };
 
   const goBackSafe = () => {
