@@ -107,13 +107,13 @@ export const setStoredAgentId = async (agentId: string) => {
   );
 };
 
-// Wipe all properties and drop database tables to force schema recreation
+// Wipe all properties and delete database records safely
 export const clearPropertiesCache = async () => {
   const database = getDb();
-  await database.runAsync('DROP TABLE IF EXISTS properties');
-  await database.runAsync('DROP TABLE IF EXISTS readings_queue');
-  await database.runAsync('DROP TABLE IF EXISTS meta');
-  console.log('Local cache wiped — database dropped for schema recreation.');
+  await database.runAsync('DELETE FROM properties');
+  await database.runAsync('DELETE FROM readings_queue');
+  await database.runAsync('DELETE FROM meta');
+  console.log('Local cache database records wiped.');
 };
 
 // Wipe cached properties for a specific society name
@@ -122,13 +122,8 @@ export const clearCachedPropertiesForSociety = async (societyName: string): Prom
   const all = (await getCachedProperties()) as any[];
   const filtered = all.filter(p => (p.society || '').trim() !== societyName.trim());
   
-  // Copy exactly how clearPropertiesCache does the delete:
-  await database.runAsync('DROP TABLE IF EXISTS properties');
-  
-  // Recreate the table schema fresh
-  await initDb();
-  
-  // Re-save only the filtered list (all properties except the ones for the target society)
+  // Delete all records and re-save the filtered ones (no table dropping)
+  await database.runAsync('DELETE FROM properties');
   await saveProperties(filtered);
 };
 
