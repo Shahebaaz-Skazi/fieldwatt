@@ -9,6 +9,7 @@ import { syncOfflineReadings } from '../services/syncService';
 import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
 import * as Location from 'expo-location';
+import * as Updates from 'expo-updates';
 
 const { width } = Dimensions.get('window');
 
@@ -88,6 +89,53 @@ export default function WorkListScreen() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedArea, setSelectedArea] = useState<string>('All');
   const [selectedSociety, setSelectedSociety] = useState<string>('All');
+
+  // Expo OTA Updates states
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const checkForUpdate = async () => {
+    if (!Updates.isEnabled) {
+      Alert.alert('Not Supported', 'Updates are disabled in this environment (Development or Web).');
+      return;
+    }
+    try {
+      setCheckingUpdate(true);
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        setUpdateAvailable(true);
+      } else {
+        Alert.alert('You are up to date', 'No new updates available.');
+      }
+    } catch (e) {
+      Alert.alert('Check failed', 'Could not check for updates. Make sure you have internet.');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const applyUpdate = async () => {
+    if (!Updates.isEnabled) return;
+    try {
+      setUpdateLoading(true);
+      await Updates.fetchUpdateAsync();
+      Alert.alert(
+        'Update Ready',
+        'The update has been downloaded. The app will now restart.',
+        [{ text: 'Restart Now', onPress: () => Updates.reloadAsync() }]
+      );
+    } catch (e) {
+      Alert.alert('Update failed', 'Could not download the update. Try again.');
+      setUpdateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!__DEV__ && Updates.isEnabled) {
+      checkForUpdate().catch(() => {});
+    }
+  }, []);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'done' | 'problem'>('pending');
 
@@ -1307,6 +1355,68 @@ export default function WorkListScreen() {
               <Text style={{ color: '#6b7280', fontSize: 13 }}>Total Sync Entries</Text>
               <Text style={{ color: '#111827', fontSize: 13 }}>{properties.length} Cache Nodes</Text>
             </View>
+          </View>
+
+          {/* App Version & Update Section */}
+          <View style={{
+            backgroundColor: '#ffffff',
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 16,
+            marginTop: 4,
+            gap: 12
+          }}>
+            <View>
+              <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
+                APP RUNTIME VERSION
+              </Text>
+              <Text style={{ color: '#111827', fontSize: 14, fontWeight: '700', marginTop: 4 }}>
+                {Updates.runtimeVersion || 'Development Build'}
+              </Text>
+            </View>
+
+            {updateAvailable ? (
+              <TouchableOpacity
+                onPress={applyUpdate}
+                disabled={updateLoading}
+                style={{
+                  backgroundColor: '#d97706',
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: 'center',
+                }}
+              >
+                {updateLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 13 }}>
+                    Download & Install Update
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={checkForUpdate}
+                disabled={checkingUpdate}
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#10b981',
+                }}
+              >
+                {checkingUpdate ? (
+                  <ActivityIndicator color="#10b981" />
+                ) : (
+                  <Text style={{ color: '#10b981', fontWeight: '700', fontSize: 13 }}>
+                    Check for Updates
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Clear stuck queue Action */}
