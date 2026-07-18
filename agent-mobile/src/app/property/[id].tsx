@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading } from '../../db/sqlite';
 import { syncOfflineReadings } from '../../services/syncService';
@@ -10,6 +10,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { CameraView, Camera } from 'expo-camera';
 import ViewShot from 'react-native-view-shot';
 import useAuthStore from '../../store/authStore';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -147,9 +148,19 @@ export default function PropertyDetailScreen() {
         showAlert('Camera Permission Required', 'We need access to the camera to document the reading.');
         return;
       }
+      
+      // Lock orientation based on status code
+      if (statusCode === 'reading_taken') {
+        console.log('Locking orientation to LANDSCAPE for meter reading photo.');
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+      } else {
+        console.log('Locking orientation to PORTRAIT for door locked/other photo.');
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+      }
+      
       setCameraActive(true);
     } catch (err) {
-      console.error('Failed to request camera permission:', err);
+      console.error('Failed to request camera permission or lock orientation:', err);
       showAlert('Camera Error', 'Could not open the camera. Please try again.');
     }
   };
@@ -269,7 +280,11 @@ export default function PropertyDetailScreen() {
   };
 
   if (cameraActive) {
-    const { width, height } = Dimensions.get('window');
+    const { width, height } = useWindowDimensions();
+    const isLandscape = width > height;
+    const watermarkPadding = isLandscape ? 20 : 12;
+    const watermarkFontSize = isLandscape ? 13 : 11;
+
     const agentName = useAuthStore.getState().user?.name || 'Default Agent';
     const bpNoStr = (property?.bp_no || 'N/A').toString();
     const meterNo = property?.meter_no || 'N/A';
@@ -288,14 +303,17 @@ export default function PropertyDetailScreen() {
           />
           
           {/* Watermark overlay — visible while shooting */}
-          <View style={styles.watermarkOverlay}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={styles.watermarkText}>{agentName}</Text>
-              <Text style={styles.watermarkText}>{currentTime}</Text>
+          <View style={[styles.watermarkOverlay, { padding: watermarkPadding }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{agentName}</Text>
+              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{currentTime}</Text>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={styles.watermarkText}>Meter: {meterNo} (BP: {bpNoStr})</Text>
-              <Text style={styles.watermarkText}>{cameraGps}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <View style={{ gap: 4 }}>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>Meter: {meterNo}</Text>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
+              </View>
+              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{cameraGps}</Text>
             </View>
           </View>
         </ViewShot>
@@ -304,7 +322,14 @@ export default function PropertyDetailScreen() {
         <View style={styles.cameraControls}>
           <TouchableOpacity
             style={styles.cancelCameraButton}
-            onPress={() => setCameraActive(false)}
+            onPress={async () => {
+              try {
+                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+              } catch (e) {
+                console.warn('Failed to unlock orientation:', e);
+              }
+              setCameraActive(false);
+            }}
           >
             <Text style={styles.cancelCameraText}>Cancel</Text>
           </TouchableOpacity>
@@ -334,6 +359,11 @@ export default function PropertyDetailScreen() {
                   }
                   
                   setPhotoUri(uri);
+                  try {
+                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+                  } catch (e) {
+                    console.warn('Failed to unlock orientation:', e);
+                  }
                   setCameraActive(false);
                 }
               } catch (err) {
