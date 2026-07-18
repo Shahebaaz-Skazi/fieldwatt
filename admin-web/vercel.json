@@ -2,7 +2,7 @@
   "redirects": [
     {
       "source": "/apk",
-      "destination": "https://d1a9r8918239.cloudfront.net/1e6fd5a1-e2b2-4545-9936-1b5c78553b03/cb16a9b9-b851-4358-9a5b-c521b23cbdb9.apk",
+      "destination": "https://expo.dev/accounts/shahebaaz/projects/agent-mobile/builds/cb16a9b9-b851-4358-9a5b-c521b23cbdb9",
       "permanent": false
     }
   ],
