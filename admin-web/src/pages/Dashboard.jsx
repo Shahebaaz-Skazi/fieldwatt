@@ -263,14 +263,14 @@ const Dashboard = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th>BP Order No.</th>
-                  <th>Consumer Details</th>
-                  <th>Meter Number</th>
                   <th>Area / MRU</th>
+                  <th>BP No. / Order No.</th>
+                  <th>Consumer Details</th>
+                  <th>Taken Image</th>
+                  <th>Reading Value</th>
                   <th>Society & Address</th>
                   <th>Status</th>
                   <th>Assigned Agent</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,46 +286,55 @@ const Dashboard = () => {
                     const bpNo = prop.raw_sap_data?.['BP No.'] || '-';
                     return (
                       <tr key={prop.id}>
-                        <td>
-                          <div style={{ fontWeight: '700', color: 'var(--text)' }}>{prop.serial_no}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>BP: {bpNo}</div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            {prop.photo_url && (
-                              <img 
-                                src={prop.photo_url} 
-                                alt="Meter Reading"
-                                onClick={() => setZoomPhoto(prop.photo_url)}
-                                style={{ 
-                                  width: '36px', 
-                                  height: '36px', 
-                                  borderRadius: '6px', 
-                                  objectFit: 'cover', 
-                                  cursor: 'zoom-in',
-                                  border: '1px solid var(--border)'
-                                }} 
-                                title="Click to zoom photo"
-                              />
-                            )}
-                            <div>
-                              <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
-                              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Mob: {mobile}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '600' }}>{prop.meter_no || '-'}</td>
+                        {/* 1. Area / MRU */}
                         <td>
                           <span className="badge badge-pending" style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}>
                             {prop.area_name}
                           </span>
                         </td>
+                        {/* 2. BP No. / Order No. */}
+                        <td>
+                          <div style={{ fontWeight: '700', color: 'var(--text)' }}>{prop.serial_no}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>BP: {bpNo}</div>
+                        </td>
+                        {/* 3. Consumer Details */}
+                        <td>
+                          <div style={{ fontWeight: '600', color: 'var(--text)' }}>{prop.consumer_name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Mob: {mobile}</div>
+                        </td>
+                        {/* 4. Taken Image */}
+                        <td>
+                          {prop.photo_url ? (
+                            <img 
+                              src={prop.photo_url} 
+                              alt="Meter Reading"
+                              onClick={() => setZoomPhoto(prop.photo_url)}
+                              style={{ 
+                                width: '36px', 
+                                height: '36px', 
+                                borderRadius: '6px', 
+                                objectFit: 'cover', 
+                                cursor: 'zoom-in',
+                                border: '1px solid var(--border)'
+                              }} 
+                              title="Click to zoom photo"
+                            />
+                          ) : (
+                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>No Photo</span>
+                          )}
+                        </td>
+                        {/* 5. Reading Value */}
+                        <td style={{ fontWeight: '800', color: 'var(--text)', fontSize: '14px' }}>
+                          {prop.reading_value !== null ? prop.reading_value : '-'}
+                        </td>
+                        {/* 6. Society & Address */}
                         <td>
                           <div style={{ fontWeight: '500', color: 'var(--text)', fontSize: '12px' }}>{prop.society || 'No Society'}</div>
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px' }} title={prop.address}>
                             {prop.address}
                           </div>
                         </td>
+                        {/* 7. Status */}
                         <td>
                           {prop.assignment_id ? (
                             prop.status_code ? (
@@ -341,24 +350,12 @@ const Dashboard = () => {
                             </span>
                           )}
                         </td>
+                        {/* 8. Assigned Agent */}
                         <td>
                           {prop.agent_name ? (
                             <div style={{ fontWeight: '500' }}>{prop.agent_name}</div>
                           ) : (
                             <span style={{ color: 'var(--muted)', fontSize: '12px' }}>-</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {prop.agent_name && prop.status_code ? (
-                            <button
-                              onClick={() => setViewingReading(prop)}
-                              className="btn btn-secondary"
-                              style={{ padding: '6px 12px', fontSize: '12px' }}
-                            >
-                              View Reading
-                            </button>
-                          ) : (
-                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>No Reading</span>
                           )}
                         </td>
                       </tr>
