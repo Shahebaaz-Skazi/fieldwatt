@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading } from '../../db/sqlite';
 import { syncOfflineReadings } from '../../services/syncService';
@@ -7,6 +7,9 @@ import api from '../../utils/api';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { CameraView, Camera } from 'expo-camera';
+import ViewShot from 'react-native-view-shot';
+import useAuthStore from '../../store/authStore';
 
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -64,6 +67,54 @@ export default function PropertyDetailScreen() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Custom Watermark Camera States
+  const [cameraActive, setCameraActive] = useState(false);
+  const [currentTime, setCurrentTime] = useState('');
+  const [cameraGps, setCameraGps] = useState('Fetching GPS...');
+  const viewShotRef = useRef<any>(null);
+  const cameraRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!cameraActive) return;
+    const updateTime = () => {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hour = String(d.getHours()).padStart(2, '0');
+      const minute = String(d.getMinutes()).padStart(2, '0');
+      const second = String(d.getSeconds()).padStart(2, '0');
+      setCurrentTime(`${day}-${month}-${year} ${hour}:${minute}:${second}`);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, [cameraActive]);
+
+  useEffect(() => {
+    if (!cameraActive) return;
+    let isMounted = true;
+    const startGpsWatch = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          if (isMounted) {
+            setCameraGps(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
+          }
+        } else {
+          if (isMounted) setCameraGps('GPS Denied');
+        }
+      } catch (err) {
+        if (isMounted) setCameraGps('GPS Unavailable');
+      }
+    };
+    startGpsWatch();
+    return () => {
+      isMounted = false;
+    };
+  }, [cameraActive]);
+
   const fetchPropertyData = async () => {
     try {
       const prop = await getPropertyById(id as string);
@@ -91,33 +142,15 @@ export default function PropertyDetailScreen() {
 
   const handleCapturePhoto = async () => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         showAlert('Camera Permission Required', 'We need access to the camera to document the reading.');
         return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
-        
-        const bpNoStr = (property?.bp_no || 'N/A').toString();
-        const watermarked = await applyWatermarkToImage(
-          uri,
-          property?.meter_no || 'N/A',
-          bpNoStr,
-          new Date().toISOString()
-        );
-        
-        setPhotoUri(watermarked);
-      }
+      setCameraActive(true);
     } catch (err) {
-      console.error('Failed to launch camera:', err);
-      showAlert('Camera Error', 'Could not open the native camera app. Please try again.');
+      console.error('Failed to request camera permission:', err);
+      showAlert('Camera Error', 'Could not open the camera. Please try again.');
     }
   };
 
@@ -241,6 +274,89 @@ export default function PropertyDetailScreen() {
       setSubmitting(false);
     }
   };
+
+  if (cameraActive) {
+    const { width, height } = Dimensions.get('window');
+    const agentName = useAuthStore.getState().user?.name || 'Default Agent';
+    const bpNoStr = (property?.bp_no || 'N/A').toString();
+    const meterNo = property?.meter_no || 'N/A';
+
+    return (
+      <View style={styles.cameraContainer}>
+        <ViewShot
+          ref={viewShotRef}
+          options={{ format: 'jpg', quality: 0.85 }}
+          style={{ width, height }}
+        >
+          <CameraView
+            style={{ flex: 1 }}
+            ref={cameraRef}
+            facing="back"
+          />
+          
+          {/* Watermark overlay — visible while shooting */}
+          <View style={styles.watermarkOverlay}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={styles.watermarkText}>{agentName}</Text>
+              <Text style={styles.watermarkText}>{currentTime}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={styles.watermarkText}>Meter: {meterNo} (BP: {bpNoStr})</Text>
+              <Text style={styles.watermarkText}>{cameraGps}</Text>
+            </View>
+          </View>
+        </ViewShot>
+
+        {/* Shutter controls */}
+        <View style={styles.cameraControls}>
+          <TouchableOpacity
+            style={styles.cancelCameraButton}
+            onPress={() => setCameraActive(false)}
+          >
+            <Text style={styles.cancelCameraText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.shutterButton}
+            onPress={async () => {
+              try {
+                if (cameraRef.current && viewShotRef.current) {
+                  // Trigger shutter
+                  await cameraRef.current.takePictureAsync({ quality: 0.5 });
+                  
+                  // Capture with watermark burned in
+                  const uri = await viewShotRef.current.capture();
+                  console.log('✔ Captured watermarked photo path:', uri);
+                  
+                  // Save to gallery
+                  try {
+                    const MediaLibrary = require('expo-media-library');
+                    const { status } = await MediaLibrary.requestPermissionsAsync();
+                    if (status === 'granted') {
+                      await MediaLibrary.saveToLibraryAsync(uri);
+                      console.log('✔ Saved watermarked photo to gallery.');
+                    }
+                  } catch (e) {
+                    console.warn('Failed to save to gallery:', e);
+                  }
+                  
+                  setPhotoUri(uri);
+                  setCameraActive(false);
+                }
+              } catch (err) {
+                console.error('Capture failed:', err);
+                showAlert('Capture Error', 'Failed to take photo. Please try again.');
+              }
+            }}
+          >
+            <View style={styles.shutterButtonInner} />
+          </TouchableOpacity>
+          
+          <View style={{ width: 60 }} />
+        </View>
+      </View>
+    );
+  }
 
   if (loading || !property) {
     return (
@@ -550,5 +666,63 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  watermarkOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 40,
+    pointerEvents: 'none',
+  },
+  watermarkText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    padding: 4,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  cameraControls: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  cancelCameraButton: {
+    padding: 12,
+  },
+  cancelCameraText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  shutterButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shutterButtonInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#ffffff',
   },
 });
