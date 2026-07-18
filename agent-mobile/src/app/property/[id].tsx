@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading } from '../../db/sqlite';
 import { syncOfflineReadings } from '../../services/syncService';
@@ -30,74 +30,139 @@ const applyWatermarkToImage = async (
   bpNo: string, 
   submittedAt: string
 ): Promise<string> => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return uri; // Fallback for non-web environments
-  }
-  
-  return new Promise((resolve) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(uri);
-        return;
-      }
-      
-      ctx.drawImage(img, 0, 0);
-      
-      const fontSize = Math.max(Math.round(canvas.width * 0.035), 18);
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.fillStyle = '#FFFF00'; // Yellow
-      
-      const d = new Date(submittedAt);
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      const hour = String(d.getHours()).padStart(2, '0');
-      const minute = String(d.getMinutes()).padStart(2, '0');
-      const dateStr = `${day}-${month}-${year} ${hour}:${minute}`;
-      
-      const serialStr = serialNo || 'N/A';
-      const bpStr = bpNo || 'N/A';
-      
-      const marginX = Math.round(canvas.width * 0.04);
-      const marginY = Math.round(canvas.height * 0.04);
+  const d = new Date(submittedAt);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hour = String(d.getHours()).padStart(2, '0');
+  const minute = String(d.getMinutes()).padStart(2, '0');
+  const dateStr = `${day}-${month}-${year} ${hour}:${minute}`;
+  const serialStr = serialNo || 'N/A';
+  const bpStr = bpNo || 'N/A';
 
-      // Top Right: Timestamp
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText(dateStr, canvas.width - marginX, marginY);
+  // 1. Web Environment Fallback
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return uri;
+    }
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(uri);
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0);
+        
+        const fontSize = Math.max(Math.round(canvas.width * 0.035), 18);
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = '#FFFF00'; // Yellow
+        
+        const marginX = Math.round(canvas.width * 0.04);
+        const marginY = Math.round(canvas.height * 0.04);
+
+        // Top Right: Timestamp
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(dateStr, canvas.width - marginX, marginY);
+        
+        // Bottom Left: Device Serial No.
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(serialStr, marginX, canvas.height - marginY);
+        
+        // Bottom Right: BP No.
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(bpStr, canvas.width - marginX, canvas.height - marginY);
+        
+        try {
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(dataUrl);
+        } catch (err) {
+          console.warn('Canvas toDataURL export failed:', err);
+          resolve(uri);
+        }
+      };
       
-      // Bottom Left: Device Serial No.
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(serialStr, marginX, canvas.height - marginY);
-      
-      // Bottom Right: BP No.
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(bpStr, canvas.width - marginX, canvas.height - marginY);
-      
-      try {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        resolve(dataUrl);
-      } catch (err) {
-        console.warn('Canvas toDataURL export failed:', err);
+      img.onerror = () => {
+        console.warn('Failed to load image for watermarking');
         resolve(uri);
+      };
+      
+      img.src = uri;
+    });
+  }
+
+  // 2. Native Environment (Android/iOS)
+  try {
+    const Marker = require('react-native-image-marker').default;
+    const { Position } = require('react-native-image-marker');
+    const MediaLibrary = require('expo-media-library');
+
+    // Use native image-marker to apply watermarks
+    const markedUri = await Marker.markText({
+      backgroundImage: {
+        src: uri,
+        scale: 1,
+      },
+      watermarkTexts: [
+        {
+          text: dateStr,
+          position: { position: Position.topRight },
+          style: {
+            color: '#FFFF00',
+            fontSize: 32,
+            fontName: 'Helvetica-Bold',
+          }
+        },
+        {
+          text: `Meter: ${serialStr}`,
+          position: { position: Position.bottomLeft },
+          style: {
+            color: '#FFFF00',
+            fontSize: 32,
+            fontName: 'Helvetica-Bold',
+          }
+        },
+        {
+          text: `BP: ${bpStr}`,
+          position: { position: Position.bottomRight },
+          style: {
+            color: '#FFFF00',
+            fontSize: 32,
+            fontName: 'Helvetica-Bold',
+          }
+        }
+      ],
+      saveFormat: 'jpg',
+      quality: 85,
+    });
+
+    // Save the watermarked image to the agent's photo gallery
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(markedUri);
+        console.log('✔ Watermarked photo successfully saved to agent device gallery.');
+      } else {
+        console.warn('Media Library permission denied - skipping gallery save.');
       }
-    };
-    
-    img.onerror = () => {
-      console.warn('Failed to load image for watermarking');
-      resolve(uri);
-    };
-    
-    img.src = uri;
-  });
+    } catch (saveErr) {
+      console.warn('Failed to save watermarked image to device gallery:', saveErr);
+    }
+
+    return markedUri;
+  } catch (err) {
+    console.error('Failed to watermark image natively:', err);
+    return uri; // Fallback to raw camera photo
+  }
 };
 
 export default function PropertyDetailScreen() {

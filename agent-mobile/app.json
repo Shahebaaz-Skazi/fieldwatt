@@ -17,7 +17,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.fieldeatt.agent"
     },
     "web": {
       "output": "static",
@@ -33,11 +34,32 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "react-native-image-marker",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow FieldWatt to access your photos.",
+          "savePhotosPermission": "Allow FieldWatt to save photos to your gallery."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1e6fd5a1-e2b2-4545-9936-1b5c78553b03"
+      }
+    },
+    "owner": "shahebaaz",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1e6fd5a1-e2b2-4545-9936-1b5c78553b03"
     }
   }
 }
