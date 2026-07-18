@@ -1,7 +1,25 @@
 import useAuthStore from '../store/authStore';
 
-const isDev = (typeof window !== 'undefined' && window.location.hostname === 'localhost') || (typeof __DEV__ !== 'undefined' && __DEV__);
-const API_BASE_URL = isDev ? 'http://localhost:3000' : 'https://fieldwatt-backend.onrender.com';
+import Constants from 'expo-constants';
+
+const getApiBaseUrl = (): string => {
+  const isDevMode = typeof __DEV__ !== 'undefined' && __DEV__;
+  // Running in Expo Go local dev
+  if (isDevMode && Constants.expoConfig?.hostUri) {
+    const host = Constants.expoConfig.hostUri.split(':')[0];
+    return `http://${host}:3000`;
+  }
+  // Running on web browser (localhost or Vercel)
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location?.hostname;
+    if (hostname === 'localhost') return 'http://localhost:3000';
+    return 'https://fieldwatt-backend.onrender.com';
+  }
+  // Fallback for production native build
+  return 'https://fieldwatt-backend.onrender.com';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export const apiRequest = async (endpoint: string, options: any = {}) => {
   const token = useAuthStore.getState().token;
