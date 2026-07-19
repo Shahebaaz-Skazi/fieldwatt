@@ -11,7 +11,7 @@ import { CameraView, Camera } from 'expo-camera';
 import ViewShot from 'react-native-view-shot';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { File, Paths } from 'expo-file-system';
+// import { File, Paths } from 'expo-file-system';
 import { sharedData } from '../../utils/sharedData';
 
 const generateUUID = (): string => {
@@ -361,26 +361,26 @@ export default function PropertyDetailScreen() {
                   const tempUri = await viewShotRef.current.capture();
                   console.log('✔ Captured watermarked photo (temp):', tempUri);
 
-                  // Copy to permanent document directory so it survives cleanup
-                  const destFile = new File(Paths.document, `photo_${Date.now()}.jpg`);
-                  const sourceFile = new File(tempUri);
-                  sourceFile.copy(destFile);
-                  const permanentUri = destFile.uri;
-                  console.log('✔ Copied to permanent path:', permanentUri);
+                  // Comment out permanent copy since expo-file-system is not linked in existing APK build
+                  // const destFile = new File(Paths.document, `photo_${Date.now()}.jpg`);
+                  // const sourceFile = new File(tempUri);
+                  // sourceFile.copy(destFile);
+                  // const permanentUri = destFile.uri;
+                  // console.log('✔ Copied to permanent path:', permanentUri);
                   
                   // Save to gallery
                   try {
                     const MediaLibrary = require('expo-media-library');
                     const { status } = await MediaLibrary.requestPermissionsAsync();
                     if (status === 'granted') {
-                      await MediaLibrary.saveToLibraryAsync(permanentUri);
+                      await MediaLibrary.saveToLibraryAsync(tempUri);
                       console.log('✔ Saved watermarked photo to gallery.');
                     }
                   } catch (e) {
                     console.warn('Failed to save to gallery:', e);
                   }
                   
-                  setPhotoUri(permanentUri);
+                  setPhotoUri(tempUri);
                   try {
                     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
                   } catch (e) {
