@@ -328,19 +328,14 @@ export default function PropertyDetailScreen() {
 
     return (
       <View style={styles.cameraContainer}>
-        <ViewShot
-          ref={viewShotRef}
-          options={{ format: 'jpg', quality: 0.85 }}
-          style={{ width, height }}
-        >
+        <View style={{ flex: 1, width: '100%', height: '100%' }}>
           <CameraView
-            key={isLandscape ? 'landscape' : 'portrait'}
             style={{ flex: 1 }}
             ref={cameraRef}
             facing="back"
           />
           
-          {/* Watermark overlay — visible while shooting */}
+          {/* Watermark overlay — visible while shooting, visual only */}
           <View style={[styles.watermarkOverlay, { padding: watermarkPadding }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{agentName}</Text>
@@ -354,7 +349,7 @@ export default function PropertyDetailScreen() {
               <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{cameraGps}</Text>
             </View>
           </View>
-        </ViewShot>
+        </View>
 
         {/* Shutter controls */}
         <View style={styles.cameraControls}>
@@ -369,27 +364,24 @@ export default function PropertyDetailScreen() {
             style={styles.shutterButton}
             onPress={async () => {
               try {
-                if (cameraRef.current && viewShotRef.current) {
-                  // Trigger shutter
-                  await cameraRef.current.takePictureAsync({ quality: 0.8, skipProcessing: false });
-                  
-                  // Capture with watermark burned in (returns temp URI)
-                  const tempUri = await viewShotRef.current.capture();
-                  console.log('✔ Captured watermarked photo (temp):', tempUri);
+                if (cameraRef.current) {
+                  // Capture photo directly using hardware camera
+                  const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
+                  console.log('✔ Captured photo directly:', photo.uri);
 
-                  // Save directly to gallery from tempUri to avoid requiring expo-file-system native library
+                  // Save directly to gallery from temp photo uri
                   try {
                     const MediaLibrary = require('expo-media-library');
                     const { status } = await MediaLibrary.requestPermissionsAsync();
                     if (status === 'granted') {
-                      await MediaLibrary.saveToLibraryAsync(tempUri);
-                      console.log('✔ Saved watermarked photo to gallery.');
+                      await MediaLibrary.saveToLibraryAsync(photo.uri);
+                      console.log('✔ Saved original photo to gallery.');
                     }
                   } catch (e) {
                     console.warn('Failed to save to gallery:', e);
                   }
                   
-                  setPhotoUri(tempUri);
+                  setPhotoUri(photo.uri);
                   await closeCamera();
                 }
               } catch (err) {
