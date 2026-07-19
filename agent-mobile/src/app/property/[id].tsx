@@ -58,6 +58,7 @@ const applyWatermarkToImage = async (
 export default function PropertyDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
 
   const [property, setProperty] = useState<any>(() => {
     // Sync pre-populate from shared memory store to prevent blank screens immediately
@@ -317,7 +318,6 @@ export default function PropertyDetailScreen() {
   };
 
   if (cameraActive) {
-    const { width, height } = useWindowDimensions();
     const isLandscape = width > height;
     const watermarkPadding = isLandscape ? 20 : 12;
     const watermarkFontSize = isLandscape ? 13 : 11;
