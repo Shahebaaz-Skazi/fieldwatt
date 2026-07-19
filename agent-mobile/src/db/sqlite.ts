@@ -25,7 +25,8 @@ export const initDb = async () => {
       society TEXT,
       sub_society TEXT,
       building_code TEXT,
-      bp_no TEXT
+      bp_no TEXT,
+      reading_status TEXT
     );
 
     CREATE TABLE IF NOT EXISTS readings_queue (
@@ -76,6 +77,12 @@ export const initDb = async () => {
 
   try {
     await db.execAsync('ALTER TABLE properties ADD COLUMN bp_no TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN reading_status TEXT;');
   } catch (err) {
     // Column already exists, safe to ignore
   }
@@ -187,7 +194,8 @@ export const saveProperties = async (properties: any[]) => {
             society TEXT,
             sub_society TEXT,
             building_code TEXT,
-            bp_no TEXT
+            bp_no TEXT,
+            reading_status TEXT
           )
         `);
         const database2 = getDb();
@@ -228,12 +236,20 @@ export const saveProperties = async (properties: any[]) => {
 export const getCachedProperties = async () => {
   const database = getDb();
   const rows = await database.getAllAsync(`
-    SELECT p.*, r.reading_value, r.status_code as reading_status, r.photo_url, r.note, r.is_synced, r.id as queued_reading_id
+    SELECT p.*, r.reading_value, COALESCE(r.status_code, p.reading_status) as reading_status, r.photo_url, r.note, r.is_synced, r.id as queued_reading_id
     FROM properties p
     LEFT JOIN readings_queue r ON p.assignment_id = r.assignment_id
     ORDER BY CAST(p.serial_no AS INTEGER) ASC
   `);
   return rows;
+};
+
+export const updatePropertyStatus = async (assignmentId: string, status: string): Promise<void> => {
+  const database = getDb();
+  await database.runAsync(
+    `UPDATE properties SET reading_status = ? WHERE assignment_id = ?`,
+    [status, assignmentId]
+  );
 };
 
 // Queue a reading for offline upload

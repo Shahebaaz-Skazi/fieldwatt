@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getPropertyById, queueReading } from '../../db/sqlite';
+import { getPropertyById, queueReading, updatePropertyStatus } from '../../db/sqlite';
 import { syncOfflineReadings } from '../../services/syncService';
 import api from '../../utils/api';
 import * as Location from 'expo-location';
@@ -302,6 +302,9 @@ export default function PropertyDetailScreen() {
         gps_accuracy: gpsAccuracy,
         submitted_at: new Date().toISOString()
       });
+
+      // Immediately mark property as done in local SQLite so UI updates without waiting for sync
+      await updatePropertyStatus(property.assignment_id, statusCode);
 
       // Fire auto-sync immediately in background (fails silently if offline, queue persists)
       syncOfflineReadings().catch((err) => {

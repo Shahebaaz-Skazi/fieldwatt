@@ -45,7 +45,7 @@ export const getCachedProperties = async () => {
       building_code: p.building_code || null,
       bp_no: p.bp_no || null,
       reading_value: q ? q.reading_value : null,
-      reading_status: q ? q.status_code : null,
+      reading_status: q ? q.status_code : p.reading_status || null,
       photo_url: q ? q.photo_url : null,
       note: q ? q.note : null,
       is_synced: 0,
@@ -55,6 +55,16 @@ export const getCachedProperties = async () => {
 
   // Sort by serial_no cast to integer
   return rows.sort((a: any, b: any) => parseInt(a.serial_no) - parseInt(b.serial_no));
+};
+
+export const updatePropertyStatus = async (assignmentId: string, status: string): Promise<void> => {
+  const raw = localStorage.getItem('fieldwatt_properties');
+  if (!raw) return;
+  const props = JSON.parse(raw);
+  const updated = props.map((p: any) =>
+    p.assignment_id === assignmentId ? { ...p, reading_status: status } : p
+  );
+  localStorage.setItem('fieldwatt_properties', JSON.stringify(updated));
 };
 
 // Queue a reading for offline upload

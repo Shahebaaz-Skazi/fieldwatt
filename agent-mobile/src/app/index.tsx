@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
-import { useRouter, Redirect, useRootNavigationState } from 'expo-router';
+import { useRouter, Redirect, useRootNavigationState, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -84,6 +84,20 @@ export default function WorkListScreen() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Reload properties from SQLite every time this screen comes into focus
+      // This picks up reading_status updates made from the property screen
+      const reload = async () => {
+        const cached = await getCachedProperties();
+        if (cached && cached.length > 0) {
+          setProperties(cached);
+        }
+      };
+      reload();
+    }, [])
+  );
   
   // Navigation states
   const [currentNavTab, setCurrentNavTab] = useState<'assignments' | 'radar' | 'profile'>('assignments');
