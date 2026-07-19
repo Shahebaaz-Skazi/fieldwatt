@@ -454,7 +454,7 @@ export default function PropertyDetailScreen() {
           <Text style={styles.consumerName}>{property.consumer_name}</Text>
           <Text style={styles.address}>{property.address}</Text>
           <Text style={styles.detailText}>Meter number: <Text style={{ color: '#111827', fontWeight: '600' }}>{property.meter_no || 'N/A'}</Text></Text>
-          <Text style={styles.detailText}>Type: <Text style={{ color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{property.property_type.replace('_', ' ')}</Text></Text>
+          <Text style={styles.detailText}>Type: <Text style={{ color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{(property.property_type || '').replace('_', ' ')}</Text></Text>
         </View>
 
         {/* Previous Reading History */}
@@ -465,7 +465,7 @@ export default function PropertyDetailScreen() {
               <View key={i} style={styles.historyRow}>
                 <Text style={styles.historyCycle}>{h.cycle_label || 'Past Month'}</Text>
                 <Text style={styles.historyValue}>
-                  {h.reading_value ? `${h.reading_value} kWh` : h.status_code.replace('_', ' ')}
+                  {h.reading_value ? `${h.reading_value} kWh` : (h.status_code || '').replace('_', ' ')}
                 </Text>
               </View>
             ))}
