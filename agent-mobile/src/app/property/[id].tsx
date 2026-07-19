@@ -189,6 +189,9 @@ export default function PropertyDetailScreen() {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       }
       
+      // Wait for Android to finish the rotation transition before mounting CameraView
+      await new Promise(resolve => setTimeout(resolve, 350));
+      
       setCameraActive(true);
     } catch (err) {
       console.error('Failed to request camera permission or lock orientation:', err);
@@ -328,6 +331,7 @@ export default function PropertyDetailScreen() {
           style={{ width, height }}
         >
           <CameraView
+            key={isLandscape ? 'landscape' : 'portrait'}
             style={{ flex: 1 }}
             ref={cameraRef}
             facing="back"
