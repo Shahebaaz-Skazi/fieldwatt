@@ -119,7 +119,6 @@ export const clearPropertiesCache = async () => {
   const database = getDb();
   await database.runAsync('DELETE FROM properties');
   await database.runAsync('DELETE FROM readings_queue');
-  await database.runAsync('DELETE FROM meta');
   console.log('Local cache database records wiped.');
 };
 
@@ -145,15 +144,27 @@ export const saveProperties = async (properties: any[]) => {
   if (!properties || properties.length === 0) return;
 
   try {
-    // Clear first — wipe stale data before inserting fresh batch
-    await clearPropertiesCache();
-
     const database = getDb();
     for (const prop of properties) {
       await database.runAsync(
-        `INSERT OR REPLACE INTO properties 
-         (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO properties 
+         (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, reading_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           assignment_id = excluded.assignment_id,
+           serial_no = excluded.serial_no,
+           consumer_name = excluded.consumer_name,
+           address = excluded.address,
+           meter_no = excluded.meter_no,
+           property_type = excluded.property_type,
+           lat = excluded.lat,
+           lng = excluded.lng,
+           area_name = excluded.area_name,
+           society = excluded.society,
+           sub_society = excluded.sub_society,
+           building_code = excluded.building_code,
+           bp_no = excluded.bp_no,
+           reading_status = COALESCE(properties.reading_status, excluded.reading_status)`,
         [
           prop.property_id,
           prop.assignment_id,
@@ -168,7 +179,8 @@ export const saveProperties = async (properties: any[]) => {
           prop.society || null,
           prop.sub_society || null,
           prop.building_code || null,
-          prop.bp_no || null
+          prop.bp_no || null,
+          null
         ]
       );
     }
@@ -201,9 +213,24 @@ export const saveProperties = async (properties: any[]) => {
         const database2 = getDb();
         for (const prop of properties) {
           await database2.runAsync(
-            `INSERT OR REPLACE INTO properties 
-             (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO properties 
+             (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, reading_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               assignment_id = excluded.assignment_id,
+               serial_no = excluded.serial_no,
+               consumer_name = excluded.consumer_name,
+               address = excluded.address,
+               meter_no = excluded.meter_no,
+               property_type = excluded.property_type,
+               lat = excluded.lat,
+               lng = excluded.lng,
+               area_name = excluded.area_name,
+               society = excluded.society,
+               sub_society = excluded.sub_society,
+               building_code = excluded.building_code,
+               bp_no = excluded.bp_no,
+               reading_status = COALESCE(properties.reading_status, excluded.reading_status)`,
             [
               prop.property_id,
               prop.assignment_id,
@@ -218,7 +245,8 @@ export const saveProperties = async (properties: any[]) => {
               prop.society || null,
               prop.sub_society || null,
               prop.building_code || null,
-              prop.bp_no || null
+              prop.bp_no || null,
+              null
             ]
           );
         }
