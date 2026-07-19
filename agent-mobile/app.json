@@ -58,14 +58,15 @@
       }
     },
     "owner": "shahebaaz",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/1e6fd5a1-e2b2-4545-9936-1b5c78553b03"
+      "url": "https://u.expo.dev/1e6fd5a1-e2b2-4545-9936-1b5c78553b03",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     }
   }
 }
