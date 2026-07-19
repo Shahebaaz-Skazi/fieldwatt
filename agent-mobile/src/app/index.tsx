@@ -345,13 +345,16 @@ export default function WorkListScreen() {
     </TouchableOpacity>
   ), [handleWingPress]);
 
-  const handleFlatPress = useCallback((flatId: string) => {
-    router.push(`/property/${flatId}`);
+  const handleFlatPress = useCallback((flatId: string, item: any) => {
+    router.push({
+      pathname: `/property/${flatId}` as any,
+      params: { propertyData: JSON.stringify(item) }
+    });
   }, [router]);
 
   const renderFlatCard = useCallback(({ item }: { item: any }) => (
     <TouchableOpacity
-      onPress={() => handleFlatPress(item.id)}
+      onPress={() => handleFlatPress(item.id, item)}
       style={styles.itemCard}
     >
       <View style={styles.itemHeader}>
@@ -385,7 +388,10 @@ export default function WorkListScreen() {
   const renderPropertyCard = useCallback(({ item }: { item: any }) => (
     <TouchableOpacity 
       style={styles.itemCard}
-      onPress={() => router.push(`/property/${item.id}`)}
+      onPress={() => router.push({
+        pathname: `/property/${item.id}` as any,
+        params: { propertyData: JSON.stringify(item) }
+      })}
     >
       <View style={styles.itemHeader}>
         <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
@@ -876,7 +882,10 @@ export default function WorkListScreen() {
               style={styles.mapSheetButton}
               onPress={() => {
                 setSelectedMapProperty(null);
-                router.push(`/property/${selectedMapProperty.id}`);
+                router.push({
+                  pathname: `/property/${selectedMapProperty.id}` as any,
+                  params: { propertyData: JSON.stringify(selectedMapProperty) }
+                });
               }}
             >
               <Text style={styles.mapSheetButtonText}>Start Inspection Form</Text>
@@ -1216,7 +1225,10 @@ export default function WorkListScreen() {
         {nearestProperty && (
           <TouchableOpacity
             style={styles.nearestBanner}
-            onPress={() => router.push(`/property/${nearestProperty.id}`)}
+            onPress={() => router.push({
+              pathname: `/property/${nearestProperty.id}` as any,
+              params: { propertyData: JSON.stringify(nearestProperty) }
+            })}
             activeOpacity={0.9}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>

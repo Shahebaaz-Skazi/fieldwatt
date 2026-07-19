@@ -11,6 +11,7 @@ import { CameraView, Camera } from 'expo-camera';
 import ViewShot from 'react-native-view-shot';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { File, Paths } from 'expo-file-system';
 
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -54,10 +55,13 @@ const applyWatermarkToImage = async (
 };
 
 export default function PropertyDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, propertyData } = useLocalSearchParams();
   const router = useRouter();
 
-  const [property, setProperty] = useState<any>(null);
+  const [property, setProperty] = useState<any>(
+    // Pre-populate immediately from nav param — prevents blank screen
+    propertyData ? JSON.parse(propertyData as string) : null
+  );
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -118,9 +122,12 @@ export default function PropertyDetailScreen() {
 
   const fetchPropertyData = async () => {
     try {
-      const prop = await getPropertyById(id as string);
-      if (prop) {
-        setProperty(prop);
+      // Only hit SQLite if we didn't get data from nav params
+      if (!propertyData) {
+        const prop = await getPropertyById(id as string);
+        if (prop) {
+          setProperty(prop);
+        }
       }
       
       // Fetch reading history for property (last 3 months)
@@ -340,25 +347,32 @@ export default function PropertyDetailScreen() {
               try {
                 if (cameraRef.current && viewShotRef.current) {
                   // Trigger shutter
-                  await cameraRef.current.takePictureAsync({ quality: 0.5 });
+                  await cameraRef.current.takePictureAsync({ quality: 0.8, skipProcessing: false });
                   
-                  // Capture with watermark burned in
-                  const uri = await viewShotRef.current.capture();
-                  console.log('✔ Captured watermarked photo path:', uri);
+                  // Capture with watermark burned in (returns temp URI)
+                  const tempUri = await viewShotRef.current.capture();
+                  console.log('✔ Captured watermarked photo (temp):', tempUri);
+
+                  // Copy to permanent document directory so it survives cleanup
+                  const destFile = new File(Paths.document, `photo_${Date.now()}.jpg`);
+                  const sourceFile = new File(tempUri);
+                  sourceFile.copy(destFile);
+                  const permanentUri = destFile.uri;
+                  console.log('✔ Copied to permanent path:', permanentUri);
                   
                   // Save to gallery
                   try {
                     const MediaLibrary = require('expo-media-library');
                     const { status } = await MediaLibrary.requestPermissionsAsync();
                     if (status === 'granted') {
-                      await MediaLibrary.saveToLibraryAsync(uri);
+                      await MediaLibrary.saveToLibraryAsync(permanentUri);
                       console.log('✔ Saved watermarked photo to gallery.');
                     }
                   } catch (e) {
                     console.warn('Failed to save to gallery:', e);
                   }
                   
-                  setPhotoUri(uri);
+                  setPhotoUri(permanentUri);
                   try {
                     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
                   } catch (e) {
@@ -381,11 +395,28 @@ export default function PropertyDetailScreen() {
     );
   }
 
-  if (loading || !property) {
+  // Still loading and no data from nav params yet — show spinner
+  if (loading && !property) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator color="#111827" size="large" />
       </View>
+    );
+  }
+
+  // Finished loading but property is genuinely not found — show error instead of blank
+  if (!property) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', gap: 12 }]}>
+        <Text style={{ fontSize: 32 }}>⚠️</Text>
+        <Text style={{ color: '#111827', fontSize: 16, fontWeight: '600' }}>Property not found</Text>
+        <Text style={{ color: '#6b7280', fontSize: 13, textAlign: 'center', paddingHorizontal: 32 }}>
+          Could not load property data. Go back and tap the flat again.
+        </Text>
+        <TouchableOpacity onPress={goBackSafe} style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: '#111827', borderRadius: 8 }}>
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     );
   }
 
@@ -473,7 +504,12 @@ export default function PropertyDetailScreen() {
               <Text style={styles.label}>Verification Photo (Mandatory)</Text>
               {photoUri ? (
                 <View style={styles.photoContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="contain" />
+                  <Image
+                    source={{ uri: photoUri! }}
+                    style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8, backgroundColor: '#111' }}
+                    resizeMode="cover"
+                    onError={(e) => console.warn('Photo preview load error:', e.nativeEvent.error)}
+                  />
                   <TouchableOpacity onPress={() => setPhotoUri(null)} style={styles.removePhotoBtn}>
                     <Text style={styles.removePhotoText}>Remove & Retake</Text>
                   </TouchableOpacity>
