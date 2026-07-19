@@ -4,6 +4,11 @@
     "slug": "agent-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "splash": {
+      "backgroundColor": "#080b12",
+      "resizeMode": "contain",
+      "image": "./assets/splash.png"
+    },
     "icon": "./assets/images/icon.png",
     "scheme": "agentmobile",
     "userInterfaceStyle": "automatic",
@@ -29,9 +34,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#080b12",
+          "image": "./assets/splash.png"
         }
       ],
       "expo-sqlite",
