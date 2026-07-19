@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
 import { useRouter, Redirect, useRootNavigationState } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -161,6 +161,288 @@ export default function WorkListScreen() {
 
   // Sentinel: sub-society level was auto-skipped (property has no Street 3)
   const SUB_SOC_SKIP = '__SKIP__';
+
+  // Returns only real (non-empty) Street 3 values for a society
+  const getSubSocietiesForSociety = (areaName: string, societyName: string, dataSrc: any[] = properties): string[] => {
+    const unique = new Set<string>();
+    dataSrc.forEach(p => {
+      if ((p.area_name || 'No Area').trim() !== areaName) return;
+      if ((p.society || 'No Society').trim() !== societyName) return;
+      const subSoc = (p.sub_society || '').trim();
+      if (subSoc) unique.add(subSoc);
+    });
+    return Array.from(unique);
+  };
+
+  // Returns wing names for a given path.
+  // subSocFilter: SUB_SOC_SKIP → match properties with NO sub_society; string → match that sub_society
+  const getWingsForPath = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties): string[] => {
+    const unique = new Set<string>();
+    let matchCount = 0;
+    let sampleProp: any = null;
+    
+    dataSrc.forEach(p => {
+      const pArea = (p.area_name || 'No Area').trim();
+      const pSoc = (p.society || 'No Society').trim();
+      if (pArea !== areaName) return;
+      if (pSoc !== societyName) return;
+      
+      matchCount++;
+      if (!sampleProp) {
+        sampleProp = {
+          id: p.id,
+          building_code: p.building_code,
+          sub_society: p.sub_society,
+          address: p.address
+        };
+      }
+      
+      if (subSocFilter === SUB_SOC_SKIP) {
+        if ((p.sub_society || '').trim()) return; // skip those WITH sub_society
+      } else {
+        if ((p.sub_society || '').trim() !== subSocFilter) return;
+      }
+      unique.add(getWingName(p));
+    });
+    
+    console.log('getWingsForPath stats:', {
+      areaName,
+      societyName,
+      subSocFilter,
+      matchCount,
+      sampleProp,
+      computedWings: Array.from(unique)
+    });
+    
+    return Array.from(unique);
+  };
+
+  // Decide whether to go to wings screen or skip straight to flats
+  const goToWingsOrFlats = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties) => {
+    const wings = getWingsForPath(areaName, societyName, subSocFilter, dataSrc);
+    console.log('goToWingsOrFlats decision:', {
+      wings,
+      shouldSkip: (wings.length === 0 || (wings.length === 1 && wings[0] === 'General'))
+    });
+    if (wings.length === 0 || (wings.length === 1 && wings[0] === 'General')) {
+      // All flats in this path have no building code — skip wing level
+      setDrillWing('General');
+      setDrillWingAutoSkipped(true);
+      setDrillLevel('flats');
+    } else {
+      setDrillWingAutoSkipped(false);
+      setDrillLevel('wings');
+    }
+  };
+
+
+
+  // Custom navigation loading state for skeleton preview
+  const [navigationLoading, setNavigationLoading] = useState(false);
+
+  const refreshSocietyInBackground = useCallback(async (societyName: string) => {
+    try {
+      await clearCachedPropertiesForSociety(societyName);
+      const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
+      await saveProperties(freshAssignments);
+      const cached = (await getCachedProperties()) as any[];
+      setProperties(cached);
+      applyFilters(cached, search, activeTab, drillArea || '', societyName);
+    } catch (err) {
+      console.warn('Background society refresh failed:', err);
+    }
+  }, [drillArea, search, activeTab]);
+
+  const handleAreaPress = useCallback((areaName: string) => {
+    setDrillArea(areaName);
+    setDrillLevel('societies');
+  }, []);
+
+  const renderAreaCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => handleAreaPress(item.name)}
+      style={styles.drillCard}
+    >
+      <View style={styles.drillCardHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.drillIconWrapper}>
+            <Ionicons name="folder-open" size={20} color="#10b981" />
+          </View>
+          <View>
+            <Text style={styles.drillCardName}>{item.name}</Text>
+            <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </View>
+    </TouchableOpacity>
+  ), [handleAreaPress]);
+
+  const handleSocietyPress = useCallback(async (societyName: string) => {
+    setDrillSociety(societyName);
+    setNavigationLoading(true);
+    
+    // SHOW IMMEDIATELY from existing properties state — no waiting
+    const subSocs = getSubSocietiesForSociety(drillArea!, societyName, properties);
+    if (subSocs.length > 0) {
+      setDrillSubSociety(null);
+      setDrillLevel('sub_societies');
+    } else {
+      setDrillSubSociety(SUB_SOC_SKIP);
+      goToWingsOrFlats(drillArea!, societyName, SUB_SOC_SKIP, properties);
+    }
+    
+    // Simulate minor transition delay for visual skeleton layout flow
+    setTimeout(() => {
+      setNavigationLoading(false);
+    }, 250);
+
+    // Refresh silently in background
+    refreshSocietyInBackground(societyName);
+  }, [drillArea, properties, refreshSocietyInBackground]);
+
+  const renderSocietyCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => handleSocietyPress(item.name)}
+      style={styles.drillCard}
+    >
+      <View style={styles.drillCardHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+            <Ionicons name="business" size={20} color="#3b82f6" />
+          </View>
+          <View>
+            <Text style={styles.drillCardName}>{item.name}</Text>
+            <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </View>
+    </TouchableOpacity>
+  ), [handleSocietyPress]);
+
+  const handleSubSocietyPress = useCallback((subSocName: string) => {
+    const filterVal = subSocName === 'No Sub-Society' ? SUB_SOC_SKIP : subSocName;
+    setDrillSubSociety(filterVal);
+    goToWingsOrFlats(drillArea!, drillSociety!, filterVal);
+  }, [drillArea, drillSociety]);
+
+  const renderSubSocietyCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => handleSubSocietyPress(item.name)}
+      style={styles.drillCard}
+    >
+      <View style={styles.drillCardHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
+            <Ionicons name="git-branch" size={20} color="#6366f1" />
+          </View>
+          <View>
+            <Text style={styles.drillCardName}>{item.name}</Text>
+            <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </View>
+    </TouchableOpacity>
+  ), [handleSubSocietyPress]);
+
+  const handleWingPress = useCallback((wingName: string) => {
+    setDrillWing(wingName);
+    setDrillWingAutoSkipped(false);
+    setDrillLevel('flats');
+  }, []);
+
+  const renderWingCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => handleWingPress(item.name)}
+      style={styles.drillCard}
+    >
+      <View style={styles.drillCardHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+            <Ionicons name="grid" size={20} color="#f59e0b" />
+          </View>
+          <View>
+            <Text style={styles.drillCardName}>{item.name}</Text>
+            <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </View>
+    </TouchableOpacity>
+  ), [handleWingPress]);
+
+  const handleFlatPress = useCallback((flatId: string) => {
+    router.push(`/property/${flatId}`);
+  }, [router]);
+
+  const renderFlatCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity
+      onPress={() => handleFlatPress(item.id)}
+      style={styles.itemCard}
+    >
+      <View style={styles.itemHeader}>
+        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
+        {item.reading_status ? (
+          <View style={[
+            styles.itemBadge,
+            item.reading_status === 'reading_taken' ? styles.badgeSuccess : styles.badgeDanger
+          ]}>
+            <Text style={[
+              styles.itemBadgeText,
+              item.reading_status === 'reading_taken' ? styles.badgeTextSuccess : styles.badgeTextDanger
+            ]}>
+              {item.reading_status.replace('_', ' ')}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.itemBadge, styles.badgePending]}>
+            <Text style={[styles.itemBadgeText, styles.badgeTextPending]}>Pending</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
+      <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
+      {item.meter_no ? (
+        <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
+      ) : null}
+    </TouchableOpacity>
+  ), [handleFlatPress]);
+
+  const renderPropertyCard = useCallback(({ item }: { item: any }) => (
+    <TouchableOpacity 
+      style={styles.itemCard}
+      onPress={() => router.push(`/property/${item.id}`)}
+    >
+      <View style={styles.itemHeader}>
+        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
+        {item.reading_status ? (
+          <View style={[
+            styles.itemBadge, 
+            item.reading_status === 'reading_taken' ? styles.badgeSuccess : styles.badgeDanger
+          ]}>
+            <Text style={[
+              styles.itemBadgeText,
+              item.reading_status === 'reading_taken' ? styles.badgeTextSuccess : styles.badgeTextDanger
+            ]}>
+              {item.reading_status.replace('_', ' ')}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.itemBadge, styles.badgePending]}>
+            <Text style={[styles.itemBadgeText, styles.badgeTextPending]}>Pending</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
+      <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
+      {item.meter_no ? (
+        <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
+      ) : null}
+    </TouchableOpacity>
+  ), [router]);
 
   // Helper: return display wing name from building_code
   const getWingName = (p: any): string => {
@@ -645,79 +927,6 @@ export default function WorkListScreen() {
   // ── Tab 1: Hierarchical Worklist Tab ──
   const renderWorklistTab = () => {
 
-    // Returns only real (non-empty) Street 3 values for a society
-    const getSubSocietiesForSociety = (areaName: string, societyName: string, dataSrc: any[] = properties): string[] => {
-      const unique = new Set<string>();
-      dataSrc.forEach(p => {
-        if ((p.area_name || 'No Area').trim() !== areaName) return;
-        if ((p.society || 'No Society').trim() !== societyName) return;
-        const subSoc = (p.sub_society || '').trim();
-        if (subSoc) unique.add(subSoc);
-      });
-      return Array.from(unique);
-    };
-
-    // Returns wing names for a given path.
-    // subSocFilter: SUB_SOC_SKIP → match properties with NO sub_society; string → match that sub_society
-    const getWingsForPath = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties): string[] => {
-      const unique = new Set<string>();
-      let matchCount = 0;
-      let sampleProp: any = null;
-      
-      dataSrc.forEach(p => {
-        const pArea = (p.area_name || 'No Area').trim();
-        const pSoc = (p.society || 'No Society').trim();
-        if (pArea !== areaName) return;
-        if (pSoc !== societyName) return;
-        
-        matchCount++;
-        if (!sampleProp) {
-          sampleProp = {
-            id: p.id,
-            building_code: p.building_code,
-            sub_society: p.sub_society,
-            address: p.address
-          };
-        }
-        
-        if (subSocFilter === SUB_SOC_SKIP) {
-          if ((p.sub_society || '').trim()) return; // skip those WITH sub_society
-        } else {
-          if ((p.sub_society || '').trim() !== subSocFilter) return;
-        }
-        unique.add(getWingName(p));
-      });
-      
-      console.log('getWingsForPath stats:', {
-        areaName,
-        societyName,
-        subSocFilter,
-        matchCount,
-        sampleProp,
-        computedWings: Array.from(unique)
-      });
-      
-      return Array.from(unique);
-    };
-
-    // Decide whether to go to wings screen or skip straight to flats
-    const goToWingsOrFlats = (areaName: string, societyName: string, subSocFilter: string, dataSrc: any[] = properties) => {
-      const wings = getWingsForPath(areaName, societyName, subSocFilter, dataSrc);
-      console.log('goToWingsOrFlats decision:', {
-        wings,
-        shouldSkip: (wings.length === 0 || (wings.length === 1 && wings[0] === 'General'))
-      });
-      if (wings.length === 0 || (wings.length === 1 && wings[0] === 'General')) {
-        // All flats in this path have no building code — skip wing level
-        setDrillWing('General');
-        setDrillWingAutoSkipped(true);
-        setDrillLevel('flats');
-      } else {
-        setDrillWingAutoSkipped(false);
-        setDrillLevel('wings');
-      }
-    };
-
     // ── Back navigation ──
     const handleGoBack = () => {
       if (drillLevel === 'flats') {
@@ -811,248 +1020,146 @@ export default function WorkListScreen() {
         ) : (
           <View style={{ flex: 1 }}>
 
-            {/* LEVEL 1 — Areas */}
-            {drillLevel === 'areas' && (
-              <FlatList
-                data={drillAreasList}
-                keyExtractor={(item) => item.name}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
-                }
-                ListHeaderComponent={
-                  <Text style={styles.drillSectionTitle}>Select Area ({drillAreasList.length})</Text>
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No assigned areas found.</Text>
+            {navigationLoading ? (
+              <View style={{ paddingHorizontal: 16, marginTop: 12, gap: 12 }}>
+                {[1, 2, 3, 4].map(i => (
+                  <View key={i} style={{
+                    height: 70,
+                    backgroundColor: '#ffffff',
+                    borderColor: '#e5e7eb',
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    opacity: 0.6,
+                    padding: 16,
+                    justifyContent: 'center'
+                  }}>
+                    <View style={{ width: '40%', height: 16, backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
+                    <View style={{ width: '70%', height: 12, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
                   </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setDrillArea(item.name);
-                      setDrillLevel('societies');
-                    }}
-                    style={styles.drillCard}
-                  >
-                    <View style={styles.drillCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={styles.drillIconWrapper}>
-                          <Ionicons name="folder-open" size={20} color="#10b981" />
-                        </View>
-                        <View>
-                          <Text style={styles.drillCardName}>{item.name}</Text>
-                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
-                        </View>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            {/* LEVEL 2 — Societies (Street) */}
-            {drillLevel === 'societies' && (
-              <FlatList
-                data={drillSocietiesList}
-                keyExtractor={(item) => item.name}
-                ListHeaderComponent={
-                  <Text style={styles.drillSectionTitle}>Select Society ({drillSocietiesList.length})</Text>
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No societies found in this area.</Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      const societyName = item.name;
-                      setDrillSociety(societyName);
-                      
-                      try {
-                        // Step 1: Wipe local cache for this society
-                        await clearCachedPropertiesForSociety(societyName);
-                        
-                        // Fetch fresh from the API and re-insert into SQLite
-                        const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
-                        await saveProperties(freshAssignments);
-                        
-                        // Read back out from SQLite
-                        const cached = (await getCachedProperties()) as any[];
-                        setProperties(cached);
-                        applyFilters(cached, search, activeTab, drillArea!, societyName);
-                        
-                        // Step 2: Make sure the grouping fix runs on the freshly fetched data
-                        const subSocs = getSubSocietiesForSociety(drillArea!, societyName, cached);
-                        if (subSocs.length > 0) {
-                          // Has Street 3 values → show sub-society level
-                          setDrillSubSociety(null);
-                          setDrillLevel('sub_societies');
-                        } else {
-                          // No Street 3 → skip sub-society, go straight to wings
-                          setDrillSubSociety(SUB_SOC_SKIP);
-                          goToWingsOrFlats(drillArea!, societyName, SUB_SOC_SKIP, cached);
-                        }
-                      } catch (err) {
-                        console.error('Failed to wipe cache and fetch fresh assignments:', err);
-                      }
-                    }}
-                    style={styles.drillCard}
-                  >
-                    <View style={styles.drillCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-                          <Ionicons name="business" size={20} color="#3b82f6" />
-                        </View>
-                        <View>
-                          <Text style={styles.drillCardName}>{item.name}</Text>
-                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
-                        </View>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            {/* LEVEL 3 — Sub-Societies (Street 3) */}
-            {drillLevel === 'sub_societies' && (
-              <FlatList
-                data={drillSubSocietiesList}
-                keyExtractor={(item) => item.name}
-                ListHeaderComponent={
-                  <Text style={styles.drillSectionTitle}>Select Sub-Society ({drillSubSocietiesList.length})</Text>
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No sub-societies found.</Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      const subSocName = item.name;
-                      const filterVal = subSocName === 'No Sub-Society' ? SUB_SOC_SKIP : subSocName;
-                      setDrillSubSociety(filterVal);
-                      goToWingsOrFlats(drillArea!, drillSociety!, filterVal);
-                    }}
-                    style={styles.drillCard}
-                  >
-                    <View style={styles.drillCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
-                          <Ionicons name="git-branch" size={20} color="#6366f1" />
-                        </View>
-                        <View>
-                          <Text style={styles.drillCardName}>{item.name}</Text>
-                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
-                        </View>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            {drillLevel === 'wings' && (
-              <FlatList
-                data={drillWingsList}
-                keyExtractor={(item) => item.name}
-                ListHeaderComponent={
-                  <Text style={styles.drillSectionTitle}>Select Wing / Building ({drillWingsList.length})</Text>
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No wings found in this society.</Text>
-                  </View>
-                }
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setDrillWing(item.name);
-                      setDrillWingAutoSkipped(false);
-                      setDrillLevel('flats');
-                    }}
-                    style={styles.drillCard}
-                  >
-                    <View style={styles.drillCardHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <View style={[styles.drillIconWrapper, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                          <Ionicons name="grid" size={20} color="#f59e0b" />
-                        </View>
-                        <View>
-                          <Text style={styles.drillCardName}>{item.name}</Text>
-                          <Text style={styles.drillCardMeta}>{item.pending} pending of {item.total} flats</Text>
-                        </View>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-
-            {drillLevel === 'flats' && (
+                ))}
+              </View>
+            ) : (
               <>
-                <View style={[styles.searchBar, { marginTop: 12 }]}>
-                  <Ionicons name="search" size={16} color="#8b9bb4" style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search flats by name or serial..."
-                    placeholderTextColor="#8b9bb4"
-                    value={drillSearch}
-                    onChangeText={setDrillSearch}
-                  />
-                </View>
-
-                <FlatList
-                  data={drillFlatsList}
-                  keyExtractor={(item) => item.id}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
-                  }
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>No properties matched search query.</Text>
-                    </View>
-                  }
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      onPress={() => router.push(`/property/${item.id}`)}
-                      style={styles.itemCard}
-                    >
-                      <View style={styles.itemHeader}>
-                        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
-                        {item.reading_status ? (
-                          <View style={[
-                            styles.itemBadge,
-                            item.reading_status === 'reading_taken' ? styles.badgeSuccess : styles.badgeDanger
-                          ]}>
-                            <Text style={[
-                              styles.itemBadgeText,
-                              item.reading_status === 'reading_taken' ? styles.badgeTextSuccess : styles.badgeTextDanger
-                            ]}>
-                              {item.reading_status.replace('_', ' ')}
-                            </Text>
-                          </View>
-                        ) : (
-                          <View style={[styles.itemBadge, styles.badgePending]}>
-                            <Text style={[styles.itemBadgeText, styles.badgeTextPending]}>Pending</Text>
-                          </View>
-                        )}
+                {/* LEVEL 1 — Areas */}
+                {drillLevel === 'areas' && (
+                  <FlatList
+                    data={drillAreasList}
+                    keyExtractor={(item) => item.name}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={15}
+                    windowSize={5}
+                    initialNumToRender={10}
+                    refreshControl={
+                      <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
+                    }
+                    ListHeaderComponent={
+                      <Text style={styles.drillSectionTitle}>Select Area ({drillAreasList.length})</Text>
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No assigned areas found.</Text>
                       </View>
-                      <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
-                      <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
-                      {item.meter_no ? (
-                        <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
-                      ) : null}
-                    </TouchableOpacity>
-                  )}
-                />
+                    }
+                    renderItem={renderAreaCard}
+                  />
+                )}
+
+                {/* LEVEL 2 — Societies (Street) */}
+                {drillLevel === 'societies' && (
+                  <FlatList
+                    data={drillSocietiesList}
+                    keyExtractor={(item) => item.name}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={15}
+                    windowSize={5}
+                    initialNumToRender={10}
+                    ListHeaderComponent={
+                      <Text style={styles.drillSectionTitle}>Select Society ({drillSocietiesList.length})</Text>
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No societies found in this area.</Text>
+                      </View>
+                    }
+                    renderItem={renderSocietyCard}
+                  />
+                )}
+
+                {/* LEVEL 3 — Sub-Societies (Street 3) */}
+                {drillLevel === 'sub_societies' && (
+                  <FlatList
+                    data={drillSubSocietiesList}
+                    keyExtractor={(item) => item.name}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={15}
+                    windowSize={5}
+                    initialNumToRender={10}
+                    ListHeaderComponent={
+                      <Text style={styles.drillSectionTitle}>Select Sub-Society ({drillSubSocietiesList.length})</Text>
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No sub-societies found.</Text>
+                      </View>
+                    }
+                    renderItem={renderSubSocietyCard}
+                  />
+                )}
+
+                {/* LEVEL 4 — Wings */}
+                {drillLevel === 'wings' && (
+                  <FlatList
+                    data={drillWingsList}
+                    keyExtractor={(item) => item.name}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={15}
+                    windowSize={5}
+                    initialNumToRender={10}
+                    ListHeaderComponent={
+                      <Text style={styles.drillSectionTitle}>Select Wing / Building ({drillWingsList.length})</Text>
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No wings found in this society.</Text>
+                      </View>
+                    }
+                    renderItem={renderWingCard}
+                  />
+                )}
+
+                {/* LEVEL 5 — Flats */}
+                {drillLevel === 'flats' && (
+                  <>
+                    <View style={[styles.searchBar, { marginTop: 12 }]}>
+                      <Ionicons name="search" size={16} color="#8b9bb4" style={{ marginRight: 8 }} />
+                      <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search flats by name or serial..."
+                        placeholderTextColor="#8b9bb4"
+                        value={drillSearch}
+                        onChangeText={setDrillSearch}
+                      />
+                    </View>
+
+                    <FlatList
+                      data={drillFlatsList}
+                      keyExtractor={(item) => item.id}
+                      removeClippedSubviews={true}
+                      maxToRenderPerBatch={15}
+                      windowSize={5}
+                      initialNumToRender={10}
+                      refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
+                      }
+                      ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                          <Text style={styles.emptyText}>No properties matched search query.</Text>
+                        </View>
+                      }
+                      renderItem={renderFlatCard}
+                    />
+                  </>
+                )}
               </>
             )}
           </View>
@@ -1243,6 +1350,10 @@ export default function WorkListScreen() {
               <FlatList
                 data={filteredProperties}
                 keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={15}
+                windowSize={5}
+                initialNumToRender={10}
                 refreshControl={
                   <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
                 }
@@ -1251,40 +1362,7 @@ export default function WorkListScreen() {
                     <Text style={styles.emptyText}>No properties matched search filters.</Text>
                   </View>
                 }
-                renderItem={({ item }) => (
-                  <TouchableOpacity 
-                    style={styles.itemCard}
-                    onPress={() => router.push(`/property/${item.id}`)}
-                  >
-                    <View style={styles.itemHeader}>
-                      <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
-                      {item.reading_status ? (
-                        <View style={[
-                          styles.itemBadge, 
-                          item.reading_status === 'reading_taken' ? styles.badgeSuccess : styles.badgeDanger
-                        ]}>
-                          <Text style={[
-                            styles.itemBadgeText,
-                            item.reading_status === 'reading_taken' ? styles.badgeTextSuccess : styles.badgeTextDanger
-                          ]}>
-                            {item.reading_status.replace('_', ' ')}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.itemBadge, styles.badgePending]}>
-                          <Text style={[styles.itemBadgeText, styles.badgeTextPending]}>Pending</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <Text style={styles.itemConsumer}>{item.consumer_name}</Text>
-                    <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
-
-                    {item.meter_no ? (
-                      <Text style={styles.itemMeter}>Meter: {item.meter_no}</Text>
-                    ) : null}
-                  </TouchableOpacity>
-                )}
+                renderItem={renderPropertyCard}
               />
             )}
           </>
