@@ -209,8 +209,8 @@ export default function PropertyDetailScreen() {
     try {
       const result = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        [], // no resize — preserve original dimensions
+        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
       );
       return result.uri;
     } catch (error) {

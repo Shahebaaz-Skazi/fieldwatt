@@ -759,7 +759,7 @@ const Dashboard = () => {
                     <img 
                       src={viewingReading.photo_url} 
                       alt="Verification meter upload" 
-                      style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }} 
+                      style={{ width: '100%', maxHeight: '350px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#000' }} 
                     />
                     <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <ZoomIn size={12} /> Click to zoom

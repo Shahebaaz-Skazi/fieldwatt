@@ -1033,7 +1033,7 @@ const Areas = () => {
                         <img 
                           src={selectedProperty.photo_url} 
                           alt="Proof" 
-                          style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '6px', marginTop: '4px' }} 
+                          style={{ width: '100%', height: '200px', objectFit: 'contain', borderRadius: '6px', marginTop: '4px', backgroundColor: '#000' }} 
                         />
                       </a>
                     )}
@@ -1100,7 +1100,7 @@ const Areas = () => {
                         <img 
                           src={adminPhotoUrl} 
                           alt="Uploaded Proof" 
-                          style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }} 
+                          style={{ width: '100%', height: '200px', objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: '#000' }} 
                         />
                         <button
                           onClick={() => setAdminPhotoUrl('')}

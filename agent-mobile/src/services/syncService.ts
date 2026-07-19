@@ -13,8 +13,8 @@ const uploadLocalPhoto = async (uri: string): Promise<string> => {
   try {
     const result = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: 1080 } }],
-      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      [], // no resize — preserve original dimensions
+      { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
     );
     finalUri = result.uri;
   } catch (err) {
