@@ -96,20 +96,17 @@ export default function WorkListScreen() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   const checkForUpdate = async () => {
-    if (!Updates.isEnabled) {
-      Alert.alert('Not Supported', 'Updates are disabled in this environment (Development or Web).');
-      return;
-    }
+    if (!Updates.isEnabled) return; // silent in dev/web
     try {
       setCheckingUpdate(true);
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        setUpdateAvailable(true);
-      } else {
-        Alert.alert('You are up to date', 'No new updates available.');
+        setUpdateAvailable(true); // show the download button — no alert needed
       }
+      // DO NOT show any alert when there is no update
     } catch (e) {
-      Alert.alert('Check failed', 'Could not check for updates. Make sure you have internet.');
+      // Silent fail — don't alert on check failure either
+      console.warn('Update check failed:', e);
     } finally {
       setCheckingUpdate(false);
     }
