@@ -156,6 +156,22 @@ export default function PropertyDetailScreen() {
     fetchPropertyData();
   }, [id]);
 
+  useEffect(() => {
+    return () => {
+      // Ensure orientation is reset when leaving this screen
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, []);
+
+  const closeCamera = async () => {
+    setCameraActive(false);
+    try {
+      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } catch (e) {
+      console.warn('Failed to lock orientation on camera close:', e);
+    }
+  };
+
   const handleCapturePhoto = async () => {
     try {
       const { status } = await Camera.requestCameraPermissionsAsync();
@@ -169,8 +185,8 @@ export default function PropertyDetailScreen() {
         console.log('Locking orientation to LANDSCAPE for meter reading photo.');
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
       } else {
-        console.log('Locking orientation to PORTRAIT for door locked/other photo.');
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+        console.log('Locking orientation to PORTRAIT_UP for door locked/other photo.');
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       }
       
       setCameraActive(true);
@@ -337,14 +353,7 @@ export default function PropertyDetailScreen() {
         <View style={styles.cameraControls}>
           <TouchableOpacity
             style={styles.cancelCameraButton}
-            onPress={async () => {
-              try {
-                await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
-              } catch (e) {
-                console.warn('Failed to unlock orientation:', e);
-              }
-              setCameraActive(false);
-            }}
+            onPress={closeCamera}
           >
             <Text style={styles.cancelCameraText}>Cancel</Text>
           </TouchableOpacity>
@@ -374,12 +383,7 @@ export default function PropertyDetailScreen() {
                   }
                   
                   setPhotoUri(tempUri);
-                  try {
-                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
-                  } catch (e) {
-                    console.warn('Failed to unlock orientation:', e);
-                  }
-                  setCameraActive(false);
+                  await closeCamera();
                 }
               } catch (err) {
                 console.error('Capture failed:', err);
