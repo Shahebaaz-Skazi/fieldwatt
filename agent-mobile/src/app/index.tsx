@@ -95,18 +95,31 @@ export default function WorkListScreen() {
   const [updateLoading, setUpdateLoading] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
-  const checkForUpdate = async () => {
-    if (!Updates.isEnabled) return; // silent in dev/web
+  const checkForUpdate = async (isManual = false) => {
+    if (!Updates.isEnabled) {
+      if (isManual) {
+        Alert.alert('Not Supported', 'Updates are disabled in this environment (Development or Web).');
+      }
+      return;
+    }
     try {
       setCheckingUpdate(true);
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        setUpdateAvailable(true); // show the download button — no alert needed
+        setUpdateAvailable(true);
+        if (isManual) {
+          Alert.alert('Update Available', 'A new update is available. Tap "Download & Install Update" to apply it.');
+        }
+      } else {
+        if (isManual) {
+          Alert.alert('You are up to date', 'No new updates available.');
+        }
       }
-      // DO NOT show any alert when there is no update
-    } catch (e) {
-      // Silent fail — don't alert on check failure either
+    } catch (e: any) {
       console.warn('Update check failed:', e);
+      if (isManual) {
+        Alert.alert('Check failed', `Could not check for updates. ${e.message || 'Make sure you have internet.'}`);
+      }
     } finally {
       setCheckingUpdate(false);
     }
@@ -1434,7 +1447,7 @@ export default function WorkListScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                onPress={checkForUpdate}
+                onPress={() => checkForUpdate(true)}
                 disabled={checkingUpdate}
                 style={{
                   backgroundColor: '#ffffff',
