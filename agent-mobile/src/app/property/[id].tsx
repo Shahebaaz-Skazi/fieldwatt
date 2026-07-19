@@ -12,6 +12,7 @@ import ViewShot from 'react-native-view-shot';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { File, Paths } from 'expo-file-system';
+import { sharedData } from '../../utils/sharedData';
 
 const generateUUID = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -55,13 +56,20 @@ const applyWatermarkToImage = async (
 };
 
 export default function PropertyDetailScreen() {
-  const { id, propertyData } = useLocalSearchParams();
+  const { id } = useLocalSearchParams();
   const router = useRouter();
 
-  const [property, setProperty] = useState<any>(
-    // Pre-populate immediately from nav param — prevents blank screen
-    propertyData ? JSON.parse(propertyData as string) : null
-  );
+  const [property, setProperty] = useState<any>(() => {
+    // Sync pre-populate from shared memory store to prevent blank screens immediately
+    if (sharedData.activeProperty && (
+      sharedData.activeProperty.id === id || 
+      sharedData.activeProperty.property_id === id ||
+      String(sharedData.activeProperty.id) === String(id)
+    )) {
+      return sharedData.activeProperty;
+    }
+    return null;
+  });
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -122,8 +130,8 @@ export default function PropertyDetailScreen() {
 
   const fetchPropertyData = async () => {
     try {
-      // Only hit SQLite if we didn't get data from nav params
-      if (!propertyData) {
+      // Only hit SQLite database if memory store was empty or mismatched
+      if (!property) {
         const prop = await getPropertyById(id as string);
         if (prop) {
           setProperty(prop);

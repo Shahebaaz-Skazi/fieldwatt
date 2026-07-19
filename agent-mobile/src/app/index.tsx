@@ -10,6 +10,7 @@ import api from '../utils/api';
 import SyncIndicator from '../components/SyncIndicator';
 import * as Location from 'expo-location';
 import * as Updates from 'expo-updates';
+import { sharedData } from '../utils/sharedData';
 
 const { width } = Dimensions.get('window');
 
@@ -359,10 +360,8 @@ export default function WorkListScreen() {
   ), [handleWingPress]);
 
   const handleFlatPress = useCallback((flatId: string, item: any) => {
-    router.push({
-      pathname: `/property/${flatId}` as any,
-      params: { propertyData: JSON.stringify(item) }
-    });
+    sharedData.activeProperty = item;
+    router.push(`/property/${flatId}` as any);
   }, [router]);
 
   const renderFlatCard = useCallback(({ item }: { item: any }) => (
@@ -401,10 +400,10 @@ export default function WorkListScreen() {
   const renderPropertyCard = useCallback(({ item }: { item: any }) => (
     <TouchableOpacity 
       style={styles.itemCard}
-      onPress={() => router.push({
-        pathname: `/property/${item.id}` as any,
-        params: { propertyData: JSON.stringify(item) }
-      })}
+      onPress={() => {
+        sharedData.activeProperty = item;
+        router.push(`/property/${item.id}` as any);
+      }}
     >
       <View style={styles.itemHeader}>
         <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
@@ -895,10 +894,8 @@ export default function WorkListScreen() {
               style={styles.mapSheetButton}
               onPress={() => {
                 setSelectedMapProperty(null);
-                router.push({
-                  pathname: `/property/${selectedMapProperty.id}` as any,
-                  params: { propertyData: JSON.stringify(selectedMapProperty) }
-                });
+                sharedData.activeProperty = selectedMapProperty;
+                router.push(`/property/${selectedMapProperty.id}` as any);
               }}
             >
               <Text style={styles.mapSheetButtonText}>Start Inspection Form</Text>
@@ -1238,10 +1235,10 @@ export default function WorkListScreen() {
         {nearestProperty && (
           <TouchableOpacity
             style={styles.nearestBanner}
-            onPress={() => router.push({
-              pathname: `/property/${nearestProperty.id}` as any,
-              params: { propertyData: JSON.stringify(nearestProperty) }
-            })}
+            onPress={() => {
+              sharedData.activeProperty = nearestProperty;
+              router.push(`/property/${nearestProperty.id}` as any);
+            }}
             activeOpacity={0.9}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
