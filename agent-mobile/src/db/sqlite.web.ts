@@ -17,6 +17,8 @@ export const getDb = () => {
 
 // Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
+  if (!properties || properties.length === 0) return;
+  await clearPropertiesCache();
   localStorage.setItem('fieldwatt_properties', JSON.stringify(properties));
 };
 

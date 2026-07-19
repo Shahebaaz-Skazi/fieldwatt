@@ -134,26 +134,25 @@ export const clearReadingsQueue = async (): Promise<void> => {
   console.log('Local readings queue wiped.');
 };
 
-// Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
+  if (!properties || properties.length === 0) return;
   const database = getDb();
-  console.log(`saveProperties: Saving ${properties.length} properties to SQLite...`);
-  if (properties.length > 0) {
-    console.log('saveProperties: raw first item:', JSON.stringify(properties[0]));
-    console.log('saveProperties: sample item:', {
-      id: properties[0].property_id,
-      society: properties[0].society,
-      sub_society: properties[0].sub_society,
-      building_code: properties[0].building_code
-    });
-  }
   
-  // Clear old properties before caching new ones
-  await database.runAsync('DELETE FROM properties');
+  // Wipe existing cache first so stale records don't conflict
+  await clearPropertiesCache();
+  
+  console.log(`saveProperties: Saving ${properties.length} properties to SQLite...`);
+  console.log('saveProperties: raw first item:', JSON.stringify(properties[0]));
+  console.log('saveProperties: sample item:', {
+    id: properties[0].property_id,
+    society: properties[0].society,
+    sub_society: properties[0].sub_society,
+    building_code: properties[0].building_code
+  });
   
   for (const prop of properties) {
     await database.runAsync(
-      `INSERT INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
+      `INSERT OR REPLACE INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         prop.property_id,
