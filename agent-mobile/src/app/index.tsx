@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, FlatList, TextInput, TouchableOpacity, RefreshControl, SafeAreaView, ActivityIndicator, Dimensions, ScrollView, Alert } from 'react-native';
 import { useRouter, Redirect, useRootNavigationState } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -237,22 +237,6 @@ export default function WorkListScreen() {
 
 
 
-  // Custom navigation loading state for skeleton preview
-  const [navigationLoading, setNavigationLoading] = useState(false);
-
-  const refreshSocietyInBackground = useCallback(async (societyName: string) => {
-    try {
-      await clearCachedPropertiesForSociety(societyName);
-      const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
-      await saveProperties(freshAssignments);
-      const cached = (await getCachedProperties()) as any[];
-      setProperties(cached);
-      applyFilters(cached, search, activeTab, drillArea || '', societyName);
-    } catch (err) {
-      console.warn('Background society refresh failed:', err);
-    }
-  }, [drillArea, search, activeTab]);
-
   const handleAreaPress = useCallback((areaName: string) => {
     setDrillArea(areaName);
     setDrillLevel('societies');
@@ -278,11 +262,9 @@ export default function WorkListScreen() {
     </TouchableOpacity>
   ), [handleAreaPress]);
 
-  const handleSocietyPress = useCallback(async (societyName: string) => {
+  const handleSocietyPress = useCallback((societyName: string) => {
     setDrillSociety(societyName);
-    setNavigationLoading(true);
-    
-    // SHOW IMMEDIATELY from existing properties state — no waiting
+    // Navigate instantly from cache — pure in-memory, zero async, zero network
     const subSocs = getSubSocietiesForSociety(drillArea!, societyName, properties);
     if (subSocs.length > 0) {
       setDrillSubSociety(null);
@@ -291,15 +273,8 @@ export default function WorkListScreen() {
       setDrillSubSociety(SUB_SOC_SKIP);
       goToWingsOrFlats(drillArea!, societyName, SUB_SOC_SKIP, properties);
     }
-    
-    // Simulate minor transition delay for visual skeleton layout flow
-    setTimeout(() => {
-      setNavigationLoading(false);
-    }, 250);
-
-    // Refresh silently in background
-    refreshSocietyInBackground(societyName);
-  }, [drillArea, properties, refreshSocietyInBackground]);
+    // NO background refresh here — data is already in SQLite from login sync
+  }, [drillArea, properties]);
 
   const renderSocietyCard = useCallback(({ item }: { item: any }) => (
     <TouchableOpacity
@@ -614,20 +589,13 @@ export default function WorkListScreen() {
       }
     }, 10000);
 
-    // 2. Auto-pull: retrieve new task assignments from admin (runs every 30 seconds)
-    const pullInterval = setInterval(async () => {
-      try {
-        await triggerSilentRefresh();
-      } catch (err) {
-        console.warn('Auto-pull background task error:', err);
-      }
-    }, 30000);
-
     return () => {
       clearInterval(pushInterval);
-      clearInterval(pullInterval);
     };
   }, [token]);
+
+  // Fires at most once per app session — prevents repeated re-renders on navigation
+  const hasRefreshedThisSession = useRef(false);
 
   const loadCachedData = async () => {
     try {
@@ -644,6 +612,8 @@ export default function WorkListScreen() {
   };
 
   const triggerSilentRefresh = async () => {
+    if (hasRefreshedThisSession.current) return; // only once per session
+    hasRefreshedThisSession.current = true;
     try {
       const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
       console.log(`triggerSilentRefresh: Fetched ${freshAssignments.length} fresh assignments from API.`);
@@ -1020,26 +990,7 @@ export default function WorkListScreen() {
         ) : (
           <View style={{ flex: 1 }}>
 
-            {navigationLoading ? (
-              <View style={{ paddingHorizontal: 16, marginTop: 12, gap: 12 }}>
-                {[1, 2, 3, 4].map(i => (
-                  <View key={i} style={{
-                    height: 70,
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e5e7eb',
-                    borderWidth: 1,
-                    borderRadius: 12,
-                    opacity: 0.6,
-                    padding: 16,
-                    justifyContent: 'center'
-                  }}>
-                    <View style={{ width: '40%', height: 16, backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
-                    <View style={{ width: '70%', height: 12, backgroundColor: '#f3f4f6', borderRadius: 4 }} />
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <>
+            <>
                 {/* LEVEL 1 — Areas */}
                 {drillLevel === 'areas' && (
                   <FlatList
@@ -1161,7 +1112,6 @@ export default function WorkListScreen() {
                   </>
                 )}
               </>
-            )}
           </View>
         )}
       </View>
