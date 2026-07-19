@@ -181,20 +181,23 @@ export default function PropertyDetailScreen() {
       }
       
       // Lock orientation based on status code
-      if (statusCode === 'reading_taken') {
-        console.log('Locking orientation to LANDSCAPE for meter reading photo.');
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      } else {
-        console.log('Locking orientation to PORTRAIT_UP for door locked/other photo.');
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      try {
+        if (statusCode === 'reading_taken') {
+          console.log('Locking orientation to LANDSCAPE for meter reading photo.');
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        } else {
+          console.log('Locking orientation to PORTRAIT_UP for door locked/other photo.');
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        }
+        // Wait for Android to finish the rotation transition before mounting CameraView
+        await new Promise(resolve => setTimeout(resolve, 350));
+      } catch (orientationErr) {
+        console.warn('Orientation lock failed on this device, opening camera anyway:', orientationErr);
       }
-      
-      // Wait for Android to finish the rotation transition before mounting CameraView
-      await new Promise(resolve => setTimeout(resolve, 350));
       
       setCameraActive(true);
     } catch (err) {
-      console.error('Failed to request camera permission or lock orientation:', err);
+      console.error('Failed to request camera permission:', err);
       showAlert('Camera Error', 'Could not open the camera. Please try again.');
     }
   };
