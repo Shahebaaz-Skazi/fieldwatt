@@ -136,41 +136,91 @@ export const clearReadingsQueue = async (): Promise<void> => {
 
 export const saveProperties = async (properties: any[]) => {
   if (!properties || properties.length === 0) return;
-  const database = getDb();
-  
-  // Wipe existing cache first so stale records don't conflict
-  await clearPropertiesCache();
-  
-  console.log(`saveProperties: Saving ${properties.length} properties to SQLite...`);
-  console.log('saveProperties: raw first item:', JSON.stringify(properties[0]));
-  console.log('saveProperties: sample item:', {
-    id: properties[0].property_id,
-    society: properties[0].society,
-    sub_society: properties[0].sub_society,
-    building_code: properties[0].building_code
-  });
-  
-  for (const prop of properties) {
-    await database.runAsync(
-      `INSERT OR REPLACE INTO properties (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        prop.property_id,
-        prop.assignment_id,
-        prop.serial_no,
-        prop.consumer_name,
-        prop.address,
-        prop.meter_no || null,
-        prop.property_type,
-        prop.property_lat ? parseFloat(prop.property_lat) : null,
-        prop.property_lng ? parseFloat(prop.property_lng) : null,
-        prop.area_name || null,
-        prop.society || null,
-        prop.sub_society || null,
-        prop.building_code || null,
-        prop.bp_no || null
-      ]
-    );
+
+  try {
+    // Clear first — wipe stale data before inserting fresh batch
+    await clearPropertiesCache();
+
+    const database = getDb();
+    for (const prop of properties) {
+      await database.runAsync(
+        `INSERT OR REPLACE INTO properties 
+         (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          prop.property_id,
+          prop.assignment_id,
+          prop.serial_no,
+          prop.consumer_name,
+          prop.address,
+          prop.meter_no || null,
+          prop.property_type,
+          prop.property_lat ? parseFloat(prop.property_lat) : null,
+          prop.property_lng ? parseFloat(prop.property_lng) : null,
+          prop.area_name || null,
+          prop.society || null,
+          prop.sub_society || null,
+          prop.building_code || null,
+          prop.bp_no || null
+        ]
+      );
+    }
+  } catch (err: any) {
+    // Nuclear option — if ANY constraint error, drop and recreate the table then retry
+    if (err?.message?.includes('constraint') || err?.message?.includes('UNIQUE')) {
+      console.warn('Constraint error in saveProperties — resetting properties table and retrying');
+      try {
+        const database = getDb();
+        await database.execAsync('DROP TABLE IF EXISTS properties');
+        await database.execAsync(`
+          CREATE TABLE IF NOT EXISTS properties (
+            id TEXT PRIMARY KEY,
+            assignment_id TEXT NOT NULL,
+            serial_no TEXT NOT NULL,
+            consumer_name TEXT NOT NULL,
+            address TEXT NOT NULL,
+            meter_no TEXT,
+            property_type TEXT,
+            lat REAL,
+            lng REAL,
+            area_name TEXT,
+            society TEXT,
+            sub_society TEXT,
+            building_code TEXT,
+            bp_no TEXT
+          )
+        `);
+        const database2 = getDb();
+        for (const prop of properties) {
+          await database2.runAsync(
+            `INSERT OR REPLACE INTO properties 
+             (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              prop.property_id,
+              prop.assignment_id,
+              prop.serial_no,
+              prop.consumer_name,
+              prop.address,
+              prop.meter_no || null,
+              prop.property_type,
+              prop.property_lat ? parseFloat(prop.property_lat) : null,
+              prop.property_lng ? parseFloat(prop.property_lng) : null,
+              prop.area_name || null,
+              prop.society || null,
+              prop.sub_society || null,
+              prop.building_code || null,
+              prop.bp_no || null
+            ]
+          );
+        }
+        console.log('Properties table reset and repopulated successfully');
+      } catch (retryErr) {
+        console.error('Fatal: saveProperties failed even after table reset:', retryErr);
+      }
+    } else {
+      throw err;
+    }
   }
 };
 
