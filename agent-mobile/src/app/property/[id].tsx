@@ -200,21 +200,22 @@ export default function PropertyDetailScreen() {
         const watermarkedUri = await watermarkShotRef.current.capture();
         console.log('✔ Watermark burned in:', watermarkedUri);
 
-        // Save to gallery
+        // Save to device photo gallery (silent attempt, won't block reading entry)
         if (Platform.OS !== 'web' && MediaLibrary) {
           try {
             const perm = await MediaLibrary.getPermissionsAsync();
             const status = perm.granted ? 'granted'
               : (await MediaLibrary.requestPermissionsAsync()).status;
             if (status === 'granted') {
-              await MediaLibrary.saveToLibraryAsync(watermarkedUri);
+              if (MediaLibrary.createAssetAsync) {
+                await MediaLibrary.createAssetAsync(watermarkedUri);
+              } else if (MediaLibrary.saveToLibraryAsync) {
+                await MediaLibrary.saveToLibraryAsync(watermarkedUri);
+              }
               console.log('✔ Watermarked photo saved to gallery');
-            } else {
-              showAlert('Permission Denied', 'Gallery access was not granted. Photo not saved to gallery.');
             }
           } catch (e) {
-            console.warn('Gallery save failed:', e);
-            showAlert('Gallery Error', 'Photo was captured but could not be saved to gallery.');
+            console.warn('Gallery save skipped/failed (non-critical):', e);
           }
         }
 
