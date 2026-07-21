@@ -372,8 +372,9 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'mru, year, and month are required.' });
     }
 
-    const cycleRes = await db.query(
-      `SELECT c.id as cycle_id FROM cycles c
+    // Tier 1: Match cycle by billing_month label from the import for this period
+    let cycleRes = await db.query(
+      `SELECT c.id as cycle_id, c.label FROM cycles c
        WHERE c.label = (
          SELECT billing_month FROM imports i
          WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 
@@ -382,9 +383,32 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
        )`,
       [parseInt(year), parseInt(month)]
     );
+
+    // Tier 2: If no label match, find the cycle that actually has assignments for properties in this import
+    if (cycleRes.rows.length === 0) {
+      cycleRes = await db.query(
+        `SELECT DISTINCT c.id as cycle_id, c.label
+         FROM cycles c
+         JOIN assignments asg ON asg.cycle_id = c.id
+         JOIN properties p ON asg.property_id = p.id
+         JOIN imports i ON p.import_id = i.id
+         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
+           AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+         LIMIT 1`,
+        [parseInt(year), parseInt(month)]
+      );
+    }
+
+    // Tier 3: Fall back to the active cycle
+    if (cycleRes.rows.length === 0) {
+      cycleRes = await db.query(`SELECT id as cycle_id, label FROM cycles WHERE is_active = true LIMIT 1`);
+    }
+
     const targetCycleId = cycleRes.rows.length > 0
       ? cycleRes.rows[0].cycle_id
       : '00000000-0000-0000-0000-000000000000';
+
+    console.log(`[export] year=${year} month=${month} mru=${mru} → resolved cycle: "${cycleRes.rows[0]?.label}" (${targetCycleId})`);
 
     let queryText = `
       SELECT 
@@ -424,6 +448,7 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
 
     queryText += ' ORDER BY p.serial_no ASC';
     const result = await db.query(queryText, params);
+    console.log(`[export] rows returned: ${result.rows.length}, with readings: ${result.rows.filter(r => r.submitted_at).length}`);
 
     // Exact 30 SAP columns in order
     const sapHeaders = [
