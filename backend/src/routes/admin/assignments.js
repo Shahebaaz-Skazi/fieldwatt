@@ -525,8 +525,19 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
       // Filled reading values
       rowObj['Current meter reading date'] = readingDate;
       rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
-      rowObj['MR Note'] = r.note || '';   // agent's exact dropdown selection (e.g. "DOOR LOCK", "ACTUAL METER READING")
-      rowObj['Comment'] = '';             // no separate comment field in mobile app
+      // MR Note: map status_code to the exact label text shown in the agent app
+      const mrNoteMap = {
+        reading_taken:   'ACTUAL METER READING',
+        door_locked:     'DOOR LOCK',
+        not_reachable:   'ADDRESS NOT FOUND',
+        access_denied:   'CUSTOMER NOT ALLOWED',
+        meter_not_found: 'METER NOT INSTALLED',
+        meter_damaged:   'METER FAULTY',
+        revisit_needed:  'CONVERSATION NOT DONE',
+        vacant_property: 'NO GAS CONNECTION',
+      };
+      rowObj['MR Note'] = r.status_code ? (mrNoteMap[r.status_code] || r.status_code.replace(/_/g, ' ').toUpperCase()) : '';
+      rowObj['Comment'] = r.note || '';   // agent's free-text remark if any
 
       return rowObj;
     });
