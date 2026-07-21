@@ -451,13 +451,7 @@ export default function PropertyDetailScreen() {
                   const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
                   console.log('✔ Raw photo captured:', photo.uri);
 
-                  // Save raw photo to gallery immediately at capture moment
-                  try {
-                    await CameraRoll.saveAsset(photo.uri, { type: 'photo' });
-                    console.log('✔ Raw photo saved to gallery');
-                  } catch (e) {
-                    console.warn('Raw gallery save failed:', e);
-                  }
+
                   
                   // Close camera and trigger watermark processing
                   setCameraActive(false);
