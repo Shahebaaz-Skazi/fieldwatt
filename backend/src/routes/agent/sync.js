@@ -13,9 +13,8 @@ const readingItemSchema = z.object({
   idempotency_key: z.string().uuid(),
   reading_value: z.string().nullable().optional(),
   status_code: z.enum([
-    'reading_taken', 'door_locked', 'not_reachable',
-    'access_denied', 'meter_not_found', 'meter_damaged',
-    'revisit_needed', 'vacant_property'
+    'reading_taken',
+    'door_locked',
   ]),
   photo_url: z.string().url().nullable().optional(),
   note: z.string().optional().nullable(),

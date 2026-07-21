@@ -56,6 +56,7 @@ export default function PropertyDetailScreen() {
   // Form states
   const [readingValue, setReadingValue] = useState('');
   const [statusCode, setStatusCode] = useState('reading_taken');
+  const [subRemark, setSubRemark] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -339,8 +340,12 @@ export default function PropertyDetailScreen() {
       showAlert('Validation Error', 'Reading value is required.');
       return;
     }
+    if (!subRemark) {
+      showAlert('Validation Error', 'Please select a remark.');
+      return;
+    }
 
-    const requiresPhoto = ['reading_taken', 'door_locked', 'meter_damaged', 'meter_not_found'].includes(statusCode);
+    const requiresPhoto = ['reading_taken', 'door_locked'].includes(statusCode);
     if (requiresPhoto && !photoUri) {
       showAlert('Validation Error', 'Photo verification is mandatory for this status.');
       return;
@@ -374,7 +379,7 @@ export default function PropertyDetailScreen() {
         reading_value: readingValue || null,
         status_code: statusCode,
         photo_url: photoUri || null,
-        note,
+        note: subRemark + (note ? ` | ${note}` : ''),
         gps_lat: gpsLat,
         gps_lng: gpsLng,
         gps_accuracy: gpsAccuracy,
@@ -502,15 +507,31 @@ export default function PropertyDetailScreen() {
     );
   }
 
-  const statuses = [
-    { code: 'reading_taken', label: 'Reading taken ✅' },
-    { code: 'door_locked', label: 'Door locked 🔒' },
-    { code: 'not_reachable', label: 'Not reachable 📵' },
-    { code: 'access_denied', label: 'Access denied ❌' },
-    { code: 'meter_not_found', label: 'Meter not found 🔍' },
-    { code: 'meter_damaged', label: 'Meter damaged ⚠️' },
-    { code: 'vacant_property', label: 'Vacant 🏚️' },
+  const PRIMARY_STATUSES = [
+    { code: 'reading_taken', label: 'Reading Taken ✅' },
+    { code: 'door_locked', label: 'Door Lock 🔒' },
   ];
+
+  const SUB_REMARKS: Record<string, string[]> = {
+    reading_taken: [
+      'Actual Meter Reading',
+      'Meter No. Mismatch',
+      'Not Using Gas',
+      'Address Correction',
+      'Meter Disconnection',
+      'Temporary Disconnection',
+      'Meter Change',
+      'Meter Faulty',
+    ],
+    door_locked: [
+      'Address Not Found',
+      'Customer Not Allowing',
+      'Society Not Allowing',
+      'Conversion Not Done',
+      'Meter Not Installed',
+      'No Gas Connection',
+    ],
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -550,17 +571,59 @@ export default function PropertyDetailScreen() {
         <View style={[styles.section, { borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 20 }]}>
           <Text style={styles.sectionTitle}>Submit Reading</Text>
 
-          {/* Status selector */}
+          {/* Primary Status Selector */}
           <Text style={styles.label}>Visit Status</Text>
-          <View style={styles.statusGrid}>
-            {statuses.map(s => (
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+            {PRIMARY_STATUSES.map(s => (
               <TouchableOpacity
                 key={s.code}
-                style={[styles.statusButton, statusCode === s.code && styles.statusButtonActive]}
-                onPress={() => setStatusCode(s.code)}
+                style={[
+                  styles.statusButton,
+                  { flex: 1 },
+                  statusCode === s.code && styles.statusButtonActive
+                ]}
+                onPress={() => {
+                  setStatusCode(s.code);
+                  setSubRemark('');
+                }}
               >
                 <Text style={[styles.statusButtonText, statusCode === s.code && styles.statusButtonTextActive]}>
                   {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Sub Remark Dropdown */}
+          <Text style={styles.label}>
+            {statusCode === 'reading_taken' ? 'Reading Remark' : 'Door Lock Reason'}
+          </Text>
+          <View style={{
+            borderWidth: 1,
+            borderColor: '#d1d5db',
+            borderRadius: 10,
+            marginBottom: 16,
+            backgroundColor: '#fff',
+            overflow: 'hidden',
+          }}>
+            {SUB_REMARKS[statusCode]?.map(remark => (
+              <TouchableOpacity
+                key={remark}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  backgroundColor: subRemark === remark ? '#111827' : '#fff',
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#f3f4f6',
+                }}
+                onPress={() => setSubRemark(remark)}
+              >
+                <Text style={{
+                  fontSize: 14,
+                  color: subRemark === remark ? '#fff' : '#374151',
+                  fontWeight: subRemark === remark ? '600' : '400',
+                }}>
+                  {remark}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -581,7 +644,7 @@ export default function PropertyDetailScreen() {
           ) : null}
 
           {/* Photo attachment zone */}
-          {['reading_taken', 'door_locked', 'meter_damaged', 'meter_not_found'].includes(statusCode) ? (
+          {['reading_taken', 'door_locked'].includes(statusCode) ? (
             <View style={styles.formGroup}>
               <Text style={styles.label}>Verification Photo (Mandatory)</Text>
               {photoUri ? (

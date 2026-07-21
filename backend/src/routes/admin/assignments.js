@@ -496,26 +496,16 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         readingDate = `${day}.${monthStr}.${yearStr}`;
       }
 
-      const statusToNoteMap = {
-        reading_taken:   'ACTUAL METER READING',
-        door_locked:     'DOOR LOCK',
-        not_reachable:   'ADDRESS NOT FOUND',
-        access_denied:   'CUSTOMER NOT ALLOWED',
-        meter_not_found: 'METER NOT INSTALLED',
-        meter_damaged:   'METER FAULTY',
-        revisit_needed:  'CONVERSATION NOT DONE',
-        vacant_property: 'NO GAS CONNECTION',
-      };
-
+      // MR Note: use the agent's sub-remark note directly.
+      // It already contains the exact remark selected (e.g. "Actual Meter Reading", "Address Not Found").
       let computedMrNote = '';
       if (r.note && r.note.trim()) {
-        computedMrNote = r.note.trim();
-      } else if (r.status_code && statusToNoteMap[r.status_code]) {
-        computedMrNote = statusToNoteMap[r.status_code];
-      } else if (r.status_code) {
-        computedMrNote = r.status_code.replace(/_/g, ' ').toUpperCase();
-      } else if (r.submitted_at || (r.reading_value !== null && r.reading_value !== undefined && r.reading_value !== '')) {
+        // Extract sub-remark (before the | separator if optional note was added)
+        computedMrNote = r.note.trim().split(' | ')[0].toUpperCase();
+      } else if (r.status_code === 'reading_taken') {
         computedMrNote = 'ACTUAL METER READING';
+      } else if (r.status_code === 'door_locked') {
+        computedMrNote = 'DOOR LOCK';
       }
 
       const rowObj = {};
