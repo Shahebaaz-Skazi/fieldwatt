@@ -364,7 +364,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
   }
 });
 
-// GET /admin/assignments/export - Export properties, readings, and assignment logs as XLSX sheet
+// GET /admin/assignments/export - Export properties, readings, and assignment logs in exact 30-column SAP Excel format
 router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
@@ -388,39 +388,24 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
 
     let queryText = `
       SELECT 
-        p.serial_no                                         AS "MR ORDER ID",
-        a.name                                              AS "MRU NAME",
-        (p.raw_sap_data->>'BP No.')                         AS "BP No.",
-        (p.raw_sap_data->>'Installation No.')               AS "Installation No.",
-        p.consumer_name                                     AS "BPNAME",
-        (p.raw_sap_data->>'Regional structure g')           AS "Regional structure g",
-        p.meter_no                                          AS "Device Serial No.",
-        (p.raw_sap_data->>'c/o name')                       AS "c/o name",
-        p.wing_code                                         AS "Building (Number or Code)",
-        (p.raw_sap_data->>'House number supplement')        AS "House number supplement",
-        (p.raw_sap_data->>'House Number')                   AS "House Number",
-        (p.raw_sap_data->>'Floor in building')              AS "Floor in building",
-        (p.raw_sap_data->>'Street 2')                       AS "Street 2",
-        p.sub_society                                       AS "Street 3",
-        p.society                                           AS "Street",
-        (p.raw_sap_data->>'Location')                       AS "Location",
-        (p.raw_sap_data->>'Area')                           AS "Area",
-        (p.raw_sap_data->>'city')                           AS "city",
-        (p.raw_sap_data->>'City postal code')               AS "City postal code",
-        (p.raw_sap_data->>'Register')                       AS "Register",
-        (p.raw_sap_data->>'Scheduled meter reading date')   AS "Scheduled meter reading date",
-        latest_r.submitted_at                               AS "Current meter reading date",
-        latest_r.reading_value                              AS "Current MR",
-        latest_r.status_code                                AS "MR Note",
-        ag.name                                             AS "Agent Name",
-        COALESCE(latest_r.status_code, 'pending')           AS "Status"
+        p.serial_no,
+        p.consumer_name,
+        p.meter_no,
+        p.society,
+        p.sub_society,
+        p.wing_code,
+        p.raw_sap_data,
+        a.name as area_name,
+        latest_r.submitted_at,
+        latest_r.reading_value,
+        latest_r.status_code,
+        latest_r.note
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
-      LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN LATERAL (
-        SELECT status_code, reading_value, submitted_at
+        SELECT status_code, reading_value, submitted_at, note
         FROM readings
         WHERE assignment_id = asg.id
         ORDER BY submitted_at DESC
@@ -439,15 +424,92 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
     queryText += ' ORDER BY p.serial_no ASC';
     const result = await db.query(queryText, params);
 
+    // Exact 30 SAP columns in order
+    const sapHeaders = [
+      'MR ORDER ID',
+      'MRU NAME',
+      'BP No.',
+      'Installation No.',
+      'BPNAME',
+      'Regional structure g',
+      'Device Serial No.',
+      'c/o name',
+      'Building (Number or Code)',
+      'House number supplement',
+      'House Number',
+      'Floor in building',
+      'Street 2',
+      'Street 3',
+      'Street',
+      'Location',
+      'Area',
+      'city',
+      'City postal code',
+      'Register',
+      'Scheduled meter reading date',
+      'Current meter reading date',
+      'Current MR',
+      'MR Note',
+      'Comment',
+      'Excl. SD Amount',
+      'SD Amount',
+      'Total Amount',
+      'Telephone No.',
+      'Mobile No.'
+    ];
+
+    const exportRows = result.rows.map(r => {
+      const sap = r.raw_sap_data || {};
+
+      let readingDate = '';
+      if (r.submitted_at) {
+        const d = new Date(r.submitted_at);
+        const day = String(d.getDate()).padStart(2, '0');
+        const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+        const yearStr = d.getFullYear();
+        readingDate = `${day}.${monthStr}.${yearStr}`;
+      }
+
+      let mrNote = '';
+      if (r.status_code && r.status_code !== 'pending') {
+        if (r.status_code === 'reading_taken') mrNote = '';
+        else if (r.status_code === 'door_locked') mrNote = 'Door Locked';
+        else if (r.status_code === 'not_reachable') mrNote = 'Not Reachable';
+        else mrNote = r.status_code.replace(/_/g, ' ').toUpperCase();
+      }
+
+      const rowObj = {};
+      sapHeaders.forEach(h => {
+        rowObj[h] = sap[h] !== undefined && sap[h] !== null ? sap[h] : '';
+      });
+
+      // Override / map structured values cleanly
+      rowObj['MR ORDER ID'] = r.serial_no || rowObj['MR ORDER ID'];
+      rowObj['MRU NAME'] = (mru !== 'all' ? mru : (r.area_name || rowObj['MRU NAME']));
+      rowObj['BPNAME'] = r.consumer_name || rowObj['BPNAME'];
+      rowObj['Device Serial No.'] = r.meter_no || rowObj['Device Serial No.'];
+      rowObj['Building (Number or Code)'] = r.wing_code || rowObj['Building (Number or Code)'];
+      rowObj['Street 3'] = r.sub_society || rowObj['Street 3'];
+      rowObj['Street'] = r.society || rowObj['Street'];
+
+      // Filled reading values
+      rowObj['Current meter reading date'] = readingDate;
+      rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
+      rowObj['MR Note'] = mrNote;
+      rowObj['Comment'] = r.note || '';
+
+      return rowObj;
+    });
+
     const XLSX = require('xlsx');
-    const worksheet = XLSX.utils.json_to_sheet(result.rows);
+    const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: sapHeaders });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Readings');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
 
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="FieldWatt_Export_${mru}_${month}_${year}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="FieldWatt_${mru}_${month}_${year}_Export.xlsx"`);
     res.send(buffer);
   } catch (error) {
     next(error);
