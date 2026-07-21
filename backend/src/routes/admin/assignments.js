@@ -496,17 +496,27 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         readingDate = `${day}.${monthStr}.${yearStr}`;
       }
 
-      const mrNoteMap = {
-        reading_taken:   'Reading Taken',
-        door_locked:     'Door Locked',
-        not_reachable:   'Not Reachable',
-        access_denied:   'Access Denied',
-        meter_not_found: 'Meter Not Found',
-        meter_damaged:   'Meter Damaged',
-        revisit_needed:  'Revisit Needed',
-        vacant_property: 'Vacant Property',
+      const statusToNoteMap = {
+        reading_taken:   'ACTUAL METER READING',
+        door_locked:     'DOOR LOCK',
+        not_reachable:   'ADDRESS NOT FOUND',
+        access_denied:   'CUSTOMER NOT ALLOWED',
+        meter_not_found: 'METER NOT INSTALLED',
+        meter_damaged:   'METER FAULTY',
+        revisit_needed:  'CONVERSATION NOT DONE',
+        vacant_property: 'NO GAS CONNECTION',
       };
-      const mrNote = r.status_code ? (mrNoteMap[r.status_code] || r.status_code.replace(/_/g, ' ').toUpperCase()) : '';
+
+      let computedMrNote = '';
+      if (r.note && r.note.trim()) {
+        computedMrNote = r.note.trim();
+      } else if (r.status_code && statusToNoteMap[r.status_code]) {
+        computedMrNote = statusToNoteMap[r.status_code];
+      } else if (r.status_code) {
+        computedMrNote = r.status_code.replace(/_/g, ' ').toUpperCase();
+      } else if (r.submitted_at || (r.reading_value !== null && r.reading_value !== undefined && r.reading_value !== '')) {
+        computedMrNote = 'ACTUAL METER READING';
+      }
 
       const rowObj = {};
       sapHeaders.forEach(h => {
@@ -525,19 +535,8 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
       // Filled reading values
       rowObj['Current meter reading date'] = readingDate;
       rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
-      // MR Note: map status_code to the exact label text shown in the agent app
-      const mrNoteMap = {
-        reading_taken:   'ACTUAL METER READING',
-        door_locked:     'DOOR LOCK',
-        not_reachable:   'ADDRESS NOT FOUND',
-        access_denied:   'CUSTOMER NOT ALLOWED',
-        meter_not_found: 'METER NOT INSTALLED',
-        meter_damaged:   'METER FAULTY',
-        revisit_needed:  'CONVERSATION NOT DONE',
-        vacant_property: 'NO GAS CONNECTION',
-      };
-      rowObj['MR Note'] = r.status_code ? (mrNoteMap[r.status_code] || r.status_code.replace(/_/g, ' ').toUpperCase()) : '';
-      rowObj['Comment'] = r.note || '';   // agent's free-text remark if any
+      rowObj['MR Note'] = computedMrNote;
+      rowObj['Comment'] = r.note || '';
 
       return rowObj;
     });
