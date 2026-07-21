@@ -663,7 +663,7 @@ const Dashboard = () => {
             <img 
               src={zoomPhoto} 
               alt="Meter register zoom verification" 
-              style={{ maxWidth: '100%', maxHeight: '70vh', borderRadius: '12px', border: '2px solid var(--border)', boxShadow: 'var(--shadow)' }} 
+              style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: '12px', border: '2px solid var(--border)', boxShadow: 'var(--shadow)' }} 
             />
           </div>
         </div>

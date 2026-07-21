@@ -586,7 +586,7 @@ export default function PropertyDetailScreen() {
                   <Image
                     source={{ uri: photoUri! }}
                     style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8, backgroundColor: '#111' }}
-                    resizeMode="cover"
+                    resizeMode="contain"
                     onError={(e) => console.warn('Photo preview load error:', e.nativeEvent.error)}
                   />
                   <TouchableOpacity onPress={() => setPhotoUri(null)} style={styles.removePhotoBtn}>
@@ -655,7 +655,7 @@ export default function PropertyDetailScreen() {
             <Image
               source={{ uri: pendingWatermarkUri }}
               style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
+              resizeMode="contain"
               onLoad={() => {
                 watermarkImageReadyRef.current = true;
                 setWatermarkImageReady(true);
