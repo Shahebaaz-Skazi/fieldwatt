@@ -375,6 +375,7 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
       INNER JOIN imports i ON p.import_id = i.id
       ${whereClause}
       ORDER BY r.submitted_at DESC
+      LIMIT 1000
     `, params);
 
     if (result.rows.length === 0) {
@@ -388,13 +389,22 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
     res.setHeader('Content-Disposition', `attachment; filename="fieldwatt_images_${Date.now()}.zip"`);
 
     const archive = archiver('zip', { zlib: { level: 5 } });
+
+    archive.on('error', (err) => {
+      console.error('ZIP archive error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || 'ZIP generation failed.' });
+      }
+    });
+
     archive.pipe(res);
 
     for (const row of result.rows) {
       try {
-        const imageRes = await axios.get(row.photo_url, { responseType: 'stream', timeout: 15000 });
-        const filename = `${row.serial_no}_${row.consumer_name.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
-        archive.append(imageRes.data, { name: filename });
+        const imageRes = await axios.get(row.photo_url, { responseType: 'arraybuffer', timeout: 10000 });
+        const buffer = Buffer.from(imageRes.data);
+        const filename = `${row.serial_no}_${(row.consumer_name || 'consumer').replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+        archive.append(buffer, { name: filename });
       } catch (imgErr) {
         console.warn(`Skipping image for ${row.serial_no}:`, imgErr.message);
       }
@@ -404,7 +414,7 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
   } catch (err) {
     console.error('Image download failed:', err);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to generate image archive.' });
+      res.status(500).json({ error: err.message || 'Failed to generate image archive.' });
     }
   }
 });
