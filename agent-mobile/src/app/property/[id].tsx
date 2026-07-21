@@ -74,6 +74,7 @@ export default function PropertyDetailScreen() {
   const [watermarkImageReady, setWatermarkImageReady] = useState(false);
   const watermarkImageReadyRef = useRef(false);
   const [captureMode, setCaptureMode] = useState(false);
+  const [photoAspect, setPhotoAspect] = useState<number | null>(null);
 
   useEffect(() => {
     if (!cameraActive) return;
@@ -154,6 +155,12 @@ export default function PropertyDetailScreen() {
   // Effect to process and burn watermark into static image after capture
   useEffect(() => {
     if (!pendingWatermarkUri) return;
+
+    Image.getSize(pendingWatermarkUri, (imgW, imgH) => {
+      if (imgW > 0 && imgH > 0) {
+        setPhotoAspect(imgW / imgH);
+      }
+    }, () => {});
     
     const burnWatermark = async () => {
       try {
@@ -644,7 +651,7 @@ export default function PropertyDetailScreen() {
           style={{
             position: 'absolute',
             width: width,
-            height: height,
+            height: photoAspect ? width / photoAspect : height,
             opacity: captureMode ? 0.01 : 0,  // near-invisible but painted
             top: captureMode ? 0 : -9999,
             left: captureMode ? 0 : -9999,
@@ -655,7 +662,7 @@ export default function PropertyDetailScreen() {
             <Image
               source={{ uri: pendingWatermarkUri }}
               style={{ width: '100%', height: '100%' }}
-              resizeMode="contain"
+              resizeMode="cover"
               onLoad={() => {
                 watermarkImageReadyRef.current = true;
                 setWatermarkImageReady(true);
