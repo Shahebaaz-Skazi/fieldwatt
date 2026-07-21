@@ -11,7 +11,7 @@ import { CameraView, Camera } from 'expo-camera';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
-import * as MediaLibrary from 'expo-media-library';
+import { CameraRoll } from '@react-native-camera-roll/camera-roll';
 import ViewShot from 'react-native-view-shot';
 // FileSystem removed to prevent native unlinked load crash
 import { sharedData } from '../../utils/sharedData';
@@ -222,12 +222,8 @@ export default function PropertyDetailScreen() {
 
         // Save to gallery
         try {
-          const perm = await MediaLibrary.getPermissionsAsync();
-          const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
-          if (granted) {
-            await MediaLibrary.saveToLibraryAsync(watermarkedUri);
-            console.log('✔ Watermarked photo saved to gallery');
-          }
+          await CameraRoll.saveAsset(watermarkedUri, { type: 'photo' });
+          console.log('✔ Watermarked photo saved to gallery');
         } catch (e) {
           console.warn('Gallery save failed:', e);
         }
@@ -457,14 +453,8 @@ export default function PropertyDetailScreen() {
 
                   // Save raw photo to gallery immediately at capture moment
                   try {
-                    if (MediaLibrary) {
-                      const perm = await MediaLibrary.getPermissionsAsync();
-                      const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
-                      if (granted) {
-                        await MediaLibrary.saveToLibraryAsync(photo.uri);
-                        console.log('✔ Raw photo saved to gallery');
-                      }
-                    }
+                    await CameraRoll.saveAsset(photo.uri, { type: 'photo' });
+                    console.log('✔ Raw photo saved to gallery');
                   } catch (e) {
                     console.warn('Raw gallery save failed:', e);
                   }

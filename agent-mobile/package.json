@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo/ui": "~57.0.4",
     "@expo/vector-icons": "^15.1.1",
+    "@react-native-camera-roll/camera-roll": "^7.10.2",
     "expo": "~57.0.4",
     "expo-camera": "~57.0.1",
     "expo-constants": "~57.0.3",
