@@ -161,6 +161,24 @@ export default function WorkListScreen() {
       checkForUpdate().catch(() => {});
     }
   }, []);
+
+  // Auto-show update popup when update is detected
+  useEffect(() => {
+    if (updateAvailable) {
+      Alert.alert(
+        '🚀 New Update Available',
+        'A new version of FieldWatt is ready. Download and install now to get the latest features and fixes.',
+        [
+          { text: 'Later', style: 'cancel' },
+          {
+            text: 'Update Now',
+            onPress: applyUpdate,
+          },
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [updateAvailable]);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'done' | 'problem'>('pending');
 
