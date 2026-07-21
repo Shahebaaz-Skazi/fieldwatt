@@ -388,27 +388,39 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
 
     let queryText = `
       SELECT 
-        p.serial_no        AS "MR ORDER ID",
-        p.consumer_name    AS "BPNAME",
-        p.address          AS "Address",
-        p.meter_no         AS "Device Serial No.",
-        p.property_type    AS "Property Type",
-        p.society          AS "Street",
-        p.sub_society      AS "Street 3",
-        p.wing_code        AS "Building (Number or Code)",
-        a.name             AS "MRU NAME",
-        ag.name            AS "Agent Name",
-        COALESCE(latest_r.status_code, 'pending') AS "Status",
-        latest_r.reading_value                    AS "Reading Value",
-        latest_r.submitted_at                     AS "Submitted At",
-        latest_r.photo_url                        AS "Photo URL"
+        p.serial_no                                         AS "MR ORDER ID",
+        a.name                                              AS "MRU NAME",
+        (p.raw_sap_data->>'BP No.')                         AS "BP No.",
+        (p.raw_sap_data->>'Installation No.')               AS "Installation No.",
+        p.consumer_name                                     AS "BPNAME",
+        (p.raw_sap_data->>'Regional structure g')           AS "Regional structure g",
+        p.meter_no                                          AS "Device Serial No.",
+        (p.raw_sap_data->>'c/o name')                       AS "c/o name",
+        p.wing_code                                         AS "Building (Number or Code)",
+        (p.raw_sap_data->>'House number supplement')        AS "House number supplement",
+        (p.raw_sap_data->>'House Number')                   AS "House Number",
+        (p.raw_sap_data->>'Floor in building')              AS "Floor in building",
+        (p.raw_sap_data->>'Street 2')                       AS "Street 2",
+        p.sub_society                                       AS "Street 3",
+        p.society                                           AS "Street",
+        (p.raw_sap_data->>'Location')                       AS "Location",
+        (p.raw_sap_data->>'Area')                           AS "Area",
+        (p.raw_sap_data->>'city')                           AS "city",
+        (p.raw_sap_data->>'City postal code')               AS "City postal code",
+        (p.raw_sap_data->>'Register')                       AS "Register",
+        (p.raw_sap_data->>'Scheduled meter reading date')   AS "Scheduled meter reading date",
+        latest_r.submitted_at                               AS "Current meter reading date",
+        latest_r.reading_value                              AS "Current MR",
+        latest_r.status_code                                AS "MR Note",
+        ag.name                                             AS "Agent Name",
+        COALESCE(latest_r.status_code, 'pending')           AS "Status"
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN LATERAL (
-        SELECT status_code, reading_value, submitted_at, photo_url
+        SELECT status_code, reading_value, submitted_at
         FROM readings
         WHERE assignment_id = asg.id
         ORDER BY submitted_at DESC
