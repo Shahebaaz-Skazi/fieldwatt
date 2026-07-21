@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import api from '../utils/api';
-import { initDb, saveProperties, getStoredAgentId, setStoredAgentId, clearPropertiesCache, setStoredAuth } from '../db/sqlite';
+import { initDb, saveProperties, getCachedProperties, getStoredAgentId, setStoredAgentId, clearPropertiesCache, setStoredAuth } from '../db/sqlite';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');
@@ -47,9 +47,26 @@ export default function LoginScreen() {
         await clearPropertiesCache();
       }
 
-      // Fetch fresh assignments but preserve existing reading_status for same agent
+      // Fetch fresh assignments but detect if this is a new billing cycle.
+      // If assignment_ids have changed, old reading_status must be wiped — otherwise
+      // properties from the previous cycle appear completed in the new cycle.
       const properties = await api.get(`/agent/assignments?_t=${Date.now()}`);
-      await saveProperties(properties, isSameAgent);
+
+      let preserveStatus = isSameAgent;
+      if (isSameAgent && properties.length > 0) {
+        const cached = await getCachedProperties();
+        if (cached && cached.length > 0) {
+          const newIds = new Set(properties.map((p: any) => p.assignment_id));
+          const hasStaleIds = (cached as any[]).some((p: any) => !newIds.has(p.assignment_id));
+          if (hasStaleIds) {
+            preserveStatus = false;
+            console.log('New billing cycle detected — clearing old reading statuses');
+            await clearPropertiesCache();
+          }
+        }
+      }
+
+      await saveProperties(properties, preserveStatus);
 
       // Stamp this agent's ID so the next login can detect a switch
       await setStoredAgentId(incomingAgentId);
