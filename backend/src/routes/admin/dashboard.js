@@ -380,7 +380,6 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
         r.submitted_at, 
         p.serial_no, 
         p.consumer_name,
-        p.bp_no,
         p.raw_sap_data->>'BP No.' as sap_bp_no
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
@@ -427,8 +426,8 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
         const imageRes = await axios.get(row.photo_url, { responseType: 'arraybuffer', timeout: 10000 });
         const buffer = Buffer.from(imageRes.data);
         
-        // BP No. from raw_sap_data or p.bp_no or fallback to p.serial_no
-        const bpNo = row.sap_bp_no || row.bp_no || row.serial_no || '0000000000';
+        // BP No. from raw_sap_data or fallback to p.serial_no
+        const bpNo = row.sap_bp_no || row.serial_no || '0000000000';
         
         // Date format: DD-MM-YYYY
         let dateStr = '01-01-2026';
