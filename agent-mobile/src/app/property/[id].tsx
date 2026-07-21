@@ -57,6 +57,7 @@ export default function PropertyDetailScreen() {
   const [readingValue, setReadingValue] = useState('');
   const [statusCode, setStatusCode] = useState('reading_taken');
   const [subRemark, setSubRemark] = useState('');
+  const [remarkDropdownOpen, setRemarkDropdownOpen] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -585,6 +586,7 @@ export default function PropertyDetailScreen() {
                 onPress={() => {
                   setStatusCode(s.code);
                   setSubRemark('');
+                  setRemarkDropdownOpen(false);
                 }}
               >
                 <Text style={[styles.statusButtonText, statusCode === s.code && styles.statusButtonTextActive]}>
@@ -606,27 +608,50 @@ export default function PropertyDetailScreen() {
             backgroundColor: '#fff',
             overflow: 'hidden',
           }}>
-            {SUB_REMARKS[statusCode]?.map(remark => (
-              <TouchableOpacity
-                key={remark}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  backgroundColor: subRemark === remark ? '#111827' : '#fff',
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#f3f4f6',
-                }}
-                onPress={() => setSubRemark(remark)}
-              >
-                <Text style={{
-                  fontSize: 14,
-                  color: subRemark === remark ? '#fff' : '#374151',
-                  fontWeight: subRemark === remark ? '600' : '400',
-                }}>
-                  {remark}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity
+              style={{
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={() => setRemarkDropdownOpen(prev => !prev)}
+            >
+              <Text style={{ fontSize: 14, color: subRemark ? '#111827' : '#9ca3af', fontWeight: subRemark ? '600' : '400' }}>
+                {subRemark || 'Select a remark...'}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#6b7280' }}>{remarkDropdownOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+
+            {remarkDropdownOpen && (
+              <View style={{ borderTopWidth: 1, borderTopColor: '#e5e7eb' }}>
+                {SUB_REMARKS[statusCode]?.map(remark => (
+                  <TouchableOpacity
+                    key={remark}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 16,
+                      backgroundColor: subRemark === remark ? '#111827' : '#fff',
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#f3f4f6',
+                    }}
+                    onPress={() => {
+                      setSubRemark(remark);
+                      setRemarkDropdownOpen(false);
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 14,
+                      color: subRemark === remark ? '#fff' : '#374151',
+                      fontWeight: subRemark === remark ? '600' : '400',
+                    }}>
+                      {remark}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* Reading Value input */}
