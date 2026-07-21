@@ -496,13 +496,17 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         readingDate = `${day}.${monthStr}.${yearStr}`;
       }
 
-      let mrNote = '';
-      if (r.status_code && r.status_code !== 'pending') {
-        if (r.status_code === 'reading_taken') mrNote = '';
-        else if (r.status_code === 'door_locked') mrNote = 'Door Locked';
-        else if (r.status_code === 'not_reachable') mrNote = 'Not Reachable';
-        else mrNote = r.status_code.replace(/_/g, ' ').toUpperCase();
-      }
+      const mrNoteMap = {
+        reading_taken:   'Reading Taken',
+        door_locked:     'Door Locked',
+        not_reachable:   'Not Reachable',
+        access_denied:   'Access Denied',
+        meter_not_found: 'Meter Not Found',
+        meter_damaged:   'Meter Damaged',
+        revisit_needed:  'Revisit Needed',
+        vacant_property: 'Vacant Property',
+      };
+      const mrNote = r.status_code ? (mrNoteMap[r.status_code] || r.status_code.replace(/_/g, ' ').toUpperCase()) : '';
 
       const rowObj = {};
       sapHeaders.forEach(h => {
