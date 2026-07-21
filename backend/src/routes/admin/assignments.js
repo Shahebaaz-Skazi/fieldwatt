@@ -411,13 +411,13 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         ORDER BY r.submitted_at DESC
         LIMIT 1
       ) latest_r ON true
-      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $2
-        AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
+        AND EXTRACT(MONTH FROM i.scheduled_date) = $2
     `;
-    const params = [targetCycleId, parseInt(year), parseInt(month)];
+    const params = [parseInt(year), parseInt(month)];
 
     if (mru !== 'all') {
-      queryText += ' AND a.name = $4';
+      queryText += ' AND a.name = $3';
       params.push(mru);
     }
 
