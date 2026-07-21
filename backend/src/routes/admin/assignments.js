@@ -525,8 +525,8 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
       // Filled reading values
       rowObj['Current meter reading date'] = readingDate;
       rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
-      rowObj['MR Note'] = mrNote;
-      rowObj['Comment'] = r.note || '';
+      rowObj['MR Note'] = r.note || '';   // agent's exact dropdown selection (e.g. "DOOR LOCK", "ACTUAL METER READING")
+      rowObj['Comment'] = '';             // no separate comment field in mobile app
 
       return rowObj;
     });
