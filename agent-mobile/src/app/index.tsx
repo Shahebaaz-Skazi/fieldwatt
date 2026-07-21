@@ -384,7 +384,7 @@ export default function WorkListScreen() {
       style={styles.itemCard}
     >
       <View style={styles.itemHeader}>
-        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
+        <Text style={styles.itemSerial}>BP: {item.bp_no || item.serial_no}</Text>
         {item.reading_status ? (
           <View style={[
             styles.itemBadge,
@@ -420,7 +420,7 @@ export default function WorkListScreen() {
       }}
     >
       <View style={styles.itemHeader}>
-        <Text style={styles.itemSerial}>Sr. {item.serial_no}</Text>
+        <Text style={styles.itemSerial}>BP: {item.bp_no || item.serial_no}</Text>
         {item.reading_status ? (
           <View style={[
             styles.itemBadge, 
@@ -557,6 +557,7 @@ export default function WorkListScreen() {
       list = list.filter(p =>
         p.consumer_name.toLowerCase().includes(q) ||
         p.serial_no.includes(q) ||
+        (p.bp_no && p.bp_no.includes(q)) ||
         (p.meter_no && p.meter_no.toLowerCase().includes(q))
       );
     }
@@ -693,7 +694,8 @@ export default function WorkListScreen() {
       const q = searchVal.toLowerCase();
       result = result.filter(item => 
         item.consumer_name.toLowerCase().includes(q) || 
-        item.serial_no.includes(q) || 
+        item.serial_no.includes(q) ||
+        (item.bp_no && item.bp_no.includes(q)) ||
         (item.meter_no && item.meter_no.toLowerCase().includes(q)) ||
         (item.address && item.address.toLowerCase().includes(q))
       );
@@ -871,7 +873,7 @@ export default function WorkListScreen() {
         {selectedMapProperty ? (
           <View style={styles.mapSheetCard}>
             <View style={styles.mapSheetHeader}>
-              <Text style={styles.mapSheetSerial}>Sr. {selectedMapProperty.serial_no}</Text>
+              <Text style={styles.mapSheetSerial}>BP: {selectedMapProperty.bp_no || selectedMapProperty.serial_no}</Text>
               <TouchableOpacity onPress={() => setSelectedMapProperty(null)}>
                 <Text style={{ color: '#8b9bb4', fontSize: 16, fontWeight: '700' }}>×</Text>
               </TouchableOpacity>
@@ -1115,7 +1117,7 @@ export default function WorkListScreen() {
                       <Ionicons name="search" size={16} color="#8b9bb4" style={{ marginRight: 8 }} />
                       <TextInput
                         style={styles.searchInput}
-                        placeholder="Search flats by name or serial..."
+                        placeholder="Search flats by name or BP no..."
                         placeholderTextColor="#8b9bb4"
                         value={drillSearch}
                         onChangeText={setDrillSearch}
@@ -1291,7 +1293,7 @@ export default function WorkListScreen() {
               <Ionicons name="search" size={16} color="#8b9bb4" style={{ marginRight: 8 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by consumer name, serial, meter..."
+                placeholder="Search by consumer name, BP no, meter..."
                 placeholderTextColor="#8b9bb4"
                 value={search}
                 onChangeText={setSearch}

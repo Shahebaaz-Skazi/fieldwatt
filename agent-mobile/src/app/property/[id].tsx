@@ -507,7 +507,7 @@ export default function PropertyDetailScreen() {
         <TouchableOpacity onPress={goBackSafe} style={styles.backButton}>
           <Text style={{ color: '#111827', fontSize: 22 }}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Sr. {property.serial_no}</Text>
+        <Text style={styles.headerTitle}>BP: {property.bp_no || property.serial_no}</Text>
         <View style={{ width: 40 }} />
       </View>
 
