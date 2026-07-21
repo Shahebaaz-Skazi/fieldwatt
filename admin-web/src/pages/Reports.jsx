@@ -108,47 +108,7 @@ const Reports = () => {
     });
   }, [loading]);
 
-  const handleExportCSV = async () => {
-    const targetMru = selectedMru || 'all';
-    const targetYear = selectedYear || (availableMonths[0]?.year?.toString()) || new Date().getFullYear().toString();
-    const targetMonth = selectedMonth || (availableMonths[0]?.month?.toString()) || (new Date().getMonth() + 1).toString();
 
-    try {
-      setExportMruLoading(true);
-      const token = localStorage.getItem('admin_token');
-      const params = new URLSearchParams({ mru: targetMru, year: targetYear, month: targetMonth });
-
-      const response = await fetch(`${api.API_BASE_URL}/admin/assignments/export?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!response.ok) {
-        let errorMsg = 'Export failed';
-        try {
-          const err = await response.json();
-          errorMsg = err.error || errorMsg;
-        } catch {}
-        throw new Error(errorMsg);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `FieldWatt_Export_${targetMru}_${targetMonth}_${targetYear}.xlsx`;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 1000);
-    } catch (err) {
-      alert('Export failed: ' + err.message);
-    } finally {
-      setExportMruLoading(false);
-    }
-  };
 
   const handleExport = async () => {
     if (!selectedMru || !selectedYear || !selectedMonth) {
@@ -368,7 +328,7 @@ const Reports = () => {
               </select>
             </div>
 
-            <button onClick={handleExportCSV} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}>
+            <button onClick={handleExport} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}>
               <FileDown size={16} />
               Export Cycle Data (.xlsx)
             </button>
