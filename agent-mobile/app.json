@@ -58,9 +58,7 @@
       }
     },
     "owner": "shahebaaz",
-    "runtimeVersion": {
-      "policy": "nativeVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
