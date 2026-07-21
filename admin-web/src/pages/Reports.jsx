@@ -155,7 +155,7 @@ const Reports = () => {
     }
   };
 
-  const handleExportMruCSV = async () => {
+  const handleExport = async () => {
     if (!selectedMru || !selectedYear || !selectedMonth) {
       alert('Please select MRU, Year, and Month first.');
       return;
@@ -163,123 +163,36 @@ const Reports = () => {
 
     try {
       setExportMruLoading(true);
-      const res = await api.get('/admin/assignments/export', {
-        params: {
-          mru: selectedMru,
-          year: selectedYear,
-          month: selectedMonth
-        }
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+
+      const response = await fetch(`${api.API_BASE_URL}/admin/assignments/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
 
-      if (!res || res.length === 0) {
-        alert('No data found for this selection to export.');
-        return;
+      if (!response.ok) {
+        let errorMsg = 'Export failed';
+        try {
+          const err = await response.json();
+          errorMsg = err.error || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
       }
 
-      const headers = [
-        'MR ORDER ID',
-        'MRU NAME',
-        'BP No.',
-        'Installation No.',
-        'BPNAME',
-        'Regional structure g',
-        'Device Serial No.',
-        'c/o name',
-        'Building (Number or Code)',
-        'House number supplement',
-        'House Number',
-        'Floor in building',
-        'Street 2',
-        'Street 3',
-        'Street',
-        'Location',
-        'Area',
-        'city',
-        'City postal code',
-        'Register',
-        'Scheduled meter reading date',
-        'Current meter reading date',
-        'Current MR',
-        'MR Note',
-        'Comment',
-        'Excl. SD Amount',
-        'SD Amount',
-        'Total Amount',
-        'Telephone No.',
-        'Mobile No.'
-      ];
-
-      const escapeCsv = (val) => {
-        if (val === null || val === undefined) return '';
-        const str = val.toString();
-        if (str.includes(',') || str.includes('\n') || str.includes('"')) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-
-      const exportRows = [];
-      // Headers Row
-      exportRows.push(headers);
-
-      res.forEach(r => {
-        // Start with raw sap data if saved, or build fallback mapping
-        const rowObj = r.raw_sap_data ? { ...r.raw_sap_data } : {
-          'MR ORDER ID': r.serial_no,
-          'MRU NAME': selectedMru === 'all' ? r.area_name || '' : selectedMru,
-          'BPNAME': r.consumer_name,
-          'Device Serial No.': r.meter_no || '',
-          'Street': r.society || '',
-          'city': 'PUNE',
-          'House number supplement': r.property_type === 'flat' ? 'FLAT' : 'PLOT'
-        };
-
-        // Format reading dates as DD.MM.YYYY
-        let readingDate = '';
-        if (r.submitted_at) {
-          const d = new Date(r.submitted_at);
-          const day = String(d.getDate()).padStart(2, '0');
-          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-          const yearStr = d.getFullYear();
-          readingDate = `${day}.${monthStr}.${yearStr}`;
-        }
-        rowObj['Current meter reading date'] = readingDate;
-
-        // Current MR (value)
-        rowObj['Current MR'] = r.reading_value !== null && r.reading_value !== undefined ? r.reading_value : '';
-
-        // MR Note status mapping
-        let mrNote = '';
-        if (r.status && r.status !== 'pending') {
-          if (r.status === 'reading_taken') mrNote = '';
-          else if (r.status === 'door_locked') mrNote = 'Door Locked';
-          else if (r.status === 'not_reachable') mrNote = 'Not Reachable';
-          else mrNote = r.status.replace(/_/g, ' ').toUpperCase();
-        }
-        rowObj['MR Note'] = mrNote;
-
-        // Comment
-        rowObj['Comment'] = r.reading_note || '';
-
-        // Map to standard columns order
-        const csvRow = headers.map(h => escapeCsv(rowObj[h]));
-        exportRows.push(csvRow);
-      });
-
-      // Compile CSV String
-      const csvContent = '\uFEFF' + exportRows.map(e => e.join(',')).join('\n'); // added BOM for Excel compatibility
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      const dateName = new Date(2000, parseInt(selectedMonth) - 1).toLocaleString('default', { month: 'short' });
-      link.setAttribute('download', `FieldWatt_${selectedMru}_${dateName}_${selectedYear}_Export.csv`);
+      link.href = url;
+      link.download = `FieldWatt_Export_${selectedMru}_${selectedMonth}_${selectedYear}.xlsx`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err) {
-      alert('CSV export failed: ' + err.message);
+      alert('Export failed: ' + err.message);
     } finally {
       setExportMruLoading(false);
     }
@@ -533,13 +446,13 @@ const Reports = () => {
             </div>
 
             <button
-              onClick={handleExportMruCSV}
+              onClick={handleExport}
               disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
               className="btn btn-primary"
               style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}
             >
               {exportMruLoading ? <RefreshCw size={16} className="spin" /> : <FileDown size={16} />}
-              Export MRU Data to CSV
+              Export MRU Data to Excel (.xlsx)
             </button>
           </div>
 

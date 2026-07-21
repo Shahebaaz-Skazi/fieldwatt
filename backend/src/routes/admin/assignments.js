@@ -364,7 +364,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
   }
 });
 
-// GET /admin/assignments/export - Export properties, readings, and assignment logs for a given MRU area name, year, and month
+// GET /admin/assignments/export - Export properties, readings, and assignment logs as XLSX sheet
 router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
@@ -373,8 +373,7 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     const cycleRes = await db.query(
-      `SELECT c.id as cycle_id
-       FROM cycles c
+      `SELECT c.id as cycle_id FROM cycles c
        WHERE c.label = (
          SELECT billing_month FROM imports i
          WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 
@@ -383,46 +382,61 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
        )`,
       [parseInt(year), parseInt(month)]
     );
-    const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : '00000000-0000-0000-0000-000000000000';
+    const targetCycleId = cycleRes.rows.length > 0
+      ? cycleRes.rows[0].cycle_id
+      : '00000000-0000-0000-0000-000000000000';
 
     let queryText = `
       SELECT 
-        p.serial_no,
-        p.consumer_name,
-        p.address,
-        p.meter_no,
-        p.property_type,
-        p.society,
-        ag.name as agent_name,
-        COALESCE(latest_r.status_code, 'pending') as status,
-        latest_r.reading_value,
-        latest_r.submitted_at
+        p.serial_no        AS "MR ORDER ID",
+        p.consumer_name    AS "BPNAME",
+        p.address          AS "Address",
+        p.meter_no         AS "Device Serial No.",
+        p.property_type    AS "Property Type",
+        p.society          AS "Street",
+        p.sub_society      AS "Street 3",
+        p.wing_code        AS "Building (Number or Code)",
+        a.name             AS "MRU NAME",
+        ag.name            AS "Agent Name",
+        COALESCE(latest_r.status_code, 'pending') AS "Status",
+        latest_r.reading_value                    AS "Reading Value",
+        latest_r.submitted_at                     AS "Submitted At",
+        latest_r.photo_url                        AS "Photo URL"
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN LATERAL (
-        SELECT status_code, reading_value, submitted_at
+        SELECT status_code, reading_value, submitted_at, photo_url
         FROM readings
         WHERE assignment_id = asg.id
         ORDER BY submitted_at DESC
         LIMIT 1
       ) latest_r ON true
-      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $2 
+      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $2
         AND EXTRACT(MONTH FROM i.scheduled_date) = $3
     `;
     const params = [targetCycleId, parseInt(year), parseInt(month)];
-    
+
     if (mru !== 'all') {
       queryText += ' AND a.name = $4';
       params.push(mru);
     }
-    
+
     queryText += ' ORDER BY p.serial_no ASC';
     const result = await db.query(queryText, params);
 
-    res.json(result.rows);
+    const XLSX = require('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(result.rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Readings');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="FieldWatt_Export_${mru}_${month}_${year}.xlsx"`);
+    res.send(buffer);
   } catch (error) {
     next(error);
   }
