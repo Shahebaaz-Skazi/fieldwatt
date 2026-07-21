@@ -183,6 +183,7 @@ export default function PropertyDetailScreen() {
         await new Promise(resolve => setTimeout(resolve, 100));
 
         watermarkImageReadyRef.current = false;
+        setWatermarkImageReady(false);
         setCaptureMode(true);
 
         // Wait for image onLoad (max 5 seconds)
@@ -205,16 +206,17 @@ export default function PropertyDetailScreen() {
           return;
         }
 
-        // Two frames to ensure paint
+        // 3 frames + delay for full Android render
         await new Promise(resolve => requestAnimationFrame(resolve));
         await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => setTimeout(resolve, 150));
 
         const watermarkedUri = await watermarkShotRef.current.capture({
           format: 'jpg',
           quality: 0.92,
-          width: shotWidth,
-          height: shotHeight,
           result: 'tmpfile',
+          useRenderInContext: true,
         });
         console.log('✔ Watermark burned in:', watermarkedUri);
 
@@ -653,49 +655,59 @@ export default function PropertyDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Hidden offscreen watermark compositor — renders after capture to burn watermark */}
       {pendingWatermarkUri && (
-        <ViewShot
-          ref={watermarkShotRef}
-          options={{ format: 'jpg', quality: 0.9 }}
-          style={{
-            position: 'absolute',
-            width: width,
-            height: photoAspect ? width / photoAspect : height,
-            opacity: captureMode ? 1 : 0,  // full opacity during capture
-            top: captureMode ? 0 : -9999,
-            left: captureMode ? 0 : -9999,
-            zIndex: captureMode ? 999 : -1,
-          }}
-        >
-          <View style={{ width: '100%', height: '100%' }}>
-            <Image
-              source={{ uri: pendingWatermarkUri }}
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
-              onLoad={() => {
-                watermarkImageReadyRef.current = true;
-                setWatermarkImageReady(true);
-              }}
-            />
-            {/* Watermark overlay */}
-            <View style={{
-              position: 'absolute',
-              top: 0, left: 0, right: 0, bottom: 0,
-              justifyContent: 'space-between',
-              padding: 24,
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.burnedWatermarkText}>{useAuthStore.getState().user?.name || 'Agent'}</Text>
-                <Text style={styles.burnedWatermarkText}>{captureTimestamp}</Text>
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                <Text style={styles.burnedWatermarkText}>Meter: {property?.meter_no || 'N/A'}</Text>
-                <Text style={styles.burnedWatermarkText}>BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}</Text>
+        <View style={{
+          position: 'absolute',
+          top: captureMode ? 0 : -9999,
+          left: captureMode ? 0 : -9999,
+          zIndex: captureMode ? 999 : -1,
+          opacity: captureMode ? 1 : 0,
+          backgroundColor: '#000',
+        }}>
+          <ViewShot
+            ref={watermarkShotRef}
+            options={{ format: 'jpg', quality: 0.92 }}
+            style={{
+              width: width,
+              height: photoAspect ? Math.round(width / photoAspect) : height,
+            }}
+          >
+            <View style={{ width: '100%', height: '100%' }}>
+              <Image
+                source={{ uri: pendingWatermarkUri }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+                onLoad={() => {
+                  watermarkImageReadyRef.current = true;
+                  setWatermarkImageReady(true);
+                }}
+              />
+              <View style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                justifyContent: 'space-between',
+                padding: 12,
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    {useAuthStore.getState().user?.name || 'Agent'}
+                  </Text>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    {captureTimestamp}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    Meter: {property?.meter_no || 'N/A'}
+                  </Text>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        </ViewShot>
+          </ViewShot>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -893,11 +905,13 @@ const styles = StyleSheet.create({
   },
   burnedWatermarkText: {
     color: '#ffff00',
-    fontSize: 28,
-    fontWeight: 'bold',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    padding: 6,
-    borderRadius: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    flexShrink: 1,
   },
   cameraControls: {
     position: 'absolute',
