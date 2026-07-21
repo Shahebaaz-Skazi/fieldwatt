@@ -156,12 +156,6 @@ export default function PropertyDetailScreen() {
   useEffect(() => {
     if (!pendingWatermarkUri) return;
 
-    Image.getSize(pendingWatermarkUri, (imgW, imgH) => {
-      if (imgW > 0 && imgH > 0) {
-        setPhotoAspect(imgW / imgH);
-      }
-    }, () => {});
-    
     const burnWatermark = async () => {
       try {
         if (!watermarkShotRef.current) {
@@ -170,12 +164,28 @@ export default function PropertyDetailScreen() {
           return;
         }
 
-        // Reset readiness flag
-        watermarkImageReadyRef.current = false;
-        setWatermarkImageReady(false);
-        setCaptureMode(true); // bring ViewShot on-screen (opacity 0)
+        // Get real photo dimensions FIRST before anything else
+        const { width: imgW, height: imgH } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          Image.getSize(
+            pendingWatermarkUri,
+            (w, h) => resolve({ width: w, height: h }),
+            reject
+          );
+        });
 
-        // Wait for the Image onLoad callback to fire (max 5 seconds)
+        // Use actual photo aspect ratio for ViewShot dimensions
+        const aspect = imgW / imgH;
+        const shotWidth = width;
+        const shotHeight = Math.round(width / aspect);
+        setPhotoAspect(aspect);
+
+        // Small delay for React to apply new dimensions
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        watermarkImageReadyRef.current = false;
+        setCaptureMode(true);
+
+        // Wait for image onLoad (max 5 seconds)
         const imageLoaded = await new Promise<boolean>((resolve) => {
           const timeout = setTimeout(() => resolve(false), 5000);
           const checkInterval = setInterval(() => {
@@ -195,29 +205,29 @@ export default function PropertyDetailScreen() {
           return;
         }
 
-        // Give React one frame to paint
+        // Two frames to ensure paint
+        await new Promise(resolve => requestAnimationFrame(resolve));
         await new Promise(resolve => requestAnimationFrame(resolve));
 
-        const watermarkedUri = await watermarkShotRef.current.capture();
+        const watermarkedUri = await watermarkShotRef.current.capture({
+          format: 'jpg',
+          quality: 0.92,
+          width: shotWidth,
+          height: shotHeight,
+          result: 'tmpfile',
+        });
         console.log('✔ Watermark burned in:', watermarkedUri);
 
-        // Save to device photo gallery (silent attempt, won't block reading entry)
-        if (Platform.OS !== 'web' && MediaLibrary) {
-          try {
-            const perm = await MediaLibrary.getPermissionsAsync();
-            const status = perm.granted ? 'granted'
-              : (await MediaLibrary.requestPermissionsAsync()).status;
-            if (status === 'granted') {
-              if (MediaLibrary.createAssetAsync) {
-                await MediaLibrary.createAssetAsync(watermarkedUri);
-              } else if (MediaLibrary.saveToLibraryAsync) {
-                await MediaLibrary.saveToLibraryAsync(watermarkedUri);
-              }
-              console.log('✔ Watermarked photo saved to gallery');
-            }
-          } catch (e) {
-            console.warn('Gallery save skipped/failed (non-critical):', e);
+        // Save to gallery
+        try {
+          const perm = await MediaLibrary.getPermissionsAsync();
+          const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
+          if (granted) {
+            await MediaLibrary.saveToLibraryAsync(watermarkedUri);
+            console.log('✔ Watermarked photo saved to gallery');
           }
+        } catch (e) {
+          console.warn('Gallery save failed:', e);
         }
 
         setPhotoUri(watermarkedUri);
@@ -230,7 +240,7 @@ export default function PropertyDetailScreen() {
         setCaptureMode(false);
       }
     };
-    
+
     burnWatermark();
   }, [pendingWatermarkUri]);
 
@@ -652,7 +662,7 @@ export default function PropertyDetailScreen() {
             position: 'absolute',
             width: width,
             height: photoAspect ? width / photoAspect : height,
-            opacity: captureMode ? 0.01 : 0,  // near-invisible but painted
+            opacity: captureMode ? 1 : 0,  // full opacity during capture
             top: captureMode ? 0 : -9999,
             left: captureMode ? 0 : -9999,
             zIndex: captureMode ? 999 : -1,
