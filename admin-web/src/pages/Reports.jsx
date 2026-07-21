@@ -188,11 +188,18 @@ const Reports = () => {
         throw new Error(errorMsg);
       }
 
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const monthName = imageMonth ? (monthNames[parseInt(imageMonth) - 1] || imageMonth) : 'Cycle';
+      const mruLabel = imageMru && imageMru !== 'all' ? imageMru : 'ALL';
+
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `FieldWatt_Images_${imageMru}_${imageMonth}_${imageYear}.zip`;
+      link.download = `${mruLabel}_${monthName}_${imageYear || '2026'}.zip`;
       link.style.display = 'none';
       document.body.appendChild(link);
       link.click();

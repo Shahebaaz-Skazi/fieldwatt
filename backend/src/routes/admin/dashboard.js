@@ -366,8 +366,22 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
       whereClause += ` AND (p.consumer_name ILIKE $${params.length} OR p.serial_no ILIKE $${params.length} OR p.meter_no ILIKE $${params.length} OR p.raw_sap_data->>'BP No.' ILIKE $${params.length})`;
     }
 
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthName = month ? (monthNames[parseInt(month) - 1] || month) : 'Cycle';
+    const mruLabel = mru && mru !== 'all' ? mru : 'ALL';
+    const zipFilename = `${mruLabel}_${monthName}_${year || '2026'}.zip`;
+
     const result = await db.query(`
-      SELECT r.photo_url, p.serial_no, p.consumer_name
+      SELECT 
+        r.photo_url, 
+        r.submitted_at, 
+        p.serial_no, 
+        p.consumer_name,
+        p.bp_no,
+        p.raw_sap_data->>'BP No.' as sap_bp_no
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
@@ -386,7 +400,7 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
     const axios = require('axios');
 
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="fieldwatt_images_${Date.now()}.zip"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
 
     const createArchive = (options) => {
       if (typeof archiver === 'function') return archiver('zip', options);
@@ -406,11 +420,36 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
 
     archive.pipe(res);
 
+    const usedFilenames = new Set();
+
     for (const row of result.rows) {
       try {
         const imageRes = await axios.get(row.photo_url, { responseType: 'arraybuffer', timeout: 10000 });
         const buffer = Buffer.from(imageRes.data);
-        const filename = `${row.serial_no}_${(row.consumer_name || 'consumer').replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+        
+        // BP No. from raw_sap_data or p.bp_no or fallback to p.serial_no
+        const bpNo = row.sap_bp_no || row.bp_no || row.serial_no || '0000000000';
+        
+        // Date format: DD-MM-YYYY
+        let dateStr = '01-01-2026';
+        if (row.submitted_at) {
+          const d = new Date(row.submitted_at);
+          const day = String(d.getDate()).padStart(2, '0');
+          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+          const yearStr = d.getFullYear();
+          dateStr = `${day}-${monthStr}-${yearStr}`;
+        }
+
+        const baseFilename = `${bpNo}_${dateStr}`;
+        let filename = `${baseFilename}.jpg`;
+        
+        let dupCount = 1;
+        while (usedFilenames.has(filename)) {
+          filename = `${baseFilename}_${dupCount}.jpg`;
+          dupCount++;
+        }
+        usedFilenames.add(filename);
+
         archive.append(buffer, { name: filename });
       } catch (imgErr) {
         console.warn(`Skipping image for ${row.serial_no}:`, imgErr.message);
