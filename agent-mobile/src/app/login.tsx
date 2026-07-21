@@ -47,20 +47,23 @@ export default function LoginScreen() {
         await clearPropertiesCache();
       }
 
-      // Fetch fresh assignments but detect if this is a new billing cycle.
-      // If assignment_ids have changed, old reading_status must be wiped — otherwise
-      // properties from the previous cycle appear completed in the new cycle.
       const properties = await api.get(`/agent/assignments?_t=${Date.now()}`);
 
-      let preserveStatus = isSameAgent;
+      let preserveStatus = false;
       if (isSameAgent && properties.length > 0) {
         const cached = await getCachedProperties();
         if (cached && cached.length > 0) {
           const newIds = new Set(properties.map((p: any) => p.assignment_id));
-          const hasStaleIds = (cached as any[]).some((p: any) => !newIds.has(p.assignment_id));
-          if (hasStaleIds) {
+          const cachedIds = (cached as any[]).map((p: any) => p.assignment_id);
+          const allMatch = cachedIds.every((id: string) => newIds.has(id));
+          if (allMatch) {
+            // Same cycle, same assignments — safe to preserve completed statuses
+            preserveStatus = true;
+            console.log('Same cycle detected — preserving reading statuses');
+          } else {
+            // New cycle or re-import detected — wipe everything
             preserveStatus = false;
-            console.log('New billing cycle detected — clearing old reading statuses');
+            console.log('New cycle/re-import detected — clearing stale data');
             await clearPropertiesCache();
           }
         }

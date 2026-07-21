@@ -118,7 +118,7 @@ export const setStoredAgentId = async (agentId: string) => {
 export const clearPropertiesCache = async () => {
   const database = getDb();
   await database.runAsync('DELETE FROM properties');
-  await database.runAsync('DELETE FROM readings_queue');
+  await database.runAsync('DELETE FROM readings_queue WHERE is_synced = 1 OR is_synced IS NULL');
   console.log('Local cache database records wiped.');
 };
 
@@ -145,6 +145,11 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
 
   try {
     const database = getDb();
+    // Wipe all existing property rows before inserting fresh ones when not preserving status
+    // This ensures old UUID rows from previous imports don't linger
+    if (!preserveStatus) {
+      await database.runAsync('DELETE FROM properties');
+    }
     for (const prop of properties) {
       await database.runAsync(
         `INSERT INTO properties 
