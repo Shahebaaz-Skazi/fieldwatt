@@ -109,49 +109,44 @@ const Reports = () => {
   }, [loading]);
 
   const handleExportCSV = async () => {
-    if (!selectedCycleId) return;
+    const targetMru = selectedMru || 'all';
+    const targetYear = selectedYear || (availableMonths[0]?.year?.toString()) || new Date().getFullYear().toString();
+    const targetMonth = selectedMonth || (availableMonths[0]?.month?.toString()) || (new Date().getMonth() + 1).toString();
 
     try {
-      // Fetch all readings for all agents in this cycle to format
-      const exportRows = [];
-      // Headers
-      exportRows.push(['Serial No', 'Consumer Name', 'Address', 'Meter No', 'Property Type', 'Agent Name', 'Status', 'Reading Value', 'Submitted At']);
+      setExportMruLoading(true);
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({ mru: targetMru, year: targetYear, month: targetMonth });
 
-      for (const agent of data.agents) {
-        const readings = await api.get(`/admin/dashboard/agents/${agent.id}/readings?cycle_id=${selectedCycleId}`);
-        readings.forEach(r => {
-          exportRows.push([
-            r.serial_no,
-            r.consumer_name,
-            `"${r.address.replace(/"/g, '""')}"`, // escape quotes for CSV
-            r.meter_no || 'N/A',
-            r.property_type,
-            agent.name,
-            r.status_code,
-            r.reading_value !== null ? r.reading_value : '-',
-            new Date(r.submitted_at).toLocaleString()
-          ]);
-        });
+      const response = await fetch(`${api.API_BASE_URL}/admin/assignments/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        let errorMsg = 'Export failed';
+        try {
+          const err = await response.json();
+          errorMsg = err.error || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
       }
 
-      if (exportRows.length === 1) {
-        alert('No readings recorded in this cycle to export.');
-        return;
-      }
-
-      // Compile CSV String
-      const csvContent = '\uFEFF' + exportRows.map(e => e.join(',')).join('\n'); // added BOM for Excel compatibility
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `FieldWatt_Readings_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.href = url;
+      link.download = `FieldWatt_Export_${targetMru}_${targetMonth}_${targetYear}.xlsx`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err) {
-      alert('CSV compile failed: ' + err.message);
+      alert('Export failed: ' + err.message);
+    } finally {
+      setExportMruLoading(false);
     }
   };
 
@@ -373,9 +368,9 @@ const Reports = () => {
               </select>
             </div>
 
-            <button onClick={handleExportCSV} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+            <button onClick={handleExportCSV} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}>
               <FileDown size={16} />
-              Export Cycle Data to CSV
+              Export Cycle Data (.xlsx)
             </button>
           </div>
 
