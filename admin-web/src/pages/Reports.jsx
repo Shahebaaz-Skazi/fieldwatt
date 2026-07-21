@@ -323,11 +323,15 @@ const Reports = () => {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `FieldWatt_Images_${imageMru}_${imageMonth}_${imageYear}.zip`);
+      link.href = url;
+      link.download = `FieldWatt_Images_${imageMru}_${imageMonth}_${imageYear}.zip`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
     } catch (err) {
       alert('Download failed: ' + err.message);
     } finally {
