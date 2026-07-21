@@ -388,7 +388,14 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="fieldwatt_images_${Date.now()}.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 5 } });
+    const createArchive = (options) => {
+      if (typeof archiver === 'function') return archiver('zip', options);
+      if (typeof archiver.create === 'function') return archiver.create('zip', options);
+      if (archiver.ZipArchive) return new archiver.ZipArchive(options);
+      throw new Error('Unsupported archiver module format');
+    };
+
+    const archive = createArchive({ zlib: { level: 5 } });
 
     archive.on('error', (err) => {
       console.error('ZIP archive error:', err);
