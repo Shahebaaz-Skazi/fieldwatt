@@ -11,14 +11,8 @@ import { CameraView, Camera } from 'expo-camera';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
-let MediaLibrary: any = null;
-let ViewShot: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    MediaLibrary = require('expo-media-library');
-    ViewShot = require('react-native-view-shot').default || require('react-native-view-shot');
-  } catch (e) {}
-}
+import * as MediaLibrary from 'expo-media-library';
+import ViewShot from 'react-native-view-shot';
 // FileSystem removed to prevent native unlinked load crash
 import { sharedData } from '../../utils/sharedData';
 
@@ -444,11 +438,13 @@ export default function PropertyDetailScreen() {
 
                   // Save raw photo to gallery immediately at capture moment
                   try {
-                    const perm = await MediaLibrary.getPermissionsAsync();
-                    const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
-                    if (granted) {
-                      await MediaLibrary.saveToLibraryAsync(photo.uri);
-                      console.log('✔ Raw photo saved to gallery');
+                    if (MediaLibrary) {
+                      const perm = await MediaLibrary.getPermissionsAsync();
+                      const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
+                      if (granted) {
+                        await MediaLibrary.saveToLibraryAsync(photo.uri);
+                        console.log('✔ Raw photo saved to gallery');
+                      }
                     }
                   } catch (e) {
                     console.warn('Raw gallery save failed:', e);
