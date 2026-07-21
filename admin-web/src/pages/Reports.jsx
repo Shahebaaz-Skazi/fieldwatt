@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import anime from 'animejs';
-import { FileDown, Award, TrendingUp, BarChart3, AlertCircle } from 'lucide-react';
+import { FileDown, RefreshCw, Award, TrendingUp } from 'lucide-react';
 
 const Reports = () => {
   const [data, setData] = useState({ agents: [] });
@@ -301,39 +301,6 @@ const Reports = () => {
 
         {/* Export Panel Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="animate-card" style={{
-            backgroundColor: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
-            opacity: 0
-          }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileDown size={18} style={{ color: 'var(--accent)' }} />
-              Data Exporter
-            </h3>
-            
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '12px' }}>Target billing cycle</label>
-              <select
-                className="form-input"
-                value={selectedCycleId}
-                onChange={(e) => setSelectedCycleId(e.target.value)}
-                style={{ fontSize: '13px' }}
-              >
-                {cycles.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </div>
-
-            <button onClick={handleExport} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}>
-              <FileDown size={16} />
-              Export Cycle Data (.xlsx)
-            </button>
-          </div>
-
           {/* MRU-wise Data Exporter */}
           <div className="animate-card" style={{
             backgroundColor: 'var(--surface)',

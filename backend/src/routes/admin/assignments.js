@@ -408,16 +408,17 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         FROM readings r
         JOIN assignments asg ON r.assignment_id = asg.id
         WHERE asg.property_id = p.id
+          AND asg.cycle_id = $3
         ORDER BY r.submitted_at DESC
         LIMIT 1
       ) latest_r ON true
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
     `;
-    const params = [parseInt(year), parseInt(month)];
+    const params = [parseInt(year), parseInt(month), targetCycleId];
 
     if (mru !== 'all') {
-      queryText += ' AND a.name = $3';
+      queryText += ' AND a.name = $4';
       params.push(mru);
     }
 
