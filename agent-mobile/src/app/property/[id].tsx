@@ -8,9 +8,17 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { CameraView, Camera } from 'expo-camera';
-import ViewShot from 'react-native-view-shot';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
+
+let MediaLibrary: any = null;
+let ViewShot: any = View;
+if (Platform.OS !== 'web') {
+  try {
+    MediaLibrary = require('expo-media-library');
+    ViewShot = require('react-native-view-shot').default || require('react-native-view-shot');
+  } catch (e) {}
+}
 // FileSystem removed to prevent native unlinked load crash
 import { sharedData } from '../../utils/sharedData';
 
@@ -30,30 +38,7 @@ const showAlert = (title: string, message: string) => {
   }
 };
 
-const applyWatermarkToImage = async (
-  uri: string, 
-  serialNo: string, 
-  bpNo: string, 
-  submittedAt: string
-): Promise<string> => {
-  // Save the clean photo to the agent's photo gallery on native
-  if (Platform.OS !== 'web') {
-    try {
-      const MediaLibrary = require('expo-media-library');
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status === 'granted') {
-        await MediaLibrary.saveToLibraryAsync(uri);
-        console.log('✔ Clean photo successfully saved to agent device gallery.');
-      } else {
-        console.warn('Media Library permission denied - skipping gallery save.');
-      }
-    } catch (saveErr) {
-      console.warn('Failed to save clean image to device gallery:', saveErr);
-    }
-  }
 
-  return uri; // Return the clean original photo uri (no watermark on phone side)
-};
 
 export default function PropertyDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -87,6 +72,14 @@ export default function PropertyDetailScreen() {
   const [cameraGps, setCameraGps] = useState('Fetching GPS...');
   const viewShotRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
+
+  const watermarkShotRef = useRef<any>(null);
+  const [pendingWatermarkUri, setPendingWatermarkUri] = useState<string | null>(null);
+  const [captureTimestamp, setCaptureTimestamp] = useState('');
+  const [captureGps, setCaptureGps] = useState('');
+  const [watermarkImageReady, setWatermarkImageReady] = useState(false);
+  const watermarkImageReadyRef = useRef(false);
+  const [captureMode, setCaptureMode] = useState(false);
 
   useEffect(() => {
     if (!cameraActive) return;
@@ -163,6 +156,81 @@ export default function PropertyDetailScreen() {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     };
   }, []);
+
+  // Effect to process and burn watermark into static image after capture
+  useEffect(() => {
+    if (!pendingWatermarkUri) return;
+    
+    const burnWatermark = async () => {
+      try {
+        if (!watermarkShotRef.current) {
+          setPhotoUri(pendingWatermarkUri);
+          setPendingWatermarkUri(null);
+          return;
+        }
+
+        // Reset readiness flag
+        watermarkImageReadyRef.current = false;
+        setWatermarkImageReady(false);
+        setCaptureMode(true); // bring ViewShot on-screen (opacity 0)
+
+        // Wait for the Image onLoad callback to fire (max 5 seconds)
+        const imageLoaded = await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => resolve(false), 5000);
+          const checkInterval = setInterval(() => {
+            if (watermarkImageReadyRef.current) {
+              clearInterval(checkInterval);
+              clearTimeout(timeout);
+              resolve(true);
+            }
+          }, 50);
+        });
+
+        if (!imageLoaded) {
+          console.warn('Image load timeout, using raw photo');
+          setPhotoUri(pendingWatermarkUri!);
+          setPendingWatermarkUri(null);
+          setCaptureMode(false);
+          return;
+        }
+
+        // Give React one frame to paint
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        const watermarkedUri = await watermarkShotRef.current.capture();
+        console.log('✔ Watermark burned in:', watermarkedUri);
+
+        // Save to gallery
+        if (Platform.OS !== 'web' && MediaLibrary) {
+          try {
+            const perm = await MediaLibrary.getPermissionsAsync();
+            const status = perm.granted ? 'granted'
+              : (await MediaLibrary.requestPermissionsAsync()).status;
+            if (status === 'granted') {
+              await MediaLibrary.saveToLibraryAsync(watermarkedUri);
+              console.log('✔ Watermarked photo saved to gallery');
+            } else {
+              showAlert('Permission Denied', 'Gallery access was not granted. Photo not saved to gallery.');
+            }
+          } catch (e) {
+            console.warn('Gallery save failed:', e);
+            showAlert('Gallery Error', 'Photo was captured but could not be saved to gallery.');
+          }
+        }
+
+        setPhotoUri(watermarkedUri);
+        setPendingWatermarkUri(null);
+        setCaptureMode(false);
+      } catch (err) {
+        console.warn('Watermark burn failed, using raw photo:', err);
+        setPhotoUri(pendingWatermarkUri!);
+        setPendingWatermarkUri(null);
+        setCaptureMode(false);
+      }
+    };
+    
+    burnWatermark();
+  }, [pendingWatermarkUri]);
 
   const closeCamera = async () => {
     setCameraActive(false);
@@ -368,24 +436,22 @@ export default function PropertyDetailScreen() {
             onPress={async () => {
               try {
                 if (cameraRef.current) {
-                  // Capture photo directly using hardware camera
-                  const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
-                  console.log('✔ Captured photo directly:', photo.uri);
-
-                  // Save directly to gallery from temp photo uri
-                  try {
-                    const MediaLibrary = require('expo-media-library');
-                    const { status } = await MediaLibrary.requestPermissionsAsync();
-                    if (status === 'granted') {
-                      await MediaLibrary.saveToLibraryAsync(photo.uri);
-                      console.log('✔ Saved original photo to gallery.');
-                    }
-                  } catch (e) {
-                    console.warn('Failed to save to gallery:', e);
-                  }
+                  // Snapshot the timestamp and GPS at the exact moment of capture
+                  setCaptureTimestamp(currentTime);
+                  setCaptureGps(cameraGps);
                   
-                  setPhotoUri(photo.uri);
-                  await closeCamera();
+                  // Take the raw photo
+                  const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
+                  console.log('✔ Raw photo captured:', photo.uri);
+                  
+                  // Close camera and trigger watermark processing
+                  setCameraActive(false);
+                  try {
+                    await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+                  } catch (e) {}
+                  
+                  // This triggers the useEffect that burns watermark and saves to gallery
+                  setPendingWatermarkUri(photo.uri);
                 }
               } catch (err) {
                 console.error('Capture failed:', err);
@@ -544,10 +610,16 @@ export default function PropertyDetailScreen() {
             />
           </View>
 
+          {pendingWatermarkUri !== null && (
+            <Text style={{ color: '#f5a623', textAlign: 'center', marginBottom: 8, fontSize: 13 }}>
+              ⏳ Processing photo watermark...
+            </Text>
+          )}
+
           <TouchableOpacity 
             onPress={handleSubmit} 
-            disabled={submitting}
-            style={styles.submitBtn}
+            disabled={submitting || pendingWatermarkUri !== null}
+            style={[styles.submitBtn, (submitting || pendingWatermarkUri !== null) && { opacity: 0.6 }]}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -557,6 +629,54 @@ export default function PropertyDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Hidden offscreen watermark compositor — renders after capture to burn watermark */}
+      {pendingWatermarkUri && (
+        <ViewShot
+          ref={watermarkShotRef}
+          options={{ format: 'jpg', quality: 0.9 }}
+          style={{
+            position: 'absolute',
+            width: width,
+            height: height,
+            opacity: captureMode ? 0.01 : 0,  // near-invisible but painted
+            top: captureMode ? 0 : -9999,
+            left: captureMode ? 0 : -9999,
+            zIndex: captureMode ? 999 : -1,
+          }}
+        >
+          <View style={{ width: '100%', height: '100%' }}>
+            <Image
+              source={{ uri: pendingWatermarkUri }}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="cover"
+              onLoad={() => {
+                watermarkImageReadyRef.current = true;
+                setWatermarkImageReady(true);
+              }}
+            />
+            {/* Watermark overlay */}
+            <View style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              justifyContent: 'space-between',
+              padding: 24,
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={styles.burnedWatermarkText}>{useAuthStore.getState().user?.name || 'Agent'}</Text>
+                <Text style={styles.burnedWatermarkText}>{captureTimestamp}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View>
+                  <Text style={styles.burnedWatermarkText}>Meter: {property?.meter_no || 'N/A'}</Text>
+                  <Text style={styles.burnedWatermarkText}>BP: {(property?.bp_no || 'N/A').toString()}</Text>
+                </View>
+                <Text style={styles.burnedWatermarkText}>{captureGps}</Text>
+              </View>
+            </View>
+          </View>
+        </ViewShot>
+      )}
     </SafeAreaView>
   );
 }
@@ -757,6 +877,14 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 4,
     overflow: 'hidden',
+  },
+  burnedWatermarkText: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    padding: 6,
+    borderRadius: 4,
   },
   cameraControls: {
     position: 'absolute',

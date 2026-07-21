@@ -394,15 +394,21 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
         p.property_type,
         p.society,
         ag.name as agent_name,
-        COALESCE(r.status_code, 'pending') as status,
-        r.reading_value,
-        r.submitted_at
+        COALESCE(latest_r.status_code, 'pending') as status,
+        latest_r.reading_value,
+        latest_r.submitted_at
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings r ON r.assignment_id = asg.id
+      LEFT JOIN LATERAL (
+        SELECT status_code, reading_value, submitted_at
+        FROM readings
+        WHERE assignment_id = asg.id
+        ORDER BY submitted_at DESC
+        LIMIT 1
+      ) latest_r ON true
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $2 
         AND EXTRACT(MONTH FROM i.scheduled_date) = $3
     `;

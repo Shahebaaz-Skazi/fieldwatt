@@ -1,51 +1,37 @@
 import { getUnsyncedReadings, markReadingsAsSynced } from '../db/sqlite';
 import api from '../utils/api';
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
 
 let isSyncing = false;
 
 // Upload local photo to Supabase before syncing the reading
 const uploadLocalPhoto = async (uri: string): Promise<string> => {
   if (uri.startsWith('http')) return uri;
-  
-  // Compress photo first to save bandwidth and storage
-  let finalUri = uri;
-  try {
-    const result = await ImageManipulator.manipulateAsync(
-      uri,
-      [], // no resize — preserve original dimensions
-      { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    finalUri = result.uri;
-  } catch (err) {
-    console.warn('Sync photo compression failed, uploading raw:', err);
-  }
 
   const filename = `meter_${Date.now()}.jpg`;
-  
+
   // Get presigned upload URL from backend
   const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
     filename,
     contentType: 'image/jpeg'
   });
 
-  // PUT binary file directly to signed URL using native XMLHttpRequest
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('Content-Type', 'image/jpeg');
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === 4) {
-        if (xhr.status === 200 || xhr.status === 201) {
-          resolve(photoUrl);
-        } else {
-          reject(new Error(`Upload failed: ${xhr.status}`));
-        }
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.send({ uri: finalUri, type: 'image/jpeg', name: filename } as any);
+  // FileSystem.uploadAsync is the most reliable upload method on Android
+  // No blob conversion needed — reads directly from local filesystem
+  const result = await FileSystem.uploadAsync(uploadUrl, uri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: {
+      'Content-Type': 'image/jpeg',
+    },
   });
+
+  if (result.status !== 200 && result.status !== 201) {
+    throw new Error(`Upload failed: status ${result.status}`);
+  }
+
+  console.log('✔ Photo uploaded successfully:', photoUrl);
+  return photoUrl;
 };
 
 export const syncOfflineReadings = async (): Promise<{ success: boolean; count: number; error?: string }> => {
@@ -72,12 +58,10 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
         let finalPhotoUrl = r.photo_url || null;
         if (finalPhotoUrl && !finalPhotoUrl.startsWith('http')) {
           try {
-            console.log('Syncing: Uploading local photo to Supabase:', finalPhotoUrl);
             finalPhotoUrl = await uploadLocalPhoto(finalPhotoUrl);
-          } catch (uploadErr: any) {
-            console.error('Failed to upload photo during sync:', uploadErr.message);
-            isSyncing = false;
-            return { success: false, count: syncedCount, error: `Photo upload failed: ${uploadErr.message}` };
+          } catch (uploadErr) {
+            console.warn('Photo upload failed, syncing reading without photo:', uploadErr);
+            finalPhotoUrl = null; // sync the reading even if photo fails
           }
         }
 

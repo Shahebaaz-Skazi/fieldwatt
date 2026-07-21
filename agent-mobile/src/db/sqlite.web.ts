@@ -18,8 +18,20 @@ export const getDb = () => {
 // Cache today's assignments locally
 export const saveProperties = async (properties: any[]) => {
   if (!properties || properties.length === 0) return;
-  await clearPropertiesCache();
-  localStorage.setItem('fieldwatt_properties', JSON.stringify(properties));
+  
+  const raw = localStorage.getItem('fieldwatt_properties');
+  const existing = raw ? JSON.parse(raw) : [];
+  
+  const merged = properties.map((p: any) => {
+    const pId = p.property_id || p.id;
+    const matched = existing.find((item: any) => (item.property_id || item.id) === pId);
+    return {
+      ...p,
+      reading_status: matched ? matched.reading_status : null
+    };
+  });
+  
+  localStorage.setItem('fieldwatt_properties', JSON.stringify(merged));
 };
 
 // Retrieve cached properties merged with their queued readings if any

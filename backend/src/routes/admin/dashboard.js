@@ -337,155 +337,75 @@ router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next
   }
 });
 
-// GET /admin/dashboard/download-images - Download meter reading images as a ZIP, watermarked on-the-fly
-router.get('/download-images', authMiddleware, requireAdmin, async (req, res, next) => {
+// GET /admin/dashboard/download-images - Stream meter reading images directly into a ZIP
+router.get('/download-images', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { mru, year, month, society, q } = req.query;
-    
-    // 1. Fetch matching readings with photos
-    let queryText = `
-      SELECT 
-        r.photo_url,
-        r.submitted_at,
-        p.serial_no,
-        p.consumer_name,
-        p.society,
-        p.address,
-        p.raw_sap_data,
-        a.name as area_name
+    const { cycle_id, year, month, mru, society, q } = req.query;
+
+    let whereClause = `WHERE r.photo_url IS NOT NULL AND r.photo_url <> ''`;
+    const params = [];
+
+    if (cycle_id) {
+      params.push(cycle_id);
+      whereClause += ` AND asg.cycle_id = $${params.length}`;
+    }
+    if (year && month) {
+      params.push(parseInt(year), parseInt(month));
+      whereClause += ` AND EXTRACT(YEAR FROM i.scheduled_date) = $${params.length - 1} AND EXTRACT(MONTH FROM i.scheduled_date) = $${params.length}`;
+    }
+    if (mru && mru !== 'all') {
+      params.push(mru);
+      whereClause += ` AND a.name = $${params.length}`;
+    }
+    if (society && society.trim()) {
+      params.push(`%${society.trim()}%`);
+      whereClause += ` AND p.society ILIKE $${params.length}`;
+    }
+    if (q && q.trim()) {
+      params.push(`%${q.trim()}%`);
+      whereClause += ` AND (p.consumer_name ILIKE $${params.length} OR p.serial_no ILIKE $${params.length} OR p.meter_no ILIKE $${params.length} OR p.raw_sap_data->>'BP No.' ILIKE $${params.length})`;
+    }
+
+    const result = await db.query(`
+      SELECT r.photo_url, p.serial_no, p.consumer_name
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
       LEFT JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
-      WHERE r.photo_url IS NOT NULL AND r.photo_url <> ''
-    `;
-    
-    const params = [];
-    let paramCount = 1;
+      ${whereClause}
+      ORDER BY r.submitted_at DESC
+    `, params);
 
-    if (year && month) {
-      queryText += ` AND EXTRACT(YEAR FROM i.scheduled_date) = $${paramCount} AND EXTRACT(MONTH FROM i.scheduled_date) = $${paramCount+1}`;
-      params.push(parseInt(year), parseInt(month));
-      paramCount += 2;
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No images found for the selected filters.' });
     }
 
-    if (mru && mru !== 'all') {
-      queryText += ` AND a.name = $${paramCount}`;
-      params.push(mru);
-      paramCount++;
-    }
-
-    if (society && society.trim()) {
-      queryText += ` AND p.society ILIKE $${paramCount}`;
-      params.push(`%${society.trim()}%`);
-      paramCount++;
-    }
-
-    if (q && q.trim()) {
-      queryText += ` AND (p.consumer_name ILIKE $${paramCount} OR p.serial_no ILIKE $${paramCount} OR p.meter_no ILIKE $${paramCount} OR p.raw_sap_data->>'BP No.' ILIKE $${paramCount})`;
-      params.push(`%${q.trim()}%`);
-      paramCount++;
-    }
-
-    queryText += ` ORDER BY r.submitted_at DESC LIMIT 1000`; // safeguard limit
-
-    const dbResult = await db.query(queryText, params);
-    
-    if (dbResult.rows.length === 0) {
-      return res.status(404).json({ error: 'No meter images found matching the selected filters.' });
-    }
-
-    // 2. Load dependencies dynamically
-    const { Jimp, loadFont, measureText } = require('jimp');
     const archiver = require('archiver');
+    const axios = require('axios');
 
-    // 3. Set download response headers
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=FieldWatt_Images_${Date.now()}.zip`);
+    res.setHeader('Content-Disposition', `attachment; filename="fieldwatt_images_${Date.now()}.zip"`);
 
-    // 4. Initialize zip archiver
-    const archive = new archiver.ZipArchive({ zlib: { level: 9 } });
-    archive.on('error', (err) => {
-      console.error('ZIP generation error:', err);
-      if (!res.headersSent) {
-        res.status(500).send({ error: err.message });
-      }
-    });
+    const archive = archiver('zip', { zlib: { level: 5 } });
     archive.pipe(res);
 
-    // Load font for Jimp (white font which we will recolor to yellow)
-    const path = require('path');
-    const fontPath = path.join(__dirname, '../../../node_modules/@jimp/plugin-print/fonts/open-sans/open-sans-32-white/open-sans-32-white.fnt');
-    const font = await loadFont(fontPath);
-    const fontHeight = 32;
-
-    // Helper to print colored text by overlaying a recolored text layer
-    const printYellowText = (image, textFont, x, y, text) => {
-      const textImg = new Jimp({ width: image.width, height: image.height, color: 0x00000000 });
-      textImg.print({ font: textFont, x, y, text });
-      
-      textImg.scan(0, 0, textImg.width, textImg.height, function (px, py, idx) {
-        const alpha = this.bitmap.data[idx + 3];
-        if (alpha > 0) {
-          this.bitmap.data[idx] = 255;
-          this.bitmap.data[idx + 1] = 255;
-          this.bitmap.data[idx + 2] = 0;
-        }
-      });
-      image.composite(textImg, 0, 0);
-    };
-
-    // 5. Download, watermark, and append each photo to ZIP
-    for (let index = 0; index < dbResult.rows.length; index++) {
-      const row = dbResult.rows[index];
+    for (const row of result.rows) {
       try {
-        const imgResponse = await fetch(row.photo_url);
-        if (!imgResponse.ok) {
-          console.warn(`Failed to fetch photo from URL: ${row.photo_url}`);
-          continue;
-        }
-        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
-
-        const image = await Jimp.read(imgBuffer);
-
-        const d = new Date(row.submitted_at);
-        const day = String(d.getDate()).padStart(2, '0');
-        const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-        const yearStr = d.getFullYear();
-        const hour = String(d.getHours()).padStart(2, '0');
-        const minute = String(d.getMinutes()).padStart(2, '0');
-        const dateStr = `${day}-${monthStr}-${yearStr} ${hour}:${minute}`;
-
-        const serialStr = row.serial_no || 'N/A';
-        const bpNo = row.raw_sap_data?.['BP No.'] || row.raw_sap_data?.['BP No'] || 'N/A';
-        const bpStr = bpNo.toString();
-
-        const dateWidth = measureText(font, dateStr);
-        const topRightX = Math.max(image.width - dateWidth - 20, 20);
-        printYellowText(image, font, topRightX, 20, dateStr);
-
-        const bottomLeftY = Math.max(image.height - fontHeight - 20, 20);
-        printYellowText(image, font, 20, bottomLeftY, serialStr);
-
-        const bpWidth = measureText(font, bpStr);
-        const bottomRightX = Math.max(image.width - bpWidth - 20, 20);
-        printYellowText(image, font, bottomRightX, bottomLeftY, bpStr);
-
-        const watermarkedBuffer = await image.getBuffer('image/jpeg');
-
-        const cleanArea = (row.area_name || 'GEN').replace(/[^a-zA-Z0-9]/g, '');
-        const zipFileName = `${cleanArea}_${serialStr}_${bpStr}.jpg`;
-
-        archive.append(watermarkedBuffer, { name: zipFileName });
-      } catch (err) {
-        console.error(`Error watermarking image ${index}:`, err);
+        const imageRes = await axios.get(row.photo_url, { responseType: 'stream', timeout: 15000 });
+        const filename = `${row.serial_no}_${row.consumer_name.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+        archive.append(imageRes.data, { name: filename });
+      } catch (imgErr) {
+        console.warn(`Skipping image for ${row.serial_no}:`, imgErr.message);
       }
     }
 
     await archive.finalize();
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    console.error('Image download failed:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to generate image archive.' });
+    }
   }
 });
 

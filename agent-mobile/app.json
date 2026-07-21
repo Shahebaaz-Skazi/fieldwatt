@@ -26,7 +26,7 @@
       "package": "com.fieldeatt.agent"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -58,7 +58,9 @@
       }
     },
     "owner": "shahebaaz",
-    "runtimeVersion": "1.0.0",
+    "runtimeVersion": {
+      "policy": "nativeVersion"
+    },
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
