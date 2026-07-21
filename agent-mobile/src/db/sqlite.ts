@@ -140,7 +140,7 @@ export const clearReadingsQueue = async (): Promise<void> => {
   console.log('Local readings queue wiped.');
 };
 
-export const saveProperties = async (properties: any[]) => {
+export const saveProperties = async (properties: any[], preserveStatus = false) => {
   if (!properties || properties.length === 0) return;
 
   try {
@@ -164,7 +164,7 @@ export const saveProperties = async (properties: any[]) => {
            sub_society = excluded.sub_society,
            building_code = excluded.building_code,
            bp_no = excluded.bp_no,
-           reading_status = COALESCE(properties.reading_status, excluded.reading_status)`,
+           reading_status = CASE WHEN ? = 1 THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
         [
           prop.property_id,
           prop.assignment_id,
@@ -180,7 +180,8 @@ export const saveProperties = async (properties: any[]) => {
           prop.sub_society || null,
           prop.building_code || null,
           prop.bp_no || null,
-          null
+          prop.reading_status || null,
+          preserveStatus ? 1 : 0
         ]
       );
     }
@@ -230,7 +231,7 @@ export const saveProperties = async (properties: any[]) => {
                sub_society = excluded.sub_society,
                building_code = excluded.building_code,
                bp_no = excluded.bp_no,
-               reading_status = COALESCE(properties.reading_status, excluded.reading_status)`,
+               reading_status = CASE WHEN ? = 1 THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
             [
               prop.property_id,
               prop.assignment_id,
@@ -246,7 +247,8 @@ export const saveProperties = async (properties: any[]) => {
               prop.sub_society || null,
               prop.building_code || null,
               prop.bp_no || null,
-              null
+              prop.reading_status || null,
+              preserveStatus ? 1 : 0
             ]
           );
         }
@@ -255,6 +257,7 @@ export const saveProperties = async (properties: any[]) => {
         console.error('Fatal: saveProperties failed even after table reset:', retryErr);
       }
     } else {
+      console.error('saveProperties error:', err);
       throw err;
     }
   }

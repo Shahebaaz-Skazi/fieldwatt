@@ -40,16 +40,16 @@ export default function LoginScreen() {
       // SQLite cache completely so they never see the previous agent's data.
       const storedAgentId = await getStoredAgentId();
       const incomingAgentId = data.user.id;
+      const isSameAgent = storedAgentId === incomingAgentId;
 
-      if (storedAgentId && storedAgentId !== incomingAgentId) {
+      if (storedAgentId && !isSameAgent) {
         console.log(`Agent switch detected: ${storedAgentId} → ${incomingAgentId}. Wiping local cache.`);
         await clearPropertiesCache();
       }
 
-      // Always sync fresh assignments from server on login — never use stale cache
-      // for a freshly authenticated session.
+      // Fetch fresh assignments but preserve existing reading_status for same agent
       const properties = await api.get(`/agent/assignments?_t=${Date.now()}`);
-      await saveProperties(properties);
+      await saveProperties(properties, isSameAgent);
 
       // Stamp this agent's ID so the next login can detect a switch
       await setStoredAgentId(incomingAgentId);
