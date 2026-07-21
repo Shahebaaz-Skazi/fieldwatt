@@ -413,11 +413,8 @@ export default function PropertyDetailScreen() {
               <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{currentTime}</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-              <View style={{ gap: 4 }}>
-                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>Meter: {meterNo}</Text>
-                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
-              </View>
-              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{cameraGps}</Text>
+              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>Meter: {meterNo}</Text>
+              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
             </View>
           </View>
         </View>
@@ -666,12 +663,9 @@ export default function PropertyDetailScreen() {
                 <Text style={styles.burnedWatermarkText}>{useAuthStore.getState().user?.name || 'Agent'}</Text>
                 <Text style={styles.burnedWatermarkText}>{captureTimestamp}</Text>
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <View>
-                  <Text style={styles.burnedWatermarkText}>Meter: {property?.meter_no || 'N/A'}</Text>
-                  <Text style={styles.burnedWatermarkText}>BP: {(property?.bp_no || 'N/A').toString()}</Text>
-                </View>
-                <Text style={styles.burnedWatermarkText}>{captureGps}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <Text style={styles.burnedWatermarkText}>Meter: {property?.meter_no || 'N/A'}</Text>
+                <Text style={styles.burnedWatermarkText}>BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}</Text>
               </View>
             </View>
           </View>
@@ -714,30 +708,30 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   section: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   consumerName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
   },
   address: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6b7280',
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: 8,
   },
   detailText: {
     fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 6,
+    color: '#374151',
+    marginTop: 2,
   },
   historyRow: {
     flexDirection: 'row',
@@ -756,11 +750,10 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-    marginTop: 8,
+    color: '#374151',
+    marginBottom: 6,
   },
   statusGrid: {
     flexDirection: 'row',
@@ -769,34 +762,34 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statusButton: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e5e7eb',
-    borderWidth: 1,
-    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
   statusButtonActive: {
+    backgroundColor: '#111827',
     borderColor: '#111827',
-    backgroundColor: '#f3f4f6',
   },
   statusButtonText: {
-    color: '#6b7280',
     fontSize: 12,
+    color: '#374151',
     fontWeight: '500',
   },
   statusButtonTextActive: {
-    color: '#111827',
-    fontWeight: '700',
+    color: '#ffffff',
+    fontWeight: '600',
   },
   formGroup: {
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#ffffff',
-    borderColor: '#e5e7eb',
     borderWidth: 1,
-    borderRadius: 10,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
     color: '#111827',
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -820,12 +813,6 @@ const styles = StyleSheet.create({
   },
   photoContainer: {
     alignItems: 'center',
-  },
-  photoPreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 8,
   },
   removePhotoBtn: {
     paddingVertical: 6,
@@ -870,7 +857,7 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   watermarkText: {
-    color: '#ffffff',
+    color: '#ffff00',
     fontSize: 11,
     fontWeight: 'bold',
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -879,7 +866,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   burnedWatermarkText: {
-    color: 'white',
+    color: '#ffff00',
     fontSize: 28,
     fontWeight: 'bold',
     backgroundColor: 'rgba(0,0,0,0.55)',
