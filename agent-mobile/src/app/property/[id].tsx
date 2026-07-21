@@ -441,6 +441,18 @@ export default function PropertyDetailScreen() {
                   // Take the raw photo
                   const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
                   console.log('✔ Raw photo captured:', photo.uri);
+
+                  // Save raw photo to gallery immediately at capture moment
+                  try {
+                    const perm = await MediaLibrary.getPermissionsAsync();
+                    const granted = perm.granted || (await MediaLibrary.requestPermissionsAsync()).granted;
+                    if (granted) {
+                      await MediaLibrary.saveToLibraryAsync(photo.uri);
+                      console.log('✔ Raw photo saved to gallery');
+                    }
+                  } catch (e) {
+                    console.warn('Raw gallery save failed:', e);
+                  }
                   
                   // Close camera and trigger watermark processing
                   setCameraActive(false);
