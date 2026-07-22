@@ -12,11 +12,8 @@ const readingItemSchema = z.object({
   assignment_id: z.string().uuid(),
   idempotency_key: z.string().uuid(),
   reading_value: z.string().nullable().optional(),
-  status_code: z.enum([
-    'reading_taken',
-    'door_locked',
-  ]),
-  photo_url: z.string().url().nullable().optional(),
+  status_code: z.string().min(1),
+  photo_url: z.string().nullable().optional(),
   note: z.string().optional().nullable(),
   gps_lat: z.number().nullable().optional(),
   gps_lng: z.number().nullable().optional(),
