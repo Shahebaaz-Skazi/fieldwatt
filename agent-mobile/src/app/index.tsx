@@ -668,7 +668,7 @@ export default function WorkListScreen() {
       if (freshAssignments.length > 0) {
         console.log('triggerSilentRefresh: raw first API assignment:', JSON.stringify(freshAssignments[0]));
       }
-      await saveProperties(freshAssignments);
+      await saveProperties(freshAssignments, true);
       const cached = await getCachedProperties();
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
@@ -681,7 +681,7 @@ export default function WorkListScreen() {
     setRefreshing(true);
     try {
       const freshAssignments = await api.get(`/agent/assignments?_t=${Date.now()}`);
-      await saveProperties(freshAssignments);
+      await saveProperties(freshAssignments, true);
       const cached = await getCachedProperties();
       setProperties(cached);
       applyFilters(cached, search, activeTab, selectedArea, selectedSociety);
