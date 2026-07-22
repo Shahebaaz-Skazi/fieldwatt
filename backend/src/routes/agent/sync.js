@@ -28,7 +28,8 @@ const syncBatchSchema = z.object({
 
 // Helper function to process readings directly in case Redis/BullMQ is down
 const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
-  const results = [];
+  const synced = [];
+  const failed = [];
   const client = await db.pool.connect();
   
   try {
@@ -50,6 +51,7 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
       const asgResult = await client.query(queryText, queryParams);
 
       if (asgResult.rows.length === 0) {
+        failed.push({ idempotency_key: reading.idempotency_key, reason: 'assignment_not_found' });
         continue; // Skip unauthorized assignments
       }
 
@@ -111,9 +113,12 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
           reading.submitted_at
         ]
       );
+
+      synced.push(reading.idempotency_key);
     }
     
     await client.query('COMMIT');
+    return { synced, failed };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -125,7 +130,6 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
 // POST /sync/batch - Accept offline readings batch (max 50)
 router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
   try {
-    console.log('SYNC RECEIVED:', JSON.stringify(req.body, null, 2));
     const { readings } = syncBatchSchema.parse(req.body);
 
     if (readings.length > 50) {
@@ -139,8 +143,12 @@ router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
     const agentId = req.user.id;
 
     // Always process directly — Redis/BullMQ removed (Upstash free tier exhausted)
-    await processReadingsDirectly(agentId, readings, req.user.role);
-    res.status(202).json({ message: 'Sync processed successfully.' });
+    const result = await processReadingsDirectly(agentId, readings, req.user.role);
+    res.status(202).json({
+      message: 'Sync processed successfully.',
+      synced: result.synced,
+      failed: result.failed,
+    });
   } catch (error) {
     next(error);
   }

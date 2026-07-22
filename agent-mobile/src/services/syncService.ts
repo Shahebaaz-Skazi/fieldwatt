@@ -54,14 +54,19 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
       
       // Process and upload local images inside the chunk sequence
       const payload = [];
+      let uploadFailed = false;
+      let uploadErrorMsg = '';
+
       for (const r of chunk) {
         let finalPhotoUrl = r.photo_url || null;
         if (finalPhotoUrl && !finalPhotoUrl.startsWith('http')) {
           try {
             finalPhotoUrl = await uploadLocalPhoto(finalPhotoUrl);
-          } catch (uploadErr) {
-            console.warn('Photo upload failed, syncing reading without photo:', uploadErr);
-            finalPhotoUrl = null; // sync the reading even if photo fails
+          } catch (uploadErr: any) {
+            console.error('Photo upload failed — leaving reading in queue for retry:', uploadErr);
+            uploadFailed = true;
+            uploadErrorMsg = uploadErr.message || 'Photo upload failed';
+            break; // Abort processing this chunk
           }
         }
 
@@ -79,13 +84,22 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
         });
       }
 
+      if (uploadFailed) {
+        isSyncing = false;
+        return { success: false, count: syncedCount, error: `Upload aborted: ${uploadErrorMsg}` };
+      }
+
       try {
         const response = await api.post('/sync/batch', { readings: payload });
         
         // If response is successful, update SQLite to remove synced items
-        const syncedKeys = chunk.map(r => r.idempotency_key);
+        const syncedKeys = response.synced || chunk.map((r: any) => r.idempotency_key);
         await markReadingsAsSynced(syncedKeys);
-        syncedCount += chunk.length;
+        syncedCount += syncedKeys.length;
+
+        if (response.failed && response.failed.length > 0) {
+          console.warn('Sync warning: server rejected some assignments:', response.failed);
+        }
       } catch (err: any) {
         console.error('Batch sync failure:', err.message);
         isSyncing = false;

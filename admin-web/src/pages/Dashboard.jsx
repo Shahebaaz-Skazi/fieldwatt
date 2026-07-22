@@ -36,7 +36,7 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await api.get('/admin/dashboard');
+      const response = await api.get('/admin/dashboard', { noCache: true });
       setData(response);
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data.');

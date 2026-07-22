@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_A
 // Stale-while-revalidate in-memory cache for GET requests
 // Shows cached data instantly, silently re-fetches in background
 const cache = new Map(); // key -> { data, ts }
-const CACHE_TTL = 30_000; // 30 seconds
+const CACHE_TTL = 8_000; // 8 seconds
 
 const isFresh = (ts) => Date.now() - ts < CACHE_TTL;
 
@@ -54,7 +54,7 @@ const apiRequest = async (endpoint, options = {}) => {
       return data;
     };
 
-    if (hit) {
+    if (hit && !options.noCache) {
       // Return stale data immediately; revalidate silently in background if stale
       if (!isFresh(hit.ts)) {
         doFetch().catch(() => {}); // silent background refresh — don't throw
