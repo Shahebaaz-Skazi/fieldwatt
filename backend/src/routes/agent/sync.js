@@ -138,20 +138,9 @@ router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
 
     const agentId = req.user.id;
 
-    // Drop to Redis sync queue if queue is active and Redis is ready
-    if (syncQueue && connection && connection.status === 'ready') {
-      await syncQueue.add('process-sync-readings', {
-        agentId,
-        readings,
-        role: req.user.role,
-      });
-      return res.status(202).json({ message: 'Sync queued successfully for processing.' });
-    }
-
-    // Fallback: process directly to db in case Redis queue is down/not configured
-    // ponytail: fallback to direct db transactions
+    // Always process directly — Redis/BullMQ removed (Upstash free tier exhausted)
     await processReadingsDirectly(agentId, readings, req.user.role);
-    res.status(202).json({ message: 'Sync processed successfully directly to database.' });
+    res.status(202).json({ message: 'Sync processed successfully.' });
   } catch (error) {
     next(error);
   }
