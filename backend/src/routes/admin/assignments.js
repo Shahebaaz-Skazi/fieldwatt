@@ -501,7 +501,12 @@ router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
       let computedMrNote = '';
       if (r.note && r.note.trim()) {
         // Extract sub-remark (before the | separator if optional note was added)
-        computedMrNote = r.note.trim().split(' | ')[0].toUpperCase();
+        const subRemark = r.note.trim().split(' | ')[0];
+        if (subRemark.toLowerCase() === 'door locked') {
+          computedMrNote = 'DOOR LOCK';
+        } else {
+          computedMrNote = subRemark.toUpperCase();
+        }
       } else if (r.status_code === 'reading_taken') {
         computedMrNote = 'ACTUAL METER READING';
       } else if (r.status_code === 'door_locked') {

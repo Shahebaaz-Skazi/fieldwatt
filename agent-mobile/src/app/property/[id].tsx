@@ -525,6 +525,7 @@ export default function PropertyDetailScreen() {
       'Meter Faulty',
     ],
     door_locked: [
+      'Door Locked',
       'Address Not Found',
       'Customer Not Allowing',
       'Society Not Allowing',
