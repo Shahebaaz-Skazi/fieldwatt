@@ -125,6 +125,7 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
 // POST /sync/batch - Accept offline readings batch (max 50)
 router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
   try {
+    console.log('SYNC RECEIVED:', JSON.stringify(req.body, null, 2));
     const { readings } = syncBatchSchema.parse(req.body);
 
     if (readings.length > 50) {
