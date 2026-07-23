@@ -16,7 +16,8 @@ app.use(helmet({
   crossOriginResourcePolicy: false, // ponytail: allow images to be fetched from external domains / local React apps
 }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Global Rate Limiter

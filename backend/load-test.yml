@@ -1,0 +1,58 @@
+config:
+  target: "https://fieldwatt-backend.onrender.com"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: "Ramp up"
+    - duration: 120
+      arrivalRate: 20
+      name: "Sustained load"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Agent sync with photo upload simulation"
+    flow:
+      # Step 1: Login and get token
+      - post:
+          url: "/auth/agent/login"
+          json:
+            phone: "Default Agent"
+            password: "password123"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+
+      # Step 2: Get assignments
+      - get:
+          url: "/agent/assignments"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+
+      # Step 3: Request presigned upload URL (simulates photo upload)
+      - post:
+          url: "/agent/upload-url"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            filename: "meter_test_{{ $randomNumber(1, 999999) }}.jpg"
+            contentType: "image/jpeg"
+
+      # Step 4: Sync batch reading (simulates completed reading submission)
+      - post:
+          url: "/sync/batch"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            readings:
+              - assignment_id: "00000000-0000-0000-0000-000000000001"
+                idempotency_key: "{{ $uuid }}"
+                reading_value: "{{ $randomNumber(100, 9999) }}"
+                status_code: "reading_taken"
+                photo_url: null
+                note: "Load test reading"
+                gps_lat: 18.5204
+                gps_lng: 73.8567
+                gps_accuracy: 10.0
+                submitted_at: "{{ $isoTimestamp }}"

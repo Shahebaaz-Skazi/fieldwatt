@@ -222,14 +222,21 @@ const Assignment = () => {
       setActionLoading(true);
       setMessage({ text: '', type: '' });
       
-      const payload = {
-        agent_id: selectedAgentId,
-        property_ids: Array.from(selectedPropIds),
-        cycle_id: resolvedCycleId
-      };
+      const allIds = Array.from(selectedPropIds);
+      const BATCH_SIZE = 500;
+      let totalAssigned = 0;
+
+      for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+        const batch = allIds.slice(i, i + BATCH_SIZE);
+        const res = await api.post('/admin/assignments/bulk', {
+          property_ids: batch,
+          agent_id: selectedAgentId,
+          cycle_id: resolvedCycleId
+        });
+        totalAssigned += (res.count || batch.length);
+      }
       
-      const res = await api.post('/admin/assignments/bulk', payload);
-      setMessage({ text: `Successfully assigned ${res.count} properties.`, type: 'success' });
+      setMessage({ text: `Successfully assigned ${totalAssigned} properties.`, type: 'success' });
       setSelectedPropIds(new Set());
       fetchProperties();
     } catch (err) {
