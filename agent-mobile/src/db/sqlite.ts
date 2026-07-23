@@ -141,10 +141,15 @@ export const clearReadingsQueue = async (): Promise<void> => {
 };
 
 export const saveProperties = async (properties: any[], preserveStatus = false) => {
-  if (!properties || properties.length === 0) return;
+  if (!properties) return;
 
   try {
     const database = getDb();
+    if (properties.length === 0) {
+      await database.runAsync('DELETE FROM properties');
+      console.log('Server returned 0 assignments — local properties cache wiped.');
+      return;
+    }
     // Wipe all existing property rows before inserting fresh ones when not preserving status
     // This ensures old UUID rows from previous imports don't linger
     if (!preserveStatus) {
