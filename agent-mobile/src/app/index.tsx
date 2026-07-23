@@ -180,7 +180,8 @@ export default function WorkListScreen() {
     }
   }, [updateAvailable]);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'pending' | 'done' | 'problem'>('pending');
+  // ponytail: only pending tab is needed
+  const [activeTab] = useState<'pending'>('pending');
 
   // GPS Location states
   const [agentLocation, setAgentLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -568,6 +569,8 @@ export default function WorkListScreen() {
       } else {
         if ((p.sub_society || '').trim() !== drillSubSociety) return false;
       }
+      // ponytail: hide completed properties from flat drilldown
+      if (p.reading_status) return false;
       return getWingName(p) === drillWing;
     });
     if (drillSearch) {
@@ -719,14 +722,8 @@ export default function WorkListScreen() {
       );
     }
 
-    // Filter by tab
-    if (tab === 'pending') {
-      result = result.filter(item => !item.reading_status);
-    } else if (tab === 'done') {
-      result = result.filter(item => item.reading_status === 'reading_taken');
-    } else if (tab === 'problem') {
-      result = result.filter(item => item.reading_status && item.reading_status !== 'reading_taken');
-    }
+    // ponytail: always show only pending — completed properties hidden from agent view
+    result = result.filter(item => !item.reading_status);
 
     setFilteredProperties(result);
   };
@@ -1321,27 +1318,10 @@ export default function WorkListScreen() {
             {/* Filter navigation tabs */}
             <View style={styles.tabBar}>
               <TouchableOpacity 
-                style={[styles.tabButton, activeTab === 'pending' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('pending')}
+                style={[styles.tabButton, styles.tabButtonActive]}
               >
-                <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>
+                <Text style={[styles.tabText, styles.tabTextActive]}>
                   Pending ({properties.filter(p => !p.reading_status).length})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.tabButton, activeTab === 'done' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('done')}
-              >
-                <Text style={[styles.tabText, activeTab === 'done' && styles.tabTextActive]}>
-                  Done ({doneCount})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.tabButton, activeTab === 'problem' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('problem')}
-              >
-                <Text style={[styles.tabText, activeTab === 'problem' && styles.tabTextActive]}>
-                  Problems ({problemCount})
                 </Text>
               </TouchableOpacity>
             </View>
