@@ -160,13 +160,32 @@ export default function PropertyDetailScreen() {
 
     const burnWatermark = async () => {
       try {
-        if (!watermarkShotRef.current) {
+        // Reset loading flags and set capture mode to true immediately
+        watermarkImageReadyRef.current = false;
+        setWatermarkImageReady(false);
+        setCaptureMode(true);
+
+        // Wait for watermarkShotRef to be populated
+        const refLoaded = await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => resolve(false), 3000);
+          const checkInterval = setInterval(() => {
+            if (watermarkShotRef.current) {
+              clearInterval(checkInterval);
+              clearTimeout(timeout);
+              resolve(true);
+            }
+          }, 50);
+        });
+
+        if (!refLoaded || !watermarkShotRef.current) {
+          console.warn('ViewShot ref loading timeout, using raw photo');
           setPhotoUri(pendingWatermarkUri);
           setPendingWatermarkUri(null);
+          setCaptureMode(false);
           return;
         }
 
-        // Get real photo dimensions FIRST before anything else
+        // Get real photo dimensions
         const { width: imgW, height: imgH } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
           Image.getSize(
             pendingWatermarkUri,
@@ -177,16 +196,7 @@ export default function PropertyDetailScreen() {
 
         // Use actual photo aspect ratio for ViewShot dimensions
         const aspect = imgW / imgH;
-        const shotWidth = width;
-        const shotHeight = Math.round(width / aspect);
         setPhotoAspect(aspect);
-
-        // Small delay for React to apply new dimensions
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        watermarkImageReadyRef.current = false;
-        setWatermarkImageReady(false);
-        setCaptureMode(true);
 
         // Wait for image onLoad (max 5 seconds)
         const imageLoaded = await new Promise<boolean>((resolve) => {
@@ -202,7 +212,7 @@ export default function PropertyDetailScreen() {
 
         if (!imageLoaded) {
           console.warn('Image load timeout, using raw photo');
-          setPhotoUri(pendingWatermarkUri!);
+          setPhotoUri(pendingWatermarkUri);
           setPendingWatermarkUri(null);
           setCaptureMode(false);
           return;
