@@ -1208,6 +1208,20 @@ export default function WorkListScreen() {
           <View style={styles.progressBarBg}>
             <View style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]} />
           </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
+              <Text style={{ fontSize: 11, color: '#4b5563', fontWeight: '500' }}>
+                Reading Taken: <Text style={{ color: '#111827', fontWeight: '700' }}>{doneCount}</Text>
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' }} />
+              <Text style={{ fontSize: 11, color: '#4b5563', fontWeight: '500' }}>
+                Door Locked: <Text style={{ color: '#111827', fontWeight: '700' }}>{problemCount}</Text>
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Zone / Area Selector Horizontal Pills */}
