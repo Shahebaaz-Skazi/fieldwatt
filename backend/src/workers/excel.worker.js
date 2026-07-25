@@ -343,7 +343,7 @@ const processExcel = async () => {
 
       await dbClient.query('BEGIN');
 
-      const parsedChunkRows = [];
+      const parsedChunkRowsMap = new Map();
 
       for (const raw of chunk) {
         let parsed = null;
@@ -366,12 +366,12 @@ const processExcel = async () => {
 
         if (!parsed) continue;
 
-                const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society, sub_society, wing_code, raw_sap_data } = parsed;
+        const { area_name, city, serial_no, consumer_name, address, meter_no, property_type, society, sub_society, wing_code, raw_sap_data } = parsed;
 
         // 1. Resolve area (deduplication-safe lookup from memory cache)
         const areaId = await resolveArea(area_name, city);
 
-        parsedChunkRows.push({
+        parsedChunkRowsMap.set(serial_no, {
           areaId,
           serial_no,
           consumer_name,
@@ -384,6 +384,8 @@ const processExcel = async () => {
           raw_sap_data
         });
       }
+
+      const parsedChunkRows = Array.from(parsedChunkRowsMap.values());
 
       if (parsedChunkRows.length > 0) {
         const values = [];
