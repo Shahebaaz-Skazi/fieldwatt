@@ -160,7 +160,8 @@ const parseGenericRow = (row, mapping) => {
 };
 
 const extractCode = (name) => {
-  const match = name.toUpperCase().match(/\b(KOD|KOT|KAR)\b/);
+  // ponytail: no \b — KOD can be embedded (e.g. "PMCKOD30"), match anywhere in name
+  const match = name.toUpperCase().match(/(KOD|KOT|KAR)/);
   return match ? match[1] : 'GEN';
 };
 
