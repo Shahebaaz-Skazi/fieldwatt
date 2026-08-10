@@ -154,104 +154,83 @@ export default function PropertyDetailScreen() {
     };
   }, []);
 
-  // Effect to process and burn watermark into static image after capture
+  // Effect to process and burn watermark into static image after capture / gallery pick
   useEffect(() => {
     if (!pendingWatermarkUri) return;
 
+    let isSubscribed = true;
+
     const burnWatermark = async () => {
       try {
-        // Reset loading flags and set capture mode to true immediately
         watermarkImageReadyRef.current = false;
         setWatermarkImageReady(false);
         setCaptureMode(true);
 
-        // Wait for watermarkShotRef to be populated
-        const refLoaded = await new Promise<boolean>((resolve) => {
-          const timeout = setTimeout(() => resolve(false), 3000);
-          const checkInterval = setInterval(() => {
-            if (watermarkShotRef.current) {
-              clearInterval(checkInterval);
-              clearTimeout(timeout);
-              resolve(true);
-            }
-          }, 50);
-        });
-
-        if (!refLoaded || !watermarkShotRef.current) {
-          console.warn('ViewShot ref loading timeout, using raw photo');
-          setPhotoUri(pendingWatermarkUri);
-          setPendingWatermarkUri(null);
-          setCaptureMode(false);
-          return;
+        // 1. Fast pre-compress/resize to 1080px to make ViewShot render instantly without UI lag
+        let targetUri = pendingWatermarkUri;
+        try {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            pendingWatermarkUri,
+            [{ resize: { width: 1080 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          targetUri = manipulated.uri;
+        } catch (e) {
+          console.warn('Fast resize skipped, using raw image:', e);
         }
 
-        // Get real photo dimensions
-        const { width: imgW, height: imgH } = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        if (!isSubscribed) return;
+
+        // Get dimensions of optimized image
+        const { width: imgW, height: imgH } = await new Promise<{ width: number; height: number }>((resolve) => {
           Image.getSize(
-            pendingWatermarkUri,
+            targetUri,
             (w, h) => resolve({ width: w, height: h }),
-            reject
+            () => resolve({ width: 1080, height: 1440 })
           );
         });
 
-        // Use actual photo aspect ratio for ViewShot dimensions
-        const aspect = imgW / imgH;
-        setPhotoAspect(aspect);
+        if (!isSubscribed) return;
+        setPhotoAspect(imgW / imgH);
 
-        // Wait for image onLoad (max 5 seconds)
-        const imageLoaded = await new Promise<boolean>((resolve) => {
-          const timeout = setTimeout(() => resolve(false), 5000);
-          const checkInterval = setInterval(() => {
-            if (watermarkImageReadyRef.current) {
-              clearInterval(checkInterval);
-              clearTimeout(timeout);
-              resolve(true);
-            }
-          }, 50);
-        });
+        // Short frame wait for ViewShot mount
+        await new Promise(resolve => setTimeout(resolve, 60));
 
-        if (!imageLoaded) {
-          console.warn('Image load timeout, using raw photo');
-          setPhotoUri(pendingWatermarkUri);
+        if (watermarkShotRef.current) {
+          const watermarkedUri = await watermarkShotRef.current.capture({
+            format: 'jpg',
+            quality: 0.85,
+            result: 'tmpfile',
+            useRenderInContext: true,
+          });
+
+          if (!isSubscribed) return;
+
+          // Non-blocking background gallery save
+          CameraRoll.saveAsset(watermarkedUri, { type: 'photo' }).catch(err => {
+            console.warn('Background gallery save notice:', err);
+          });
+
+          setPhotoUri(watermarkedUri);
+        } else {
+          setPhotoUri(targetUri);
+        }
+      } catch (err) {
+        console.warn('Watermark burn error, using base photo:', err);
+        setPhotoUri(pendingWatermarkUri);
+      } finally {
+        if (isSubscribed) {
           setPendingWatermarkUri(null);
           setCaptureMode(false);
-          return;
         }
-
-        // 3 frames + delay for full Android render
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => setTimeout(resolve, 150));
-
-        const watermarkedUri = await watermarkShotRef.current.capture({
-          format: 'jpg',
-          quality: 0.92,
-          result: 'tmpfile',
-          useRenderInContext: true,
-        });
-        console.log('✔ Watermark burned in:', watermarkedUri);
-
-        // Save to gallery
-        try {
-          await CameraRoll.saveAsset(watermarkedUri, { type: 'photo' });
-          console.log('✔ Watermarked photo saved to gallery');
-        } catch (e) {
-          console.warn('Gallery save failed:', e);
-        }
-
-        setPhotoUri(watermarkedUri);
-        setPendingWatermarkUri(null);
-        setCaptureMode(false);
-      } catch (err) {
-        console.warn('Watermark burn failed, using raw photo:', err);
-        setPhotoUri(pendingWatermarkUri!);
-        setPendingWatermarkUri(null);
-        setCaptureMode(false);
       }
     };
 
     burnWatermark();
+
+    return () => {
+      isSubscribed = false;
+    };
   }, [pendingWatermarkUri]);
 
   const closeCamera = async () => {
@@ -303,7 +282,7 @@ export default function PropertyDetailScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.9,
+        quality: 0.8,
         allowsEditing: false,
       });
 
@@ -311,22 +290,27 @@ export default function PropertyDetailScreen() {
 
       const selectedUri = result.assets[0].uri;
 
-      // Snapshot timestamp & GPS at the moment of selection (same as camera capture)
+      // Timestamp snapshot immediately
       const d = new Date();
       const ts = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
       setCaptureTimestamp(ts);
 
-      try {
-        const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
-        if (locStatus === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          setCaptureGps(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
+      // Fast non-blocking GPS snapshot
+      (async () => {
+        try {
+          const lastLoc = await Location.getLastKnownPositionAsync();
+          if (lastLoc) {
+            setCaptureGps(`${lastLoc.coords.latitude.toFixed(6)}, ${lastLoc.coords.longitude.toFixed(6)}`);
+          } else {
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+            setCaptureGps(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
+          }
+        } catch (e) {
+          setCaptureGps('GPS Unavailable');
         }
-      } catch (e) {
-        setCaptureGps('GPS Unavailable');
-      }
+      })();
 
-      // Feed into same watermark pipeline as camera capture
+      // Feed into watermark pipeline immediately
       setPendingWatermarkUri(selectedUri);
     } catch (err) {
       console.error('Gallery pick failed:', err);
