@@ -343,6 +343,9 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
         queryText += ` AND r.status_code = 'door_locked'`;
       } else if (status === 'completed') {
         queryText += ` AND (r.status_code = 'completed' OR r.status_code = 'reading_taken')`;
+      } else if (status === 'incomplete') {
+        // Assigned but not yet completed (no reading_taken/completed reading)
+        queryText += ` AND asg.id IS NOT NULL AND (r.status_code IS NULL OR (r.status_code != 'completed' AND r.status_code != 'reading_taken'))`;
       }
     }
 

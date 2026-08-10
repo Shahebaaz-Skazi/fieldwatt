@@ -45,6 +45,12 @@
           "photosPermission": "Allow FieldWatt to access your photos.",
           "savePhotosPermission": "Allow FieldWatt to save photos to your gallery."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow FieldWatt to select photos from your gallery for meter readings."
+        }
       ]
     ],
     "experiments": {

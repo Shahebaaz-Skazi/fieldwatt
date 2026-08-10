@@ -293,6 +293,47 @@ export default function PropertyDetailScreen() {
     }
   };
 
+  const handlePickFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showAlert('Gallery Permission Required', 'We need access to your photo library to upload an image.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.9,
+        allowsEditing: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const selectedUri = result.assets[0].uri;
+
+      // Snapshot timestamp & GPS at the moment of selection (same as camera capture)
+      const d = new Date();
+      const ts = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+      setCaptureTimestamp(ts);
+
+      try {
+        const { status: locStatus } = await Location.requestForegroundPermissionsAsync();
+        if (locStatus === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setCaptureGps(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
+        }
+      } catch (e) {
+        setCaptureGps('GPS Unavailable');
+      }
+
+      // Feed into same watermark pipeline as camera capture
+      setPendingWatermarkUri(selectedUri);
+    } catch (err) {
+      console.error('Gallery pick failed:', err);
+      showAlert('Gallery Error', 'Could not open gallery. Please try again.');
+    }
+  };
+
   const compressPhoto = async (uri: string) => {
     // Compress to 200KB (approx)
     if (uri.startsWith('http')) return uri; // Skip remote urls
@@ -696,10 +737,26 @@ export default function PropertyDetailScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <TouchableOpacity onPress={handleCapturePhoto} style={styles.photoUploadBox}>
-                  <Text style={{ fontSize: 24 }}>📸</Text>
-                  <Text style={styles.photoUploadText}>Tap to Capture Photo</Text>
-                </TouchableOpacity>
+                <View style={styles.photoUploadBox}>
+                  <Text style={{ fontSize: 24, marginBottom: 8 }}>📷</Text>
+                  <Text style={[styles.photoUploadText, { marginBottom: 16 }]}>Add Verification Photo</Text>
+                  <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+                    <TouchableOpacity
+                      onPress={handleCapturePhoto}
+                      style={[styles.photoActionBtn, { flex: 1, backgroundColor: '#111827' }]}
+                    >
+                      <Text style={{ fontSize: 18 }}>📸</Text>
+                      <Text style={[styles.photoActionBtnText, { color: '#fff' }]}>Camera</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handlePickFromGallery}
+                      style={[styles.photoActionBtn, { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db' }]}
+                    >
+                      <Text style={{ fontSize: 18 }}>🖼️</Text>
+                      <Text style={[styles.photoActionBtnText, { color: '#374151' }]}>Gallery</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               )}
             </View>
           ) : null}
@@ -922,15 +979,25 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: 12,
     backgroundColor: '#ffffff',
-    padding: 32,
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
   photoUploadText: {
     color: '#6b7280',
     fontSize: 13,
     fontWeight: '500',
+  },
+  photoActionBtn: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  photoActionBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   photoContainer: {
     alignItems: 'center',

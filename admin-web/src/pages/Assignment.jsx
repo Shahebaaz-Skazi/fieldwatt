@@ -565,6 +565,7 @@ const Assignment = () => {
               <option value="all">All Properties</option>
               <option value="unassigned">Unassigned</option>
               <option value="assigned">Assigned</option>
+              <option value="incomplete">Incomplete (Assigned, Not Done)</option>
               <option value="doorlocked">Door Locked</option>
               <option value="completed">Completed</option>
             </select>

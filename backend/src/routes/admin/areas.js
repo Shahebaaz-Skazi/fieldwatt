@@ -144,6 +144,23 @@ router.get('/imports/:importId/areas/:areaId/societies', authMiddleware, require
   }
 });
 
+// GET /admin/areas/:id/societies - Get all distinct societies in an area with property counts
+router.get('/:id/societies', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const areaId = req.params.id;
+    const result = await db.query(`
+      SELECT society as name, COUNT(id)::int as count
+      FROM properties
+      WHERE area_id = $1 AND society IS NOT NULL AND society != ''
+      GROUP BY society
+      ORDER BY society ASC
+    `, [areaId]);
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /admin/areas - List all areas with total properties and by property type
 router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
@@ -176,7 +193,7 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
 
-    const { type, status, search, cycle_id } = req.query;
+    const { type, status, search, society, cycle_id } = req.query;
 
     // Get active cycle if cycle_id is not specified
     let cycleId = cycle_id;
@@ -204,6 +221,11 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
     if (type) {
       const pType = addWhereParam(type);
       queryConditions.push(`p.property_type = ${pType}`);
+    }
+
+    if (society) {
+      const pSociety = addWhereParam(society);
+      queryConditions.push(`p.society = ${pSociety}`);
     }
 
     if (search) {
@@ -265,6 +287,8 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
       p.address, 
       p.meter_no, 
       p.property_type, 
+      p.society,
+      p.phone_number,
       p.lat, 
       p.lng,
       asg.id as assignment_id,

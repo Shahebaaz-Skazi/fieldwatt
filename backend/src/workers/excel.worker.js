@@ -104,6 +104,7 @@ const parseSAPRow = (row) => {
   const society   = normalise(row['Street']) || null; // Extract Street as society
   const sub_society = normalise(row['Street 3']) || null; // Extract Street 3 as sub-society
   const wing_code   = cleanWingCode(row['Building (Number or Code)']) || null;
+  const phone_number = normalise(row['Mobile No.'] || row['Mobile'] || row['Telephone No.'] || row['Telephone'] || row['Phone'] || row['Contact No']) || null;
 
   if (!orderId || !bpName) return null;
 
@@ -118,6 +119,7 @@ const parseSAPRow = (row) => {
     society,
     sub_society,
     wing_code,
+    phone_number,
   };
 };
 
@@ -125,7 +127,7 @@ const parseSAPRow = (row) => {
 // Generic format: use flexible column mapping (legacy support)
 // ─────────────────────────────────────────────
 const getGenericMapping = (headers) => {
-  const mapping = { area: -1, serial_no: -1, consumer_name: -1, address: -1, meter_no: -1, property_type: -1, society: -1, sub_society: -1, wing_code: -1 };
+  const mapping = { area: -1, serial_no: -1, consumer_name: -1, address: -1, meter_no: -1, property_type: -1, society: -1, sub_society: -1, wing_code: -1, phone_number: -1 };
   headers.forEach((h, idx) => {
     const k = normalise(h?.toString() || '').replace(/[^A-Z0-9]/g, '');
     if (['AREA', 'AREANAME', 'ZONE', 'REGION'].includes(k))                         mapping.area = idx;
@@ -137,6 +139,7 @@ const getGenericMapping = (headers) => {
     else if (['SOCIETY', 'COLONY', 'STREET'].includes(k))                           mapping.society = idx;
     else if (['SUBSOCIETY', 'STREET3', 'COLONY3', 'SUBCOLONY'].includes(k))         mapping.sub_society = idx;
     else if (['WING', 'WINGCODE', 'BUILDING', 'BUILDINGCODE', 'BLOCK'].includes(k))  mapping.wing_code = idx;
+    else if (['PHONE', 'PHONENUMBER', 'MOBILE', 'MOBILENO', 'TELEPHONE', 'CONTACT', 'CONTACTNO'].includes(k)) mapping.phone_number = idx;
   });
   return mapping;
 };
@@ -156,6 +159,7 @@ const parseGenericRow = (row, mapping) => {
     society: get(mapping.society) || null,
     sub_society: get(mapping.sub_society) || null,
     wing_code: cleanWingCode(get(mapping.wing_code)) || null,
+    phone_number: get(mapping.phone_number) || null,
   };
 };
 
@@ -382,6 +386,7 @@ const processExcel = async () => {
           society,
           sub_society,
           wing_code,
+          phone_number: parsed.phone_number || null,
           raw_sap_data
         });
       }
@@ -394,13 +399,13 @@ const processExcel = async () => {
         let paramCount = 1;
 
         for (const row of parsedChunkRows) {
-          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}, $${paramCount+9}, $${paramCount+10}::jsonb)`);
-          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, row.sub_society, row.wing_code, JSON.stringify(row.raw_sap_data));
-          paramCount += 11;
+          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}, $${paramCount+9}, $${paramCount+10}::jsonb, $${paramCount+11})`);
+          values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, row.sub_society, row.wing_code, JSON.stringify(row.raw_sap_data), row.phone_number);
+          paramCount += 12;
         }
 
         const bulkQuery = `
-          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society, sub_society, wing_code, raw_sap_data)
+          INSERT INTO properties (area_id, serial_no, consumer_name, address, meter_no, property_type, import_id, society, sub_society, wing_code, raw_sap_data, phone_number)
           VALUES ${valueStrings.join(', ')}
           ON CONFLICT (serial_no)
           DO UPDATE SET
@@ -413,7 +418,8 @@ const processExcel = async () => {
             society        = EXCLUDED.society,
             sub_society    = EXCLUDED.sub_society,
             wing_code      = EXCLUDED.wing_code,
-            raw_sap_data   = EXCLUDED.raw_sap_data
+            raw_sap_data   = EXCLUDED.raw_sap_data,
+            phone_number   = COALESCE(EXCLUDED.phone_number, properties.phone_number)
         `;
 
         await dbClient.query(bulkQuery, values);

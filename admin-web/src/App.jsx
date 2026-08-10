@@ -9,9 +9,15 @@ import Import from './pages/Import';
 import MapView from './pages/Map';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
-import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck } from 'lucide-react';
+import SelfReading from './pages/SelfReading';
+import WhatsAppPanel from './pages/WhatsAppPanel';
+import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare } from 'lucide-react';
 
 const App = () => {
+  if (window.location.pathname === '/self-reading') {
+    return <SelfReading />;
+  }
+
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
   const activePage = useAuthStore((state) => state.activePage);
@@ -27,7 +33,8 @@ const App = () => {
     import: 0,
     map: 0,
     alerts: 0,
-    reports: 0
+    reports: 0,
+    whatsapp: 0
   });
 
   if (!token) {
@@ -60,6 +67,8 @@ const App = () => {
         return <Alerts key={pageKeys.alerts} />;
       case 'reports':
         return <Reports key={pageKeys.reports} />;
+      case 'whatsapp':
+        return <WhatsAppPanel key={pageKeys.whatsapp} />;
       default:
         return <Dashboard key={pageKeys.dashboard} />;
     }
@@ -119,6 +128,15 @@ const App = () => {
               >
                 <UserCheck size={18} />
                 Bulk Assign
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleNavClick('whatsapp')}
+                className={`nav-link ${activePage === 'whatsapp' ? 'active' : ''}`}
+              >
+                <MessageSquare size={18} />
+                WhatsApp
               </button>
             </li>
             <li>
