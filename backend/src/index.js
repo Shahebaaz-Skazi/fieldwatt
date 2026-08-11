@@ -102,13 +102,13 @@ const initDb = async () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         property_id UUID,
         phone_number TEXT NOT NULL,
-        consumer_name TEXT,
-        token TEXT,
         status TEXT DEFAULT 'sent',
-        sent_at TIMESTAMPTZ DEFAULT NOW(),
-        cycle_id UUID
+        sent_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    await db.query(`ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS token TEXT DEFAULT NULL;`);
+    await db.query(`ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS consumer_name TEXT DEFAULT NULL;`);
+    await db.query(`ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS cycle_id UUID DEFAULT NULL;`);
     console.log('Database schema updates checked/applied.');
   } catch (error) {
     console.error('Failed to apply database migrations/updates:', error);
