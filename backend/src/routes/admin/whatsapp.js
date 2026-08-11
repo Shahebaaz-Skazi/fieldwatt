@@ -19,7 +19,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
     }
 
     const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
-    const origin = req.headers.origin || 'https://fieldwatt.vercel.app';
+    const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
     
     // Meta API configuration with hardcoded default credentials from the prompt
     const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID || '1155780700962650';
