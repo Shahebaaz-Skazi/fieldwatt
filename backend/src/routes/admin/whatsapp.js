@@ -4,17 +4,28 @@ const jwt = require('jsonwebtoken');
 const db = require('../../db');
 const { requireAdmin } = require('../../middleware/roleGuard');
 
-// POST /admin/whatsapp/send
-router.post('/send', requireAdmin, async (req, res, next) => {
+// POST /admin/whatsapp/send-bulk (also support /send)
+router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
   try {
-    const { propertyIds, phoneNumbers = {}, cycleId } = req.body;
+    let propertyIds = req.body.propertyIds || req.body.property_ids;
+    if (!propertyIds && Array.isArray(req.body)) {
+      propertyIds = req.body;
+    }
+    const phoneNumbers = req.body.phoneNumbers || req.body.phone_numbers || {};
+    const cycleId = req.body.cycleId || req.body.cycle_id;
 
     if (!Array.isArray(propertyIds) || propertyIds.length === 0) {
       return res.status(400).json({ error: 'propertyIds array is required and cannot be empty.' });
     }
 
     const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
-    const customerPortalUrl = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt-admin.vercel.app';
+    const origin = req.headers.origin || 'https://fieldwatt.vercel.app';
+    
+    // Meta API configuration with hardcoded default credentials from the prompt
+    const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID || '1155780700962650';
+    const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSIYcfVCjOViQKILSKw2Pqb5xjy44CwdJD4LQlT2636zI1jdHzQS8KFoufXDXUsZACBmow0gxsZCVJXJAtsE8PgiDn7PTFueAkMLHpDpDl2kaXnQ4ZBA7uNaPEOCsldLAzqH3K61o4mIp9oxL6gpHR9te1iLawl4YZCkpYJywMoN45ZCmSdTHQGl1VBOZCZApha711j1UYsORZAXYZAAN9rXz1mpidwppNVhzqmxHIZCSE3jUa693j6x4aMzq1gNd58OgKFNSsNi5b7WjQn';
+    const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
+
     const results = [];
     let sentCount = 0;
     let failedCount = 0;
@@ -56,55 +67,54 @@ router.post('/send', requireAdmin, async (req, res, next) => {
           await db.query('UPDATE properties SET phone_number = $1 WHERE id = $2', [rawPhone, propertyId]);
         }
 
-        // Generate signed JWT token valid for 7 days
+        // Generate signed JWT token containing { propertyId, expiresAt: '7d' } and assignmentId
         const token = jwt.sign(
           {
             propertyId,
             assignmentId: property.assignment_id || null,
-            exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)
+            expiresAt: '7d'
           },
-          secret
+          secret,
+          { expiresIn: '7d' }
         );
 
-        const selfReadingUrl = `${customerPortalUrl}/self-reading?token=${token}`;
+        const selfReadingUrl = `${origin}/self-reading?token=${token}`;
 
         let status = 'sent';
         let apiError = null;
 
-        // Call Meta Cloud API if configured
-        if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
-          const metaRes = await fetch(
-            `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                messaging_product: 'whatsapp',
-                to: formattedPhone,
-                type: 'template',
-                template: {
-                  name: process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request',
-                  language: { code: 'en' },
-                  components: [{
-                    type: 'body',
-                    parameters: [
-                      { type: 'text', text: property.consumer_name },
-                      { type: 'text', text: selfReadingUrl }
-                    ]
-                  }]
-                }
+        // Call Meta Cloud API
+        const metaRes = await fetch(
+          `https://graph.facebook.com/v18.0/${phoneIdVal}/messages`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${tokenVal}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: formattedPhone,
+              type: 'template',
+              template: {
+                name: templateVal,
+                language: { code: 'en' },
+                components: [{
+                  type: 'body',
+                  parameters: [
+                    { type: 'text', text: property.consumer_name },
+                    { type: 'text', text: selfReadingUrl }
+                  ]
+                }]
               })
-            }
-          );
-
-          if (!metaRes.ok) {
-            const errData = await metaRes.json();
-            status = 'failed';
-            apiError = errData.error ? errData.error.message : 'Meta WhatsApp API error';
+            })
           }
+        );
+
+        if (!metaRes.ok) {
+          const errData = await metaRes.json();
+          status = 'failed';
+          apiError = errData.error ? errData.error.message : 'Meta WhatsApp API error';
         }
 
         // Insert into whatsapp_logs
@@ -134,8 +144,8 @@ router.post('/send', requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET /admin/whatsapp/usage
-router.get('/usage', requireAdmin, async (req, res, next) => {
+// GET /admin/whatsapp/status (also support /usage)
+router.get(['/usage', '/status'], requireAdmin, async (req, res, next) => {
   try {
     const result = await db.query(`
       SELECT COUNT(*) as total_sent 
@@ -144,7 +154,7 @@ router.get('/usage', requireAdmin, async (req, res, next) => {
       AND status = 'sent'
     `);
     const sentThisMonth = parseInt(result.rows[0].total_sent || 0, 10);
-    res.json({ sentThisMonth, limit: 1000 });
+    res.json({ sentThisMonth, count: sentThisMonth, limit: 1000 });
   } catch (error) {
     next(error);
   }

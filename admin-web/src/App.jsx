@@ -11,11 +11,19 @@ import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
 import SelfReading from './pages/SelfReading';
 import WhatsAppPanel from './pages/WhatsAppPanel';
+import WhatsAppDashboard from './pages/WhatsAppDashboard';
 import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare } from 'lucide-react';
 
 const App = () => {
   if (window.location.pathname === '/self-reading') {
     return <SelfReading />;
+  }
+
+  if (window.location.pathname === '/whatsapp') {
+    // <Route element={<WhatsAppDashboard />} path="/whatsapp"/>
+    const token = useAuthStore.getState().token;
+    if (!token) return <Login />;
+    return <WhatsAppDashboard />;
   }
 
   const token = useAuthStore((state) => state.token);
@@ -34,7 +42,8 @@ const App = () => {
     map: 0,
     alerts: 0,
     reports: 0,
-    whatsapp: 0
+    whatsapp: 0,
+    whatsapp_outreach: 0
   });
 
   if (!token) {
@@ -69,6 +78,8 @@ const App = () => {
         return <Reports key={pageKeys.reports} />;
       case 'whatsapp':
         return <WhatsAppPanel key={pageKeys.whatsapp} />;
+      case 'whatsapp_outreach':
+        return <WhatsAppDashboard key={pageKeys.whatsapp_outreach} />;
       default:
         return <Dashboard key={pageKeys.dashboard} />;
     }
@@ -164,6 +175,15 @@ const App = () => {
               >
                 <BarChart3 size={18} />
                 Analytics & Reports
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleNavClick('whatsapp_outreach')}
+                className={`nav-link ${activePage === 'whatsapp_outreach' ? 'active' : ''}`}
+              >
+                <MessageSquare size={18} />
+                WhatsApp Outreach
               </button>
             </li>
           </ul>

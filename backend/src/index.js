@@ -92,6 +92,23 @@ const initDb = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_sub_society ON properties(sub_society);`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_properties_wing_code ON properties(wing_code);`);
     await db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE DEFAULT NULL;`);
+    
+    // WhatsApp outreach schema additions
+    await db.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'agent';`);
+    await db.query(`ALTER TABLE readings ADD COLUMN IF NOT EXISTS submitted_by_type TEXT DEFAULT 'agent';`);
+    await db.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20) DEFAULT NULL;`);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        property_id UUID,
+        phone_number TEXT NOT NULL,
+        consumer_name TEXT,
+        token TEXT,
+        status TEXT DEFAULT 'sent',
+        sent_at TIMESTAMPTZ DEFAULT NOW(),
+        cycle_id UUID
+      );
+    `);
     console.log('Database schema updates checked/applied.');
   } catch (error) {
     console.error('Failed to apply database migrations/updates:', error);
