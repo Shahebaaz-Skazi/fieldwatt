@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { Camera, CheckCircle2, AlertCircle, RefreshCw, Zap } from 'lucide-react';
+import { Camera, CheckCircle2, AlertCircle, RefreshCw, Zap, MapPin, Hash, User } from 'lucide-react';
 
 const applyWatermark = (imageFile, propertyDetails) => {
   return new Promise((resolve) => {
@@ -68,6 +68,10 @@ const SelfReading = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  
+  // Interactive styling focus helper states
+  const [inputFocused, setInputFocused] = useState(false);
+  const [uploadHovered, setUploadHovered] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -161,120 +165,145 @@ const SelfReading = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#0b0f19',
+      backgroundColor: '#080b12',
       color: '#f3f4f6',
-      fontFamily: 'Inter, system-ui, sans-serif',
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '24px 16px'
+      justifyContent: 'center',
+      padding: '32px 16px',
+      boxSizing: 'border-box'
     }}>
       {/* Header Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-        <div style={{ background: '#3b82f6', padding: '6px', borderRadius: '8px', display: 'flex' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
+        <div style={{ background: '#4f9cf9', padding: '8px', borderRadius: '10px', display: 'flex', boxShadow: '0 4px 12px rgba(79, 156, 249, 0.3)' }}>
           <Zap size={22} color="#ffffff" />
         </div>
-        <span style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.5px' }}>
-          Field<span style={{ color: '#3b82f6' }}>Watt</span>
+        <span style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px' }}>
+          Field<span style={{ color: '#4f9cf9' }}>Watt</span>
         </span>
       </div>
 
       <div style={{
         width: '100%',
         maxWidth: '480px',
-        backgroundColor: '#111827',
-        border: '1px solid #1f2937',
-        borderRadius: '16px',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-        overflow: 'hidden'
+        backgroundColor: '#1e2230',
+        border: '1px solid #2a2f42',
+        borderRadius: '20px',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+        overflow: 'hidden',
+        boxSizing: 'border-box'
       }}>
         {loading ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center', color: '#9ca3af' }}>
-            <RefreshCw size={36} className="spinning" style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 16px', color: '#3b82f6' }} />
-            <p style={{ fontSize: '14px' }}>Loading property details...</p>
+          <div style={{ padding: '64px 24px', textAlign: 'center', color: '#94a3b8' }}>
+            <RefreshCw size={40} className="spinning" style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 20px', color: '#4f9cf9' }} />
+            <p style={{ fontSize: '14px', fontWeight: '500' }}>Retrieving your property details...</p>
           </div>
         ) : error ? (
-          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#ef4444' }}>
-            <AlertCircle size={48} style={{ margin: '0 auto 16px', opacity: 0.9 }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#f87171', marginBottom: '8px' }}>Link Expired or Invalid</h3>
-            <p style={{ fontSize: '13px', color: '#9ca3af', lineHeight: '1.5' }}>{error}</p>
+          <div style={{ padding: '48px 28px', textAlign: 'center' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '16px', borderRadius: '50%', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              <AlertCircle size={44} style={{ color: '#ef4444' }} />
+            </div>
+            <h3 style={{ fontSize: '19px', fontWeight: '700', color: '#f87171', marginBottom: '12px' }}>Link Expired or Invalid</h3>
+            <p style={{ fontSize: '13.5px', color: '#94a3b8', lineHeight: '1.6', margin: 0 }}>{error}</p>
           </div>
         ) : submitSuccess ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-            <CheckCircle2 size={56} style={{ color: '#10b981', margin: '0 auto 16px' }} />
-            <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', marginBottom: '8px' }}>Reading Submitted!</h2>
-            <p style={{ fontSize: '14px', color: '#9ca3af', lineHeight: '1.6' }}>
-              Thank you! Your meter reading has been verified and recorded successfully.
+          <div style={{ padding: '56px 28px', textAlign: 'center' }}>
+            <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '16px', borderRadius: '50%', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+              <CheckCircle2 size={44} style={{ color: '#10b981' }} />
+            </div>
+            <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#ffffff', marginBottom: '12px' }}>Reading Submitted!</h2>
+            <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: '1.6', margin: 0 }}>
+              Thank you! Your meter reading and watermarked photo have been verified and successfully recorded.
             </p>
           </div>
         ) : (
-          <div style={{ padding: '24px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: '20px' }}>
+          <div style={{ padding: '28px', boxSizing: 'border-box' }}>
+            <h2 style={{ fontSize: '19px', fontWeight: '700', color: '#ffffff', textAlign: 'center', marginBottom: '24px' }}>
               Meter Reading Submission
             </h2>
 
-            {/* Property Info Card */}
+            {/* Consumer Details Card */}
             <div style={{
-              backgroundColor: '#1f2937',
-              borderRadius: '12px',
-              padding: '16px',
-              border: '1px solid #374151',
-              marginBottom: '24px'
+              backgroundColor: '#151922',
+              borderRadius: '14px',
+              padding: '20px',
+              border: '1px solid #2a2f42',
+              marginBottom: '28px'
             }}>
-              <div style={{ fontSize: '16px', fontWeight: '700', color: '#60a5fa', marginBottom: '6px' }}>
-                {propertyDetails?.consumerName}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <User size={16} color="#4f9cf9" />
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>
+                  {propertyDetails?.consumerName}
+                </span>
               </div>
-              <div style={{ fontSize: '12px', color: '#d1d5db', marginBottom: '12px', lineHeight: '1.4' }}>
-                {propertyDetails?.address}
+              
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', color: '#94a3b8', fontSize: '13px', lineHeight: '1.4', marginBottom: '16px' }}>
+                <MapPin size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+                <span>{propertyDetails?.address}</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', borderTop: '1px solid #374151', paddingTop: '10px' }}>
-                <div>
-                  <span style={{ color: '#9ca3af' }}>Meter No: </span>
-                  <strong style={{ color: '#ffffff' }}>{propertyDetails?.meterNo}</strong>
+
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '12px', 
+                fontSize: '12.5px', 
+                borderTop: '1px solid #2a2f42', 
+                paddingTop: '14px',
+                color: '#94a3b8'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Hash size={13} style={{ color: '#4f9cf9' }} />
+                  <span>Meter: <strong style={{ color: '#ffffff' }}>{propertyDetails?.meterNo}</strong></span>
                 </div>
-                <div>
-                  <span style={{ color: '#9ca3af' }}>BP No: </span>
-                  <strong style={{ color: '#ffffff' }}>{propertyDetails?.bpNo}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Hash size={13} style={{ color: '#4f9cf9' }} />
+                  <span>BP: <strong style={{ color: '#ffffff' }}>{propertyDetails?.bpNo}</strong></span>
                 </div>
               </div>
             </div>
 
             {submitError && (
-              <div style={{ padding: '12px 16px', backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid #ef4444', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertCircle size={16} />
+              <div style={{ padding: '12px 16px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '10px', color: '#f87171', fontSize: '13px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span>{submitError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
-                  Enter your current meter reading:
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
+                  Current Meter Reading
                 </label>
                 <input
                   type="number"
                   step="any"
-                  placeholder="e.g. 1245.5"
+                  placeholder="Enter numerical value"
                   value={readingValue}
                   onChange={(e) => setReadingValue(e.target.value)}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
                   required
                   style={{
                     width: '100%',
-                    padding: '12px 16px',
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: '8px',
+                    padding: '14px 16px',
+                    backgroundColor: '#0f172a',
+                    border: inputFocused ? '1px solid #4f9cf9' : '1px solid #334155',
+                    borderRadius: '10px',
                     color: '#ffffff',
                     fontSize: '16px',
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    boxShadow: inputFocused ? '0 0 0 3px rgba(79, 156, 249, 0.25)' : 'none',
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease-in-out'
                   }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
-                  Upload meter photo:
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
+                  Meter Verification Photo
                 </label>
                 <input
                   type="file"
@@ -284,34 +313,45 @@ const SelfReading = () => {
                   style={{ display: 'none' }}
                   id="meter-photo-input"
                 />
-                <label htmlFor="meter-photo-input" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '14px',
-                  backgroundColor: '#1f2937',
-                  border: '1px dashed #4b5563',
-                  borderRadius: '8px',
-                  color: '#9ca3af',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'background 0.2s'
-                }}>
-                  <Camera size={18} style={{ color: '#60a5fa' }} />
-                  <span>{photoPreview ? 'Change Photo' : 'Take / Choose Photo'}</span>
+                
+                <label 
+                  htmlFor="meter-photo-input"
+                  onMouseEnter={() => setUploadHovered(true)}
+                  onMouseLeave={() => setUploadHovered(false)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '24px 16px',
+                    backgroundColor: '#0f172a',
+                    border: uploadHovered ? '2px dashed #4f9cf9' : '2px dashed #334155',
+                    borderRadius: '12px',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    boxSizing: 'border-box',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  <div style={{ background: 'rgba(79, 156, 249, 0.1)', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Camera size={20} style={{ color: '#4f9cf9' }} />
+                  </div>
+                  <span>{photoPreview ? 'Change Selection' : 'Capture or Upload Photo'}</span>
                 </label>
 
                 {processingPhoto && (
-                  <div style={{ fontSize: '12px', color: '#60a5fa', marginTop: '6px', textAlign: 'center' }}>
-                    Watermarking photo...
+                  <div style={{ fontSize: '12px', color: '#4f9cf9', marginTop: '8px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <RefreshCw size={12} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} />
+                    <span>Overlaying watermark metadata...</span>
                   </div>
                 )}
 
                 {photoPreview && !processingPhoto && (
-                  <div style={{ marginTop: '12px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #374151' }}>
-                    <img src={photoPreview} alt="Watermarked Preview" style={{ width: '100%', display: 'block', maxHeight: '240px', objectFit: 'cover' }} />
+                  <div style={{ marginTop: '16px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #2a2f42', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)' }}>
+                    <img src={photoPreview} alt="Watermarked Verification" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'cover' }} />
                   </div>
                 )}
               </div>
@@ -322,19 +362,28 @@ const SelfReading = () => {
                 style={{
                   width: '100%',
                   padding: '14px',
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: '#4f9cf9',
                   color: '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   fontSize: '15px',
-                  fontWeight: '600',
+                  fontWeight: '700',
                   cursor: submitting ? 'not-allowed' : 'pointer',
-                  opacity: submitting ? 0.7 : 1,
-                  transition: 'background 0.2s',
+                  opacity: submitting || processingPhoto ? 0.7 : 1,
+                  boxShadow: '0 4px 14px rgba(79, 156, 249, 0.25)',
+                  boxSizing: 'border-box',
+                  transition: 'all 0.2s ease-in-out',
                   marginTop: '8px'
                 }}
               >
-                {submitting ? 'Submitting Reading...' : 'Submit Reading'}
+                {submitting ? (
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <RefreshCw size={16} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} />
+                    <span>Submitting Reading...</span>
+                  </span>
+                ) : (
+                  'Submit Operations Entry'
+                )}
               </button>
             </form>
           </div>
@@ -345,6 +394,9 @@ const SelfReading = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        .spinning {
+          animation: spin 1.5s linear infinite;
         }
       `}</style>
     </div>
