@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import useAuthStore from '../store/authStore';
 import { Plus, Edit2, ShieldAlert, Check, X, Search, Phone, Mail, UserPlus } from 'lucide-react';
 
 const Agents = () => {
+  const user = useAuthStore((state) => state.user);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,6 +17,13 @@ const Agents = () => {
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', username: '', password: '' });
   const [editingAgent, setEditingAgent] = useState(null);
 
+  // Viewer states
+  const [viewers, setViewers] = useState([]);
+  const [viewerFormData, setViewerFormData] = useState({ name: '', email: '', password: '' });
+  const [creatingViewer, setCreatingViewer] = useState(false);
+  const [viewerError, setViewerError] = useState('');
+  const [viewerSuccess, setViewerSuccess] = useState('');
+
   const fetchAgents = async () => {
     try {
       const data = await api.get('/admin/agents');
@@ -26,8 +35,36 @@ const Agents = () => {
     }
   };
 
+  const fetchViewers = async () => {
+    if (user?.role !== 'admin') return;
+    try {
+      const data = await api.get('/auth/admin/viewers');
+      setViewers(data);
+    } catch (err) {
+      console.error('Failed to fetch viewers:', err);
+    }
+  };
+
+  const handleCreateViewer = async (e) => {
+    e.preventDefault();
+    setViewerError('');
+    setViewerSuccess('');
+    setCreatingViewer(true);
+    try {
+      await api.post('/auth/admin/create-viewer', viewerFormData);
+      setViewerSuccess('Viewer account created successfully.');
+      setViewerFormData({ name: '', email: '', password: '' });
+      fetchViewers();
+    } catch (err) {
+      setViewerError(err.message || 'Failed to create viewer account.');
+    } finally {
+      setCreatingViewer(false);
+    }
+  };
+
   useEffect(() => {
     fetchAgents();
+    fetchViewers();
   }, []);
 
   useEffect(() => {
@@ -164,6 +201,103 @@ const Agents = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Viewer Accounts Management Section */}
+      {user?.role === 'admin' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)', margin: 0 }}>MNGL Viewer Accounts</h2>
+              <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>Create and manage read-only access accounts for MNGL personnel</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '32px', alignItems: 'start' }}>
+            {/* Create form */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px', boxShadow: 'var(--shadow)' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={18} /> Create Viewer Account
+              </h3>
+              {viewerSuccess && (
+                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent3)', borderRadius: '8px', border: '1px solid var(--accent3)', fontSize: '13px', marginBottom: '16px' }}>
+                  {viewerSuccess}
+                </div>
+              )}
+              {viewerError && (
+                <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)', borderRadius: '8px', border: '1px solid var(--accent4)', fontSize: '13px', marginBottom: '16px' }}>
+                  {viewerError}
+                </div>
+              )}
+              <form onSubmit={handleCreateViewer} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. MNGL Officer"
+                    className="form-input"
+                    value={viewerFormData.name}
+                    onChange={(e) => setViewerFormData({ ...viewerFormData, name: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="e.g. officer@mngl.in"
+                    className="form-input"
+                    value={viewerFormData.email}
+                    onChange={(e) => setViewerFormData({ ...viewerFormData, email: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Min 8 characters"
+                    className="form-input"
+                    value={viewerFormData.password}
+                    onChange={(e) => setViewerFormData({ ...viewerFormData, password: e.target.value })}
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', width: '100%', marginTop: '8px' }} disabled={creatingViewer}>
+                  {creatingViewer ? 'Creating Account...' : 'Create MNGL Viewer Account'}
+                </button>
+              </form>
+            </div>
+
+            {/* List existing viewers */}
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email Address</th>
+                    <th>Created At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {viewers.length === 0 ? (
+                    <tr>
+                      <td colSpan="3" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No viewer accounts created yet.</td>
+                    </tr>
+                  ) : (
+                    viewers.map((v) => (
+                      <tr key={v.id}>
+                        <td style={{ fontWeight: '600', color: 'var(--text)' }}>{v.name}</td>
+                        <td>{v.email}</td>
+                        <td>{new Date(v.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {showAddModal && (

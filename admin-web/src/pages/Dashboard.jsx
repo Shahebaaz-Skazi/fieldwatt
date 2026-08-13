@@ -3,7 +3,7 @@ import api from '../utils/api';
 import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search } from 'lucide-react';
 import { applyAdminWatermark } from '../utils/watermark';
 
-const Dashboard = () => {
+const Dashboard = ({ viewerMode = false }) => {
   const [data, setData] = useState({
     active_cycle_id: null,
     agents: [],
@@ -44,6 +44,41 @@ const Dashboard = () => {
     setViewingReading(null);
     setEditingPhoto(false);
     setEditPhotoWatermarkApplied(false);
+  };
+
+  const handleDownloadImages = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('Preparing image download zip...');
+      
+      const token = localStorage.getItem('admin_token');
+      const url = `${api.API_BASE_URL || 'http://localhost:3000'}/admin/dashboard/download-images`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Failed to download images.');
+      }
+      
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `meter_readings_images_${new Date().toISOString().slice(0, 10)}.zip`;
+      link.click();
+      
+      setSuccess('Download started successfully.');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to download images.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchDashboardData = async () => {
@@ -236,10 +271,22 @@ const Dashboard = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Live Field Operations</h1>
-          <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>Real-time overview of current cycle activities and agent status</p>
+          <h1 className="page-title">{viewerMode ? "MNGL Data Portal — Search & Export" : "Live Field Operations"}</h1>
+          <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
+            {viewerMode ? "Search properties and download meter reading verification photos" : "Real-time overview of current cycle activities and agent status"}
+          </p>
         </div>
       </div>
+
+      {viewerMode && (
+        <div style={{ background: 'rgba(79,156,249,0.1)', border: '1px solid #4f9cf9', borderRadius: '10px', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '20px' }}>🏢</span>
+          <div>
+            <div style={{ fontWeight: '600', color: '#4f9cf9', fontSize: '14px' }}>MNGL Data Portal</div>
+            <div style={{ color: 'var(--muted)', fontSize: '12px' }}>You have access to property search and meter image downloads only.</div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)', borderRadius: '8px', border: '1px solid var(--accent4)' }}>
@@ -430,145 +477,178 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Aggregate Stats Cards */}
-      <div className="dashboard-grid">
-        <div className="widget-card">
-          <div className="widget-icon" style={{ background: 'rgba(79, 156, 249, 0.1)', color: 'var(--accent2)' }}>
-            <Users size={20} />
+      {/* Bulk Image Export for Viewers */}
+      {viewerMode && (
+        <div style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '24px',
+          boxShadow: 'var(--shadow)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>Bulk Image Export</h3>
+            <p style={{ color: 'var(--muted)', fontSize: '12px' }}>Download all meter reading verification photos captured during the active cycle in a single ZIP file</p>
           </div>
-          <span className="widget-title">Total Agents</span>
-          <span className="widget-value">{data.summary.total_agents}</span>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent3)' }}>
-            <UserCheck size={20} />
-          </div>
-          <span className="widget-title">Present Today</span>
-          <span className="widget-value">{data.summary.present_agents}</span>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)' }}>
-            <CalendarDays size={20} />
-          </div>
-          <span className="widget-title">On Leave</span>
-          <span className="widget-value">{data.summary.leave_agents}</span>
-        </div>
-
-        <div className="widget-card">
-          <div className="widget-icon">
-            <CheckCircle2 size={20} />
-          </div>
-          <span className="widget-title">Completion Rate</span>
-          <span className="widget-value">{completionRate}%</span>
-        </div>
-      </div>
-
-      {/* Live Agent Attendance & Progress Table */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Agent Tracking Board</h3>
-          
-          {/* Search Input widget */}
-          <div style={{ position: 'relative', width: '280px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Search agent name or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ width: '100%', paddingLeft: '38px', paddingVertical: '8px', fontSize: '13px' }}
-            />
+          <div>
+            <button 
+              onClick={handleDownloadImages} 
+              className="btn btn-primary" 
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', fontSize: '14px', cursor: 'pointer' }}
+              disabled={loading}
+            >
+              📥 Download Meter Images (ZIP)
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="table-container">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Agent Name</th>
-                <th>Phone Number</th>
-                <th>Status</th>
-                <th>Check In</th>
-                <th>Last Active</th>
-                <th>Assigned</th>
-                <th>Done</th>
-                <th>Pending</th>
-                <th>Problem</th>
-                <th>Leave Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.agents.length === 0 ? (
-                <tr>
-                  <td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents registered or active in this workspace.</td>
-                </tr>
-              ) : data.agents.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()) || a.phone.includes(searchTerm)).length === 0 ? (
-                <tr>
-                  <td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents match your active search filter.</td>
-                </tr>
-              ) : (
-                data.agents
-                  .filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()) || agent.phone.includes(searchTerm))
-                  .map((agent) => (
-                    <tr key={agent.id} style={{ opacity: agent.is_on_leave ? 0.6 : 1 }}>
-                      <td style={{ fontWeight: '600', color: 'var(--text)' }}>{agent.name}</td>
-                      <td>{agent.phone}</td>
-                    <td>
-                      {agent.is_on_leave ? (
-                        <span className="badge badge-danger">On Leave</span>
-                      ) : agent.login_time ? (
-                        <span className="badge badge-success">Online</span>
-                      ) : (
-                        <span className="badge badge-pending">Offline</span>
-                      )}
-                    </td>
-                    <td>
-                      {agent.login_time ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Clock size={14} style={{ color: 'var(--muted)' }} />
-                          {new Date(agent.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      ) : '-'}
-                    </td>
-                    <td>
-                      {agent.last_active ? (
-                        new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      ) : '-'}
-                    </td>
-                    <td style={{ fontWeight: '500' }}>{agent.assigned_count}</td>
-                    <td style={{ color: 'var(--accent3)', fontWeight: '600' }}>{agent.done_count}</td>
-                    <td style={{ color: 'var(--accent)', fontWeight: '500' }}>{agent.pending_count}</td>
-                    <td style={{ color: 'var(--accent4)', fontWeight: '600' }}>{agent.problem_count}</td>
-                    <td>
-                      <button
-                        onClick={() => handleLeaveToggle(agent, agent.is_on_leave)}
-                        className={`btn ${agent.is_on_leave ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{ padding: '6px 12px', fontSize: '11px', cursor: 'pointer' }}
-                      >
-                        {agent.is_on_leave ? 'On Leave' : 'Mark Leave'}
-                      </button>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleAgentClick(agent)}
-                        className="btn btn-secondary"
-                        style={{ padding: '6px 10px', cursor: 'pointer' }}
-                        title="View activity detail log"
-                      >
-                        <Eye size={14} />
-                      </button>
-                    </td>
+      {!viewerMode && (
+        <>
+          {/* Aggregate Stats Cards */}
+          <div className="dashboard-grid">
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(79, 156, 249, 0.1)', color: 'var(--accent2)' }}>
+                <Users size={20} />
+              </div>
+              <span className="widget-title">Total Agents</span>
+              <span className="widget-value">{data.summary.total_agents}</span>
+            </div>
+
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent3)' }}>
+                <UserCheck size={20} />
+              </div>
+              <span className="widget-title">Present Today</span>
+              <span className="widget-value">{data.summary.present_agents}</span>
+            </div>
+
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)' }}>
+                <CalendarDays size={20} />
+              </div>
+              <span className="widget-title">On Leave</span>
+              <span className="widget-value">{data.summary.leave_agents}</span>
+            </div>
+
+            <div className="widget-card">
+              <div className="widget-icon">
+                <CheckCircle2 size={20} />
+              </div>
+              <span className="widget-title">Completion Rate</span>
+              <span className="widget-value">{completionRate}%</span>
+            </div>
+          </div>
+
+          {/* Live Agent Attendance & Progress Table */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Agent Tracking Board</h3>
+              
+              {/* Search Input widget */}
+              <div style={{ position: 'relative', width: '280px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search agent name or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ width: '100%', paddingLeft: '38px', paddingVertical: '8px', fontSize: '13px' }}
+                />
+              </div>
+            </div>
+
+            <div className="table-container">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Agent Name</th>
+                    <th>Phone Number</th>
+                    <th>Status</th>
+                    <th>Check In</th>
+                    <th>Last Active</th>
+                    <th>Assigned</th>
+                    <th>Done</th>
+                    <th>Pending</th>
+                    <th>Problem</th>
+                    <th>Leave Status</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody>
+                  {data.agents.length === 0 ? (
+                    <tr>
+                      <td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents registered or active in this workspace.</td>
+                    </tr>
+                  ) : data.agents.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase()) || a.phone.includes(searchTerm)).length === 0 ? (
+                    <tr>
+                      <td colSpan="11" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No agents match your active search filter.</td>
+                    </tr>
+                  ) : (
+                    data.agents
+                      .filter(agent => agent.name.toLowerCase().includes(searchTerm.toLowerCase()) || agent.phone.includes(searchTerm))
+                      .map((agent) => (
+                        <tr key={agent.id} style={{ opacity: agent.is_on_leave ? 0.6 : 1 }}>
+                          <td style={{ fontWeight: '600', color: 'var(--text)' }}>{agent.name}</td>
+                          <td>{agent.phone}</td>
+                          <td>
+                            {agent.is_on_leave ? (
+                              <span className="badge badge-danger">On Leave</span>
+                            ) : agent.login_time ? (
+                              <span className="badge badge-success">Online</span>
+                            ) : (
+                              <span className="badge badge-pending">Offline</span>
+                            )}
+                          </td>
+                          <td>
+                            {agent.login_time ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Clock size={14} style={{ color: 'var(--muted)' }} />
+                                {new Date(agent.login_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td>
+                            {agent.last_active ? (
+                              new Date(agent.last_active).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            ) : '-'}
+                          </td>
+                          <td style={{ fontWeight: '500' }}>{agent.assigned_count}</td>
+                          <td style={{ color: 'var(--accent3)', fontWeight: '600' }}>{agent.done_count}</td>
+                          <td style={{ color: 'var(--accent)', fontWeight: '500' }}>{agent.pending_count}</td>
+                          <td style={{ color: 'var(--accent4)', fontWeight: '600' }}>{agent.problem_count}</td>
+                          <td>
+                            <button
+                              onClick={() => handleLeaveToggle(agent, agent.is_on_leave)}
+                              className={`btn ${agent.is_on_leave ? 'btn-primary' : 'btn-secondary'}`}
+                              style={{ padding: '6px 12px', fontSize: '11px', cursor: 'pointer' }}
+                            >
+                              {agent.is_on_leave ? 'On Leave' : 'Mark Leave'}
+                            </button>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              onClick={() => handleAgentClick(agent)}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 10px', cursor: 'pointer' }}
+                              title="View activity detail log"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Agent Detail Modal (Drawer) */}
       {viewingAgent && (

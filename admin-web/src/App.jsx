@@ -29,6 +29,7 @@ const App = () => {
 
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
+  const isViewer = user?.role === 'viewer';
   const activePage = useAuthStore((state) => state.activePage);
   const setActivePage = useAuthStore((state) => state.setActivePage);
   const logout = useAuthStore((state) => state.logout);
@@ -61,6 +62,10 @@ const App = () => {
   };
 
   const renderActivePage = () => {
+    if (isViewer) {
+      return <Dashboard key={pageKeys.dashboard} viewerMode={true} />;
+    }
+
     switch (activePage) {
       case 'dashboard':
         return <Dashboard key={pageKeys.dashboard} />;
@@ -109,96 +114,100 @@ const App = () => {
                 Dashboard
               </button>
             </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('areas')}
-                className={`nav-link ${activePage === 'areas' ? 'active' : ''}`}
-              >
-                <MapPin size={18} />
-                Areas Browser
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('agents')}
-                className={`nav-link ${activePage === 'agents' ? 'active' : ''}`}
-              >
-                <Users size={18} />
-                Manage Agents
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('import')}
-                className={`nav-link ${activePage === 'import' ? 'active' : ''}`}
-              >
-                <FileSpreadsheet size={18} />
-                Import Excel
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('assignment')}
-                className={`nav-link ${activePage === 'assignment' ? 'active' : ''}`}
-              >
-                <UserCheck size={18} />
-                Bulk Assign
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('whatsapp')}
-                className={`nav-link ${activePage === 'whatsapp' ? 'active' : ''}`}
-              >
-                <MessageSquare size={18} />
-                WhatsApp
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('map')}
-                className={`nav-link ${activePage === 'map' ? 'active' : ''}`}
-              >
-                <Map size={18} />
-                MapView
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('alerts')}
-                className={`nav-link ${activePage === 'alerts' ? 'active' : ''}`}
-              >
-                <ShieldAlert size={18} />
-                Anomaly Alerts
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('reports')}
-                className={`nav-link ${activePage === 'reports' ? 'active' : ''}`}
-              >
-                <BarChart3 size={18} />
-                Analytics & Reports
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('performance')}
-                className={`nav-link ${activePage === 'performance' ? 'active' : ''}`}
-              >
-                <TrendingUp size={18} />
-                Agent Performance
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => handleNavClick('whatsapp_outreach')}
-                className={`nav-link ${activePage === 'whatsapp_outreach' ? 'active' : ''}`}
-              >
-                <MessageSquare size={18} />
-                WhatsApp Outreach
-              </button>
-            </li>
+            {!isViewer && (
+              <>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('areas')}
+                    className={`nav-link ${activePage === 'areas' ? 'active' : ''}`}
+                  >
+                    <MapPin size={18} />
+                    Areas Browser
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('agents')}
+                    className={`nav-link ${activePage === 'agents' ? 'active' : ''}`}
+                  >
+                    <Users size={18} />
+                    Manage Agents
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('import')}
+                    className={`nav-link ${activePage === 'import' ? 'active' : ''}`}
+                  >
+                    <FileSpreadsheet size={18} />
+                    Import Excel
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('assignment')}
+                    className={`nav-link ${activePage === 'assignment' ? 'active' : ''}`}
+                  >
+                    <UserCheck size={18} />
+                    Bulk Assign
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('whatsapp')}
+                    className={`nav-link ${activePage === 'whatsapp' ? 'active' : ''}`}
+                  >
+                    <MessageSquare size={18} />
+                    WhatsApp
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('map')}
+                    className={`nav-link ${activePage === 'map' ? 'active' : ''}`}
+                  >
+                    <Map size={18} />
+                    MapView
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('alerts')}
+                    className={`nav-link ${activePage === 'alerts' ? 'active' : ''}`}
+                  >
+                    <ShieldAlert size={18} />
+                    Anomaly Alerts
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('reports')}
+                    className={`nav-link ${activePage === 'reports' ? 'active' : ''}`}
+                  >
+                    <BarChart3 size={18} />
+                    Analytics & Reports
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('performance')}
+                    className={`nav-link ${activePage === 'performance' ? 'active' : ''}`}
+                  >
+                    <TrendingUp size={18} />
+                    Agent Performance
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('whatsapp_outreach')}
+                    className={`nav-link ${activePage === 'whatsapp_outreach' ? 'active' : ''}`}
+                  >
+                    <MessageSquare size={18} />
+                    WhatsApp Outreach
+                  </button>
+                </li>
+              </>
+            )}
           </ul>
         </nav>
 
