@@ -101,14 +101,21 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
         r.is_anomalous,
         r.anomaly_reason,
         r.submitted_at,
+        p.id as property_id,
         p.serial_no,
         p.consumer_name,
         p.address,
         p.meter_no,
-        p.property_type
+        p.property_type,
+        p.society,
+        p.raw_sap_data,
+        a.name as area_name,
+        ag.name as agent_name
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
+      LEFT JOIN areas a ON p.area_id = a.id
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
       WHERE asg.agent_id = $1 AND asg.cycle_id = $2
       ORDER BY r.submitted_at DESC
     `;
