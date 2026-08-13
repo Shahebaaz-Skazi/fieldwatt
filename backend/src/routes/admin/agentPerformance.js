@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
-const requireAdmin = require('../../middleware/requireAdmin');
+const { requireAdmin } = require('../../middleware/roleGuard');
 
 // GET /admin/agent-performance?period=daily|weekly|monthly|cycle&cycle_id=UUID
 router.get('/', authMiddleware, requireAdmin, async (req, res) => {
