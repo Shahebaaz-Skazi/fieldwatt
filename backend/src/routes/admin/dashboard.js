@@ -3,7 +3,7 @@ const router = express.Router();
 const { z } = require('zod');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
-const { requireAdmin } = require('../../middleware/roleGuard');
+const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
 
 // Helper to get active cycle id
 const getActiveCycleId = async () => {
@@ -15,7 +15,7 @@ const getActiveCycleId = async () => {
 };
 
 // GET /admin/dashboard - General summary and agent statuses
-router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
+router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const cycleId = await getActiveCycleId();
     
@@ -288,7 +288,7 @@ router.post('/readings/:id/revisit', authMiddleware, requireAdmin, async (req, r
 });
 
 // GET /admin/dashboard/global-search - Global property search across multiple fields
-router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next) => {
+router.get('/global-search', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const { q } = req.query;
     if (!q || !q.trim()) {
@@ -347,7 +347,7 @@ router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next
 });
 
 // GET /admin/dashboard/download-images - Stream meter reading images directly into a ZIP
-router.get('/download-images', authMiddleware, requireAdmin, async (req, res) => {
+router.get('/download-images', authMiddleware, requireViewer, async (req, res) => {
   try {
     const { cycle_id, year, month, mru, society, q } = req.query;
 

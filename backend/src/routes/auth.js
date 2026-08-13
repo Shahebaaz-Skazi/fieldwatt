@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const db = require('../db');
 const authMiddleware = require('../middleware/auth');
+const { requireAdmin } = require('../middleware/roleGuard');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
@@ -37,12 +38,12 @@ router.post('/admin/login', async (req, res, next) => {
     }
     
     const token = jwt.sign(
-      { id: admin.id, name: admin.name, email: admin.email, role: 'admin' },
+      { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
     
-    res.json({ token, user: { id: admin.id, name: admin.name, email: admin.email, role: 'admin' } });
+    res.json({ token, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } });
   } catch (error) {
     next(error);
   }
@@ -73,12 +74,12 @@ router.post('/agent/login', async (req, res, next) => {
       }
       
       const token = jwt.sign(
-        { id: admin.id, name: admin.name, email: admin.email, role: 'admin' },
+        { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
       );
       
-      return res.json({ token, user: { id: admin.id, name: admin.name, phone: admin.email, role: 'admin' } });
+      return res.json({ token, user: { id: admin.id, name: admin.name, phone: admin.email, role: admin.role } });
     }
 
     // Standard agent name or username login
@@ -118,6 +119,43 @@ router.get('/me', authMiddleware, async (req, res, next) => {
     res.json({ user: req.user });
   } catch (error) {
     next(error);
+  }
+});
+
+// GET /auth/admin/viewers — list all viewer accounts (admin only)
+router.get('/admin/viewers', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT id, name, email, role, created_at FROM admins WHERE role = 'viewer' ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /auth/admin/create-viewer — only full admins can create viewer accounts
+router.post('/admin/create-viewer', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email and password are required.' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+    const existing = await db.query('SELECT id FROM admins WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await db.query(
+      `INSERT INTO admins (name, email, password_hash, role) VALUES ($1, $2, $3, 'viewer') RETURNING id, name, email, role`,
+      [name, email, passwordHash]
+    );
+    res.status(201).json({ success: true, viewer: result.rows[0] });
+  } catch (err) {
+    next(err);
   }
 });
 

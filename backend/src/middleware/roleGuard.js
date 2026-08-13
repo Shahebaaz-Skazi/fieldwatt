@@ -12,7 +12,11 @@ const requireAgent = (req, res, next) => {
   next();
 };
 
-module.exports = {
-  requireAdmin,
-  requireAgent,
+const requireViewer = (req, res, next) => {
+  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'viewer')) {
+    return res.status(403).json({ error: 'Access forbidden.' });
+  }
+  next();
 };
+
+module.exports = { requireAdmin, requireAgent, requireViewer };
