@@ -341,7 +341,11 @@ const Dashboard = () => {
                     const mobile = prop.raw_sap_data?.['Mobile No.'] || prop.raw_sap_data?.['Telephone No.'] || 'N/A';
                     const bpNo = prop.raw_sap_data?.['BP No.'] || '-';
                     return (
-                      <tr key={prop.id}>
+                      <tr 
+                        key={prop.id}
+                        onClick={() => setViewingReading(prop)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {/* 1. Area / MRU */}
                         <td>
                           <span className="badge badge-pending" style={{ background: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}>
@@ -364,7 +368,7 @@ const Dashboard = () => {
                             <img 
                               src={prop.photo_url} 
                               alt="Meter Reading"
-                              onClick={() => setZoomPhoto(prop.photo_url)}
+                              onClick={(e) => { e.stopPropagation(); setZoomPhoto(prop.photo_url); }}
                               style={{ 
                                 width: '70px', 
                                 height: '70px', 
