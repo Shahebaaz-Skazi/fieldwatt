@@ -22,7 +22,7 @@ router.get('/', async (req, res, next) => {
     try {
       decoded = jwt.verify(token, secret);
     } catch (err) {
-      return res.status(401).json({ error: 'Link expired or invalid' });
+      return res.status(401).json({ error: 'Link expired or invalid', details: err.message, secretSource: process.env.JWT_SECRET ? 'env' : 'fallback' });
     }
 
     const { propertyId, assignmentId } = decoded;
