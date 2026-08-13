@@ -299,6 +299,7 @@ router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next
     const queryText = `
       SELECT 
         p.id,
+        p.id as property_id,
         p.serial_no,
         p.consumer_name,
         p.address,
@@ -309,6 +310,7 @@ router.get('/global-search', authMiddleware, requireAdmin, async (req, res, next
         a.name as area_name,
         ag.name as agent_name,
         asg.id as assignment_id,
+        r.id as reading_id,
         r.status_code,
         r.reading_value,
         r.photo_url,
