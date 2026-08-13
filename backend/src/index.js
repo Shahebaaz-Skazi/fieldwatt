@@ -72,6 +72,21 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
+app.get('/debug-token', (req, res) => {
+  const jwt = require('jsonwebtoken');
+  const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
+  const token = jwt.sign(
+    {
+      propertyId: 'b7bb7074-3e8f-4ac3-a9be-b4bdae37e798',
+      assignmentId: null,
+      expiresAt: '7d'
+    },
+    secret,
+    { expiresIn: '7d' }
+  );
+  res.json({ url: `https://fieldwatt.vercel.app/self-reading?token=${token}` });
+});
+
 // Temporary endpoint to debug and force migrations on production
 app.get('/debug-db', async (req, res) => {
   const results = [];
