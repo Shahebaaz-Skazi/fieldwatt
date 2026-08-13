@@ -400,6 +400,7 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
 
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+    res.setHeader('Transfer-Encoding', 'chunked');
 
     const createArchive = (options) => {
       if (typeof archiver === 'function') return archiver('zip', options);
@@ -420,38 +421,52 @@ router.get('/download-images', authMiddleware, requireAdmin, async (req, res) =>
     archive.pipe(res);
 
     const usedFilenames = new Set();
+    const usedFilenamesMutex = { locked: false };
 
-    for (const row of result.rows) {
-      try {
-        const imageRes = await axios.get(row.photo_url, { responseType: 'arraybuffer', timeout: 10000 });
-        const buffer = Buffer.from(imageRes.data);
-        
-        // BP No. from raw_sap_data or fallback to p.serial_no
-        const bpNo = row.sap_bp_no || row.serial_no || '0000000000';
-        
-        // Date format: DD-MM-YYYY
-        let dateStr = '01-01-2026';
-        if (row.submitted_at) {
-          const d = new Date(row.submitted_at);
-          const day = String(d.getDate()).padStart(2, '0');
-          const monthStr = String(d.getMonth() + 1).padStart(2, '0');
-          const yearStr = d.getFullYear();
-          dateStr = `${day}-${monthStr}-${yearStr}`;
+    const BATCH_SIZE = 10;
+    const rows = result.rows;
+
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(batch.map(async (row) => {
+        try {
+          const imageRes = await axios.get(row.photo_url, {
+            responseType: 'arraybuffer',
+            timeout: 15000
+          });
+          const buffer = Buffer.from(imageRes.data);
+
+          const bpNo = row.sap_bp_no || row.serial_no || '0000000000';
+
+          let dateStr = '01-01-2026';
+          if (row.submitted_at) {
+            const d = new Date(row.submitted_at);
+            const day = String(d.getDate()).padStart(2, '0');
+            const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+            const yearStr = d.getFullYear();
+            dateStr = `${day}-${monthStr}-${yearStr}`;
+          }
+
+          return { buffer, bpNo, dateStr, serial_no: row.serial_no };
+        } catch (imgErr) {
+          console.warn(`Skipping image for ${row.serial_no}:`, imgErr.message);
+          return null;
         }
+      }));
 
-        const baseFilename = `${bpNo}_${dateStr}`;
+      // Append to archive sequentially after each batch to avoid filename collision
+      for (const item of batchResults) {
+        if (!item) continue;
+        const baseFilename = `${item.bpNo}_${item.dateStr}`;
         let filename = `${baseFilename}.jpg`;
-        
         let dupCount = 1;
         while (usedFilenames.has(filename)) {
           filename = `${baseFilename}_${dupCount}.jpg`;
           dupCount++;
         }
         usedFilenames.add(filename);
-
-        archive.append(buffer, { name: filename });
-      } catch (imgErr) {
-        console.warn(`Skipping image for ${row.serial_no}:`, imgErr.message);
+        archive.append(item.buffer, { name: filename });
       }
     }
 
