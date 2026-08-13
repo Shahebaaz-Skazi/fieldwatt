@@ -72,6 +72,30 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
+app.get('/debug-query', async (req, res) => {
+  try {
+    const q = `
+      SELECT 
+        p.id as property_id,
+        p.serial_no,
+        p.consumer_name,
+        asg.id as assignment_id,
+        asg.cycle_id,
+        r.id as reading_id,
+        r.status_code,
+        r.photo_url
+      FROM properties p
+      LEFT JOIN assignments asg ON p.id = asg.property_id
+      LEFT JOIN readings r ON asg.id = r.assignment_id
+      WHERE p.serial_no = '16449624' OR p.raw_sap_data->>'BP No.' LIKE '%16449624%';
+    `;
+    const result = await db.query(q);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Temporary endpoint to debug and force migrations on production
 app.get('/debug-db', async (req, res) => {
   const results = [];
