@@ -196,9 +196,9 @@ const Dashboard = () => {
       const propId = viewingReading.property_id || viewingReading.id;
       if (!propId) throw new Error('Property ID not found. Cannot update reading.');
       await api.post(`/admin/areas/property/${propId}/reading`, {
-        status_code: viewingReading.status_code,
-        reading_value: viewingReading.reading_value,
-        note: viewingReading.note,
+        status_code: viewingReading.status_code || 'reading_taken',
+        reading_value: viewingReading.reading_value || null,
+        note: viewingReading.note || null,
         photo_url: photoUrl,
       });
 
@@ -792,7 +792,7 @@ const Dashboard = () => {
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Status</span>
                   <span className={`badge ${viewingReading.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
-                    {viewingReading.status_code.replace('_', ' ')}
+                    {viewingReading.status_code ? viewingReading.status_code.replace(/_/g, ' ') : 'Not Visited'}
                   </span>
                 </div>
                 <div>
@@ -834,56 +834,64 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Submission Date</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text)' }}>{new Date(viewingReading.submitted_at).toLocaleString()}</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+                    {viewingReading.submitted_at ? new Date(viewingReading.submitted_at).toLocaleString() : 'Not Submitted Yet'}
+                  </span>
                 </div>
               </div>
 
-              {viewingReading.photo_url && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>Reading Verification Photo</span>
-                    <button
-                      onClick={() => setEditingPhoto(!editingPhoto)}
-                      style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      ✏️ Edit Photo
-                    </button>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>
+                    Reading Verification Photo
+                  </span>
+                  <button
+                    onClick={() => setEditingPhoto(!editingPhoto)}
+                    style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    {viewingReading.photo_url ? '✏️ Edit Photo' : '📷 Add Photo'}
+                  </button>
+                </div>
+
+                {editingPhoto && (
+                  <div style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '8px', padding: '12px' }}>
+                    <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
+                      Select a photo. Watermark will be applied automatically.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDashboardPhotoEdit}
+                      disabled={editPhotoUploading}
+                      style={{ fontSize: '12px', color: 'var(--muted)', width: '100%' }}
+                    />
+                    {editPhotoUploading && (
+                      <p style={{ fontSize: '12px', color: '#f5a623', marginTop: '6px' }}>⏳ Applying watermark and uploading...</p>
+                    )}
                   </div>
+                )}
 
-                  {editingPhoto && (
-                    <div style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '8px', padding: '12px' }}>
-                      <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-                        Select a new photo. Watermark will be applied automatically.
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleDashboardPhotoEdit}
-                        disabled={editPhotoUploading}
-                        style={{ fontSize: '12px', color: 'var(--muted)', width: '100%' }}
-                      />
-                      {editPhotoUploading && (
-                        <p style={{ fontSize: '12px', color: '#f5a623', marginTop: '6px' }}>⏳ Applying watermark and uploading...</p>
-                      )}
-                    </div>
-                  )}
+                {editPhotoWatermarkApplied && (
+                  <p style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>✓ Photo updated with watermark applied</p>
+                )}
 
-                  {editPhotoWatermarkApplied && (
-                    <p style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>✓ Photo updated with watermark applied</p>
-                  )}
-
+                {viewingReading.photo_url ? (
                   <div style={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoomPhoto(viewingReading.photo_url)}>
-                    <img 
-                      src={viewingReading.photo_url} 
-                      alt="Verification meter upload" 
-                      style={{ width: '100%', maxHeight: '350px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#000' }} 
+                    <img
+                      src={viewingReading.photo_url}
+                      alt="Verification meter upload"
+                      style={{ width: '100%', maxHeight: '350px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#000' }}
                     />
                     <div style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <ZoomIn size={12} /> Click to zoom
                     </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div style={{ width: '100%', height: '120px', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--muted)' }}>No photo uploaded yet</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
