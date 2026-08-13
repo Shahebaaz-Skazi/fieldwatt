@@ -12,7 +12,8 @@ import Reports from './pages/Reports';
 import SelfReading from './pages/SelfReading';
 import WhatsAppPanel from './pages/WhatsAppPanel';
 import WhatsAppDashboard from './pages/WhatsAppDashboard';
-import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare } from 'lucide-react';
+import AgentPerformance from './pages/AgentPerformance';
+import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp } from 'lucide-react';
 
 const App = () => {
   if (window.location.pathname === '/self-reading') {
@@ -43,7 +44,8 @@ const App = () => {
     alerts: 0,
     reports: 0,
     whatsapp: 0,
-    whatsapp_outreach: 0
+    whatsapp_outreach: 0,
+    performance: 0
   });
 
   if (!token) {
@@ -76,6 +78,8 @@ const App = () => {
         return <Alerts key={pageKeys.alerts} />;
       case 'reports':
         return <Reports key={pageKeys.reports} />;
+      case 'performance':
+        return <AgentPerformance key={pageKeys.performance || 'performance'} />;
       case 'whatsapp':
         return <WhatsAppPanel key={pageKeys.whatsapp} />;
       case 'whatsapp_outreach':
@@ -175,6 +179,15 @@ const App = () => {
               >
                 <BarChart3 size={18} />
                 Analytics & Reports
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => handleNavClick('performance')}
+                className={`nav-link ${activePage === 'performance' ? 'active' : ''}`}
+              >
+                <TrendingUp size={18} />
+                Agent Performance
               </button>
             </li>
             <li>
