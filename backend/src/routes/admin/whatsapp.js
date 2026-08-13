@@ -106,7 +106,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
                     { type: 'text', text: selfReadingUrl }
                   ]
                 }]
-              })
+              }
             })
           }
         );
