@@ -737,8 +737,28 @@ const Dashboard = () => {
 
       {/* Property Reading Details Modal */}
       {viewingReading && (
-        <div className="modal-overlay" onClick={closeReadingModal}>
-          <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="modal-overlay" 
+          onClick={closeReadingModal}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div 
+            className="modal-content" 
+            style={{ 
+              maxWidth: '600px', 
+              width: '95%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               <div>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Reading Details</h2>
