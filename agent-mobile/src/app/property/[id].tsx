@@ -172,7 +172,7 @@ export default function PropertyDetailScreen() {
           const manipulated = await ImageManipulator.manipulateAsync(
             pendingWatermarkUri,
             [{ resize: { width: 1080 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG }
           );
           targetUri = manipulated.uri;
         } catch (e) {
@@ -199,7 +199,7 @@ export default function PropertyDetailScreen() {
         if (watermarkShotRef.current) {
           const watermarkedUri = await watermarkShotRef.current.capture({
             format: 'jpg',
-            quality: 0.85,
+            quality: 0.95,
             result: 'tmpfile',
             useRenderInContext: true,
           });
@@ -282,7 +282,7 @@ export default function PropertyDetailScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
+        quality: 1.0,
         allowsEditing: false,
       });
 
@@ -315,22 +315,6 @@ export default function PropertyDetailScreen() {
     } catch (err) {
       console.error('Gallery pick failed:', err);
       showAlert('Gallery Error', 'Could not open gallery. Please try again.');
-    }
-  };
-
-  const compressPhoto = async (uri: string) => {
-    // Compress to 200KB (approx)
-    if (uri.startsWith('http')) return uri; // Skip remote urls
-    try {
-      const result = await ImageManipulator.manipulateAsync(
-        uri,
-        [], // no resize — preserve original dimensions
-        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      return result.uri;
-    } catch (error) {
-      console.warn('Failed to compress photo:', error);
-      return uri;
     }
   };
 
@@ -489,7 +473,7 @@ export default function PropertyDetailScreen() {
                   setCaptureGps(cameraGps);
                   
                   // Take the raw photo
-                  const photo = await cameraRef.current.takePictureAsync({ quality: 0.9 });
+                  const photo = await cameraRef.current.takePictureAsync({ quality: 1.0, skipProcessing: false, exif: false });
                   console.log('✔ Raw photo captured:', photo.uri);
 
 
