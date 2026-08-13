@@ -193,7 +193,9 @@ const Dashboard = () => {
       if (!uploadRes.ok) throw new Error('Upload failed');
 
       // Update reading photo_url in database
-      await api.post(`/admin/areas/property/${viewingReading.property_id}/reading`, {
+      const propId = viewingReading.property_id || viewingReading.id;
+      if (!propId) throw new Error('Property ID not found. Cannot update reading.');
+      await api.post(`/admin/areas/property/${propId}/reading`, {
         status_code: viewingReading.status_code,
         reading_value: viewingReading.reading_value,
         note: viewingReading.note,
