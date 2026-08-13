@@ -99,6 +99,7 @@ app.get('/debug-db', async (req, res) => {
   await runQuery('whatsapp_logs token', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS token TEXT DEFAULT NULL;`);
   await runQuery('whatsapp_logs consumer_name', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS consumer_name TEXT DEFAULT NULL;`);
   await runQuery('whatsapp_logs cycle_id', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS cycle_id UUID DEFAULT NULL;`);
+  await runQuery('admins role', `ALTER TABLE admins ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin';`);
 
   res.json({ results });
 });
