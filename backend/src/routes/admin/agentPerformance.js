@@ -27,8 +27,11 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         ag.name as agent_name,
         ag.last_login,
         COUNT(DISTINCT asg.id) as total_assigned,
+        -- All-time completed (for not_visited and completion % — unaffected by period filter)
+        COUNT(DISTINCT r_all.id) as total_submitted_alltime,
+        COUNT(DISTINCT asg.id) - COUNT(DISTINCT r_all.id) as not_visited,
+        -- Period-filtered counts (for the breakdown cards)
         COUNT(DISTINCT r.id) as total_submitted,
-        COUNT(DISTINCT asg.id) - COUNT(DISTINCT r.id) as not_visited,
         COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END) as reading_taken,
         COUNT(CASE WHEN r.status_code = 'door_locked' THEN 1 END) as door_locked,
         COUNT(CASE WHEN r.status_code = 'not_reachable' THEN 1 END) as not_reachable,
@@ -38,12 +41,13 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         COUNT(CASE WHEN r.status_code = 'vacant_property' THEN 1 END) as vacant_property,
         COUNT(CASE WHEN r.status_code = 'revisit_needed' THEN 1 END) as revisit_needed,
         ROUND(
-          CASE WHEN COUNT(DISTINCT asg.id) > 0 
-          THEN COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END)::numeric / COUNT(DISTINCT asg.id) * 100
+          CASE WHEN COUNT(DISTINCT asg.id) > 0
+          THEN COUNT(DISTINCT r_all.id)::numeric / COUNT(DISTINCT asg.id) * 100
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
       LEFT JOIN assignments asg ON ag.id = asg.agent_id
+      LEFT JOIN readings r_all ON asg.id = r_all.assignment_id
       LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
       WHERE ag.is_active = true
       GROUP BY ag.id, ag.name, ag.last_login
