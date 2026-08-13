@@ -150,7 +150,7 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
   }
 });
 // GET /admin/assignments/mrus - Get list of distinct MRU names (area names from areas table)
-router.get('/mrus', authMiddleware, requireAdmin, async (req, res, next) => {
+router.get('/mrus', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const result = await db.query(
       "SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' ORDER BY name ASC"
@@ -162,7 +162,7 @@ router.get('/mrus', authMiddleware, requireAdmin, async (req, res, next) => {
 });
 
 // GET /admin/assignments/months - Get available years and months for a selected MRU area name (or all)
-router.get('/months', authMiddleware, requireAdmin, async (req, res, next) => {
+router.get('/months', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const { mru } = req.query;
     if (!mru) {
