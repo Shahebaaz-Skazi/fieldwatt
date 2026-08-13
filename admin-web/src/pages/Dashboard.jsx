@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search } from 'lucide-react';
+import { applyAdminWatermark } from '../utils/watermark';
 
 const Dashboard = () => {
   const [data, setData] = useState({
@@ -34,6 +35,17 @@ const Dashboard = () => {
   // Photo viewer zoom
   const [zoomPhoto, setZoomPhoto] = useState(null);
 
+  // Photo edit states
+  const [editingPhoto, setEditingPhoto] = useState(false);
+  const [editPhotoWatermarkApplied, setEditPhotoWatermarkApplied] = useState(false);
+  const [editPhotoUploading, setEditPhotoUploading] = useState(false);
+
+  const closeReadingModal = () => {
+    setViewingReading(null);
+    setEditingPhoto(false);
+    setEditPhotoWatermarkApplied(false);
+  };
+
   const fetchDashboardData = async () => {
     try {
       const response = await api.get('/admin/dashboard', { noCache: true });
@@ -57,7 +69,7 @@ const Dashboard = () => {
         setViewingAgent(null);
         setReassignAgent(null);
         setZoomPhoto(null);
-        setViewingReading(null);
+        closeReadingModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -153,6 +165,50 @@ const Dashboard = () => {
     setGlobalQuery('');
     setGlobalResults([]);
     setSearchActive(false);
+  };
+
+  const handleDashboardPhotoEdit = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !viewingReading) return;
+    setEditPhotoUploading(true);
+    setEditPhotoWatermarkApplied(false);
+    try {
+      const watermarkedBlob = await applyAdminWatermark(file, {
+        consumerName: viewingReading.consumer_name || '',
+        meterNo: viewingReading.meter_no || '',
+        bpNo: viewingReading.raw_sap_data?.['BP No.'] || '',
+      });
+
+      const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
+        filename: `admin_edit_${Date.now()}.jpg`,
+        contentType: 'image/jpeg',
+      });
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: watermarkedBlob,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+
+      if (!uploadRes.ok) throw new Error('Upload failed');
+
+      // Update reading photo_url in database
+      await api.post(`/admin/areas/property/${viewingReading.property_id}/reading`, {
+        status_code: viewingReading.status_code,
+        reading_value: viewingReading.reading_value,
+        note: viewingReading.note,
+        photo_url: photoUrl,
+      });
+
+      // Update local state so modal shows new photo immediately
+      setViewingReading(prev => ({ ...prev, photo_url: photoUrl }));
+      setEditPhotoWatermarkApplied(true);
+      setEditingPhoto(false);
+    } catch (err) {
+      alert('Failed to update photo: ' + (err.message || 'Unknown error'));
+    } finally {
+      setEditPhotoUploading(false);
+    }
   };
 
   if (loading) {
@@ -545,7 +601,11 @@ const Dashboard = () => {
                       </tr>
                     ) : (
                       agentReadings.map((reading) => (
-                        <tr key={reading.reading_id}>
+                        <tr 
+                          key={reading.reading_id}
+                          onClick={() => setViewingReading(reading)}
+                          style={{ cursor: 'pointer' }}
+                        >
                           <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reading.serial_no}</td>
                           <td>{reading.consumer_name}</td>
                           <td>
@@ -559,7 +619,7 @@ const Dashboard = () => {
                           <td>
                             {reading.photo_url ? (
                               <button 
-                                onClick={() => setZoomPhoto(reading.photo_url)} 
+                                onClick={(e) => { e.stopPropagation(); setZoomPhoto(reading.photo_url); }} 
                                 style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
                               >
                                 <ZoomIn size={14} />
@@ -671,14 +731,14 @@ const Dashboard = () => {
 
       {/* Property Reading Details Modal */}
       {viewingReading && (
-        <div className="modal-overlay" onClick={() => setViewingReading(null)}>
+        <div className="modal-overlay" onClick={closeReadingModal}>
           <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               <div>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Reading Details</h2>
                 <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>Consumer Order Sr. {viewingReading.serial_no}</p>
               </div>
-              <button onClick={() => setViewingReading(null)} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>
+              <button onClick={closeReadingModal} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>
                 <X size={16} />
               </button>
             </div>
@@ -754,7 +814,38 @@ const Dashboard = () => {
 
               {viewingReading.photo_url && (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Verification Photo</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>Reading Verification Photo</span>
+                    <button
+                      onClick={() => setEditingPhoto(!editingPhoto)}
+                      style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      ✏️ Edit Photo
+                    </button>
+                  </div>
+
+                  {editingPhoto && (
+                    <div style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '8px', padding: '12px' }}>
+                      <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
+                        Select a new photo. Watermark will be applied automatically.
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleDashboardPhotoEdit}
+                        disabled={editPhotoUploading}
+                        style={{ fontSize: '12px', color: 'var(--muted)', width: '100%' }}
+                      />
+                      {editPhotoUploading && (
+                        <p style={{ fontSize: '12px', color: '#f5a623', marginTop: '6px' }}>⏳ Applying watermark and uploading...</p>
+                      )}
+                    </div>
+                  )}
+
+                  {editPhotoWatermarkApplied && (
+                    <p style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>✓ Photo updated with watermark applied</p>
+                  )}
+
                   <div style={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoomPhoto(viewingReading.photo_url)}>
                     <img 
                       src={viewingReading.photo_url} 
