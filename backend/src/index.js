@@ -72,29 +72,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
-app.get('/debug-properties', async (req, res) => {
-  const jwt = require('jsonwebtoken');
-  const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
-  try {
-    const result = await db.query('SELECT id, consumer_name FROM properties LIMIT 5');
-    const properties = result.rows.map(p => {
-      const token = jwt.sign(
-        { propertyId: p.id, assignmentId: null, expiresAt: '7d' },
-        secret,
-        { expiresIn: '7d' }
-      );
-      return {
-        id: p.id,
-        name: p.consumer_name,
-        url: `https://fieldwatt.vercel.app/self-reading?token=${token}`
-      };
-    });
-    res.json({ properties });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Temporary endpoint to debug and force migrations on production
 app.get('/debug-db', async (req, res) => {
   const results = [];
