@@ -5,6 +5,7 @@ import { Search, MapPin, Users, Calendar, Filter, CheckSquare, Square, Check, Re
 const Assignment = () => {
   const [properties, setProperties] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [agentStatusMap, setAgentStatusMap] = useState({});
   const [societies, setSocieties] = useState([]);
   
   // Filter and selection options list
@@ -42,12 +43,27 @@ const Assignment = () => {
     try {
       setLoading(true);
       setMessage({ text: '', type: '' });
-      const [mrusData, agentsData] = await Promise.all([
+      const [mrusData, agentsData, dashboardData] = await Promise.all([
         api.get('/admin/assignments/mrus'),
         api.get('/admin/agents'),
+        api.get('/admin/dashboard'),
       ]);
       setMrus(mrusData);
       setAgents(agentsData.filter(a => a.is_active));
+
+      // Build a map of agent_id -> status for quick lookup
+      const statusMap = {};
+      if (dashboardData?.agents) {
+        dashboardData.agents.forEach(a => {
+          statusMap[a.id] = {
+            is_on_leave: a.is_on_leave,
+            login_time: a.login_time,
+            last_active: a.last_active,
+            last_login: a.last_login,
+          };
+        });
+      }
+      setAgentStatusMap(statusMap);
       
       if (mrusData.length > 0) {
         setSelectedMru(mrusData[0]);
@@ -247,10 +263,44 @@ const Assignment = () => {
   };
 
   const getStatusBadge = (prop) => {
-    if (!prop.assignment_id) return <span className="badge badge-danger">Unassigned</span>;
-    if (prop.status_code === 'completed') return <span className="badge badge-success">Completed ({prop.reading_value})</span>;
-    if (prop.status_code === 'door_locked') return <span className="badge" style={{ backgroundColor: '#f59e0b', color: '#fff' }}>Door Locked</span>;
-    return <span className="badge badge-success" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>Assigned ({prop.agent_name})</span>;
+    if (!prop.assignment_id) {
+      return <span className="badge badge-danger">Not Assigned</span>;
+    }
+
+    const code = prop.status_code;
+
+    if (!code) {
+      return <span className="badge" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+        Assigned to {prop.agent_name} — Not Visited Yet
+      </span>;
+    }
+
+    if (code === 'reading_taken') {
+      return <span className="badge badge-success">
+        ✓ Reading Done {prop.reading_value ? `(${prop.reading_value})` : ''}
+      </span>;
+    }
+
+    const labelMap = {
+      'door_locked':     { bg: '#f59e0b', text: '🔒 Door Locked' },
+      'not_reachable':   { bg: '#f59e0b', text: '📵 Not Reachable' },
+      'access_denied':   { bg: '#ef4444', text: '❌ Access Denied' },
+      'meter_not_found': { bg: '#8b5cf6', text: '🔍 Meter Not Found' },
+      'meter_damaged':   { bg: '#ef4444', text: '⚠️ Meter Damaged' },
+      'revisit_needed':  { bg: '#f59e0b', text: '🔄 Needs Revisit' },
+      'vacant_property': { bg: '#6b7280', text: '🏚️ Vacant Property' },
+    };
+
+    const match = labelMap[code];
+    if (match) {
+      return <span className="badge" style={{ backgroundColor: match.bg, color: '#fff' }}>
+        {match.text}
+      </span>;
+    }
+
+    return <span className="badge" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+      Assigned to {prop.agent_name} — Not Visited Yet
+    </span>;
   };
 
   // Slice paginated flats
@@ -259,6 +309,23 @@ const Assignment = () => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  const getAgentStatusLabel = (agentId) => {
+    const s = agentStatusMap[agentId];
+    if (!s) return '';
+    if (s.is_on_leave) return ' 🔴 On Leave';
+    if (s.login_time) {
+      const lastActive = new Date(s.last_active || s.login_time);
+      const minutesAgo = Math.floor((Date.now() - lastActive) / 60000);
+      if (minutesAgo < 60) return ` 🟢 Active ${minutesAgo}m ago`;
+      if (minutesAgo < 1440) return ` 🟡 Last seen ${Math.floor(minutesAgo / 60)}h ago`;
+    }
+    if (s.last_login) {
+      const d = new Date(s.last_login);
+      return ` ⚫ Last login: ${d.toLocaleDateString('en-IN')}`;
+    }
+    return ' ⚫ Never logged in';
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -548,7 +615,9 @@ const Assignment = () => {
             >
               <option value="all">All Agents</option>
               {agents.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
+                <option key={a.id} value={a.id}>
+                  {a.name}{getAgentStatusLabel(a.id)}
+                </option>
               ))}
             </select>
           </div>
@@ -740,7 +809,9 @@ const Assignment = () => {
               >
                 <option value="">-- Choose Agent --</option>
                 {agents.map(a => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.name}{getAgentStatusLabel(a.id)}
+                  </option>
                 ))}
               </select>
               

@@ -6,6 +6,57 @@ import {
   Plus, ChevronRight, RefreshCw, Sparkles, BookOpen, AlertCircle
 } from 'lucide-react';
 
+const applyAdminWatermark = (file, propertyDetails) => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      const pad = Math.max(16, img.width * 0.018);
+      const fontSize = Math.max(20, img.width * 0.022);
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.lineWidth = Math.max(3, fontSize * 0.15);
+
+      const drawText = (text, x, y) => {
+        ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+        ctx.strokeText(text, x, y);
+        ctx.fillStyle = 'rgba(255,255,0,0.95)';
+        ctx.fillText(text, x, y);
+      };
+
+      const now = new Date().toLocaleString('en-IN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+      });
+
+      // Top left — consumer name
+      ctx.textAlign = 'left';
+      drawText(propertyDetails.consumerName || 'Admin Edit', pad, pad + fontSize);
+
+      // Top right — date time
+      ctx.textAlign = 'right';
+      drawText(now, canvas.width - pad, pad + fontSize);
+
+      // Bottom left — meter number
+      ctx.textAlign = 'left';
+      drawText(`Meter: ${propertyDetails.meterNo || ''}`, pad, canvas.height - pad - fontSize * 1.4);
+      drawText(`BP: ${propertyDetails.bpNo || ''}`, pad, canvas.height - pad);
+
+      // Bottom right — FieldWatt-Admin tag
+      ctx.textAlign = 'right';
+      drawText('FieldWatt-Admin', canvas.width - pad, canvas.height - pad);
+
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 const Areas = () => {
   // Navigation level states
   // 'files' -> 'months' -> 'areas' -> 'seats'
@@ -50,6 +101,7 @@ const Areas = () => {
   const [adminNote, setAdminNote] = useState('');
   const [adminPhotoUrl, setAdminPhotoUrl] = useState('');
   const [submittingReading, setSubmittingReading] = useState(false);
+  const [watermarkApplied, setWatermarkApplied] = useState(false);
 
   // Fetch Level 1: File Codes
   const fetchFileCodes = async () => {
@@ -140,18 +192,37 @@ const Areas = () => {
   const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const formData = new FormData();
-    formData.append('photo', file);
-
     setSubmittingReading(true);
     setError('');
     setSuccess('');
+    setWatermarkApplied(false);
 
     try {
-      const response = await api.post('/admin/areas/upload-photo', formData);
-      setAdminPhotoUrl(response.photoUrl);
-      setSuccess('Photo uploaded successfully!');
+      // 1. Apply watermark using canvas
+      const watermarkedBlob = await applyAdminWatermark(file, {
+        consumerName: selectedProperty?.consumer_name || '',
+        meterNo: selectedProperty?.meter_no || '',
+        bpNo: selectedProperty?.bp_no || selectedProperty?.raw_sap_data?.['BP No.'] || '',
+      });
+
+      // 2. Get presigned upload URL from backend
+      const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
+        filename: `admin_${Date.now()}.jpg`,
+        contentType: 'image/jpeg',
+      });
+
+      // 3. Upload watermarked blob directly to Supabase via presigned URL
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: watermarkedBlob,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+
+      if (!uploadRes.ok) throw new Error('Photo upload to storage failed.');
+
+      setAdminPhotoUrl(photoUrl);
+      setWatermarkApplied(true);
+      setSuccess('Photo uploaded with watermark applied.');
     } catch (err) {
       setError(err.message || 'Failed to upload photo.');
     } finally {
@@ -1103,12 +1174,25 @@ const Areas = () => {
                           style={{ width: '100%', height: '200px', objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: '#000' }} 
                         />
                         <button
-                          onClick={() => setAdminPhotoUrl('')}
+                          onClick={() => { setAdminPhotoUrl(''); setWatermarkApplied(false); }}
                           type="button"
                           style={{ position: 'absolute', right: '4px', top: '4px', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
                         >
                           <X size={10} />
                         </button>
+                        {watermarkApplied && (
+                          <div style={{
+                            marginTop: '4px',
+                            fontSize: '11px',
+                            color: '#22c55e',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            ✓ Watermark applied automatically
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <input 
