@@ -46,6 +46,7 @@ const agentAssignmentsRouter = require('./routes/agent/assignments');
 const agentUploadRouter = require('./routes/agent/upload');
 const { router: agentSyncRouter } = require('./routes/agent/sync');
 const adminWhatsappRouter = require('./routes/admin/whatsapp');
+const agentPerformanceRouter = require('./routes/admin/agentPerformance');
 const publicSelfReadingRouter = require('./routes/public/selfReading');
 
 // Mount routes
@@ -60,6 +61,7 @@ app.use('/agent/upload-url', agentUploadRouter); // Wait, spec endpoint: POST /a
 app.use('/sync', agentSyncRouter); // Mount at /sync to serve /sync/batch
 app.use('/admin/whatsapp', authMiddleware, adminWhatsappRouter);
 app.use('/public/self-reading', publicSelfReadingRouter);
+app.use('/admin/agent-performance', agentPerformanceRouter);
 
 // POST /agent/upload-url mapping directly if needed
 // Let's also support POST /agent/upload-url route directly for consistency
