@@ -925,15 +925,17 @@ const Dashboard = ({ viewerMode = false }) => {
                   <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase' }}>
                     Reading Verification Photo
                   </span>
-                  <button
-                    onClick={() => setEditingPhoto(!editingPhoto)}
-                    style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
-                  >
-                    {viewingReading.photo_url ? '✏️ Edit Photo' : '📷 Add Photo'}
-                  </button>
+                  {!viewerMode && (
+                    <button
+                      onClick={() => setEditingPhoto(!editingPhoto)}
+                      style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
+                    >
+                      {viewingReading.photo_url ? '✏️ Edit Photo' : '📷 Add Photo'}
+                    </button>
+                  )}
                 </div>
 
-                {editingPhoto && (
+                {!viewerMode && editingPhoto && (
                   <div style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '8px', padding: '12px' }}>
                     <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
                       Select a photo. Watermark will be applied automatically.
