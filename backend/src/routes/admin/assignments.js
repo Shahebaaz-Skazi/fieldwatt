@@ -3,7 +3,7 @@ const router = express.Router();
 const { z } = require('zod');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
-const { requireAdmin } = require('../../middleware/roleGuard');
+const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
 
 // Helper to get active cycle id
 const getActiveCycleId = async () => {
@@ -368,7 +368,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
 });
 
 // GET /admin/assignments/export - Export properties, readings, and assignment logs in exact 30-column SAP Excel format
-router.get('/export', authMiddleware, requireAdmin, async (req, res, next) => {
+router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
     if (!mru || !year || !month) {
