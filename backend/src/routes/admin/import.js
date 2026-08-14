@@ -205,6 +205,12 @@ router.delete('/:importId', authMiddleware, requireAdmin, async (req, res, next)
   try {
     const { importId } = req.params;
 
+    // Delete associated WhatsApp logs safely before deleting properties
+    await db.query(`
+      DELETE FROM whatsapp_logs 
+      WHERE property_id IN (SELECT id FROM properties WHERE import_id = $1)
+    `, [importId]);
+
     // Delete properties (which cascades to assignments and readings)
     await db.query('DELETE FROM properties WHERE import_id = $1', [importId]);
 

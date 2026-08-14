@@ -100,6 +100,14 @@ app.get('/debug-db', async (req, res) => {
   await runQuery('whatsapp_logs consumer_name', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS consumer_name TEXT DEFAULT NULL;`);
   await runQuery('whatsapp_logs cycle_id', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS cycle_id UUID DEFAULT NULL;`);
   await runQuery('admins role', `ALTER TABLE admins ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin';`);
+  await runQuery('whatsapp_logs cascade fk', `
+    ALTER TABLE whatsapp_logs
+    DROP CONSTRAINT IF EXISTS whatsapp_logs_property_id_fkey,
+    ADD CONSTRAINT whatsapp_logs_property_id_fkey
+      FOREIGN KEY (property_id)
+      REFERENCES properties(id)
+      ON DELETE CASCADE;
+  `);
 
   res.json({ results });
 });
