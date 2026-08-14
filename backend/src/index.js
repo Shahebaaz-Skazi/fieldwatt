@@ -72,28 +72,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
-app.get('/debug-logs', async (req, res) => {
-  try {
-    await db.query(`
-      UPDATE properties 
-      SET 
-        phone_number = '8446812734',
-        raw_sap_data = jsonb_set(raw_sap_data::jsonb, '{Mobile No.}', '"8446812734"')
-      WHERE serial_no = '16449624';
-    `);
-
-    const result = await db.query(`
-      SELECT id, serial_no, consumer_name, phone_number, raw_sap_data
-      FROM properties
-      WHERE serial_no = '16449624';
-    `);
-    
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
