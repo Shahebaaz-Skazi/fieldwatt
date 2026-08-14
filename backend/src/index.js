@@ -72,45 +72,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
-// Temporary endpoint to debug and force migrations on production
-app.get('/debug-db', async (req, res) => {
-  const results = [];
-  const runQuery = async (name, sql) => {
-    try {
-      await db.query(sql);
-      results.push({ name, status: 'success' });
-    } catch (err) {
-      results.push({ name, status: 'failed', error: err.message, stack: err.stack });
-    }
-  };
-
-  await runQuery('readings source', `ALTER TABLE readings ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'agent';`);
-  await runQuery('readings submitted_by_type', `ALTER TABLE readings ADD COLUMN IF NOT EXISTS submitted_by_type TEXT DEFAULT 'agent';`);
-  await runQuery('properties phone_number', `ALTER TABLE properties ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20) DEFAULT NULL;`);
-  await runQuery('create whatsapp_logs', `
-    CREATE TABLE IF NOT EXISTS whatsapp_logs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      property_id UUID,
-      phone_number TEXT NOT NULL,
-      status TEXT DEFAULT 'sent',
-      sent_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  await runQuery('whatsapp_logs token', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS token TEXT DEFAULT NULL;`);
-  await runQuery('whatsapp_logs consumer_name', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS consumer_name TEXT DEFAULT NULL;`);
-  await runQuery('whatsapp_logs cycle_id', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS cycle_id UUID DEFAULT NULL;`);
-  await runQuery('admins role', `ALTER TABLE admins ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin';`);
-  await runQuery('whatsapp_logs cascade fk', `
-    ALTER TABLE whatsapp_logs
-    DROP CONSTRAINT IF EXISTS whatsapp_logs_property_id_fkey,
-    ADD CONSTRAINT whatsapp_logs_property_id_fkey
-      FOREIGN KEY (property_id)
-      REFERENCES properties(id)
-      ON DELETE CASCADE;
-  `);
-
-  res.json({ results });
-});
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
