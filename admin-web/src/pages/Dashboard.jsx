@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search } from 'lucide-react';
+import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search, FileDown } from 'lucide-react';
 import { applyAdminWatermark } from '../utils/watermark';
 
 const Dashboard = ({ viewerMode = false }) => {
@@ -40,6 +40,14 @@ const Dashboard = ({ viewerMode = false }) => {
   const [editPhotoWatermarkApplied, setEditPhotoWatermarkApplied] = useState(false);
   const [editPhotoUploading, setEditPhotoUploading] = useState(false);
 
+  // MRU data exporter states for viewerMode
+  const [mrus, setMrus] = useState([]);
+  const [availableMonths, setAvailableMonths] = useState([]);
+  const [selectedMru, setSelectedMru] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [exportMruLoading, setExportMruLoading] = useState(false);
+
   const closeReadingModal = () => {
     setViewingReading(null);
     setEditingPhoto(false);
@@ -78,6 +86,74 @@ const Dashboard = ({ viewerMode = false }) => {
       setError(err.message || 'Failed to download images.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewerMode) {
+      api.get('/admin/assignments/mrus')
+        .then(data => setMrus(data))
+        .catch(err => console.error('Failed to fetch MRUs:', err));
+    }
+  }, [viewerMode]);
+
+  useEffect(() => {
+    if (viewerMode && selectedMru) {
+      api.get('/admin/assignments/months', { params: { mru: selectedMru } })
+        .then(monthsData => {
+          setAvailableMonths(monthsData);
+          if (monthsData.length > 0) {
+            setSelectedYear(monthsData[0].year.toString());
+            setSelectedMonth(monthsData[0].month.toString());
+          } else {
+            setSelectedYear('');
+            setSelectedMonth('');
+          }
+        })
+        .catch(err => console.error('Failed to load months:', err));
+    }
+  }, [viewerMode, selectedMru]);
+
+  const handleExport = async () => {
+    if (!selectedMru || !selectedYear || !selectedMonth) {
+      alert('Please select MRU, Year, and Month first.');
+      return;
+    }
+
+    try {
+      setExportMruLoading(true);
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+
+      const response = await fetch(`${api.API_BASE_URL}/admin/assignments/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        let errorMsg = 'Export failed';
+        try {
+          const err = await response.json();
+          errorMsg = err.error || errorMsg;
+        } catch {}
+        throw new Error(errorMsg);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `FieldWatt_Export_${selectedMru}_${selectedMonth}_${selectedYear}.xlsx`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (err) {
+      alert('Export failed: ' + err.message);
+    } finally {
+      setExportMruLoading(false);
     }
   };
 
@@ -476,32 +552,117 @@ const Dashboard = ({ viewerMode = false }) => {
           </div>
         </div>
       )}
-
-      {/* Bulk Image Export for Viewers */}
+      {/* Bulk Image Export & MRU Exporter Grid for Viewers */}
       {viewerMode && (
-        <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '24px',
-          boxShadow: 'var(--shadow)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>Bulk Image Export</h3>
-            <p style={{ color: 'var(--muted)', fontSize: '12px' }}>Download all meter reading verification photos captured during the active cycle in a single ZIP file</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+          {/* Card 1: Bulk Image Export */}
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            boxShadow: 'var(--shadow)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📥 Bulk Image Export
+              </h3>
+              <p style={{ color: 'var(--muted)', fontSize: '12px', lineHeight: '1.4' }}>Download all meter reading verification photos captured during the active cycle in a single ZIP file</p>
+            </div>
+            <div style={{ marginTop: 'auto' }}>
+              <button 
+                onClick={handleDownloadImages} 
+                className="btn btn-primary" 
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', fontSize: '14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}
+                disabled={loading}
+              >
+                Download Meter Images (ZIP)
+              </button>
+            </div>
           </div>
-          <div>
-            <button 
-              onClick={handleDownloadImages} 
-              className="btn btn-primary" 
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', fontSize: '14px', cursor: 'pointer' }}
-              disabled={loading}
-            >
-              📥 Download Meter Images (ZIP)
-            </button>
+
+          {/* Card 2: MRU Data Exporter */}
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            boxShadow: 'var(--shadow)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={18} style={{ color: 'var(--accent2)' }} />
+              MRU Data Exporter
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Area (MRU)</label>
+                <select
+                  className="form-input"
+                  value={selectedMru}
+                  onChange={(e) => setSelectedMru(e.target.value)}
+                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
+                >
+                  <option value="">-- MRU --</option>
+                  <option value="all">-- All --</option>
+                  {mrus.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Year</label>
+                <select
+                  className="form-input"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
+                >
+                  <option value="">-- Year --</option>
+                  {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Month</label>
+                <select
+                  className="form-input"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
+                >
+                  <option value="">-- Month --</option>
+                  {availableMonths
+                    .filter(m => m.year.toString() === selectedYear)
+                    .map(m => {
+                      const date = new Date(2000, m.month - 1);
+                      const monthName = date.toLocaleString('default', { month: 'short' });
+                      return (
+                        <option key={m.month} value={m.month}>{monthName}</option>
+                      );
+                    })}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 'auto' }}>
+              <button
+                onClick={handleExport}
+                disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}
+              >
+                {exportMruLoading ? <RefreshCw size={16} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} /> : <FileDown size={16} />}
+                Export MRU Data to Excel (.xlsx)
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -616,7 +616,7 @@ const Assignment = () => {
               <option value="all">All Agents</option>
               {agents.map(a => (
                 <option key={a.id} value={a.id}>
-                  {a.name}{getAgentStatusLabel(a.id)}
+                  {a.name}
                 </option>
               ))}
             </select>
@@ -810,7 +810,7 @@ const Assignment = () => {
                 <option value="">-- Choose Agent --</option>
                 {agents.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.name}{getAgentStatusLabel(a.id)}
+                    {a.name}
                   </option>
                 ))}
               </select>
