@@ -58,8 +58,27 @@ const Dashboard = ({ viewerMode = false }) => {
   const [imageQuery, setImageQuery] = useState('');
   const [downloadImagesLoading, setDownloadImagesLoading] = useState(false);
 
+  // Editable modal fields
+  const [editReadingValue, setEditReadingValue] = useState('');
+  const [editStatusCode, setEditStatusCode] = useState('reading_taken');
+  const [editNote, setEditNote] = useState('');
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState(null);
+  const [saveModalLoading, setSaveModalLoading] = useState(false);
+
   const closeReadingModal = () => {
     setViewingReading(null);
+    setEditingPhoto(false);
+    setEditPhotoWatermarkApplied(false);
+  };
+
+  const openReadingModal = (prop) => {
+    setViewingReading(prop);
+    setEditReadingValue(prop.reading_value !== null && prop.reading_value !== undefined ? prop.reading_value.toString() : '');
+    setEditStatusCode(prop.status_code || 'reading_taken');
+    setEditNote(prop.note || '');
+    setSelectedPhotoFile(null);
+    setPhotoPreviewUrl(prop.photo_url || null);
     setEditingPhoto(false);
     setEditPhotoWatermarkApplied(false);
   };
@@ -317,49 +336,65 @@ const Dashboard = ({ viewerMode = false }) => {
     setSearchActive(false);
   };
 
-  const handleDashboardPhotoEdit = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !viewingReading) return;
-    setEditPhotoUploading(true);
-    setEditPhotoWatermarkApplied(false);
+  const handleSavePropertyDetails = async () => {
+    if (!viewingReading) return;
+    const propId = viewingReading.property_id || viewingReading.id;
+    if (!propId) {
+      alert('Property ID not found.');
+      return;
+    }
+
     try {
-      const watermarkedBlob = await applyAdminWatermark(file, {
-        consumerName: viewingReading.consumer_name || '',
-        meterNo: viewingReading.meter_no || '',
-        bpNo: viewingReading.raw_sap_data?.['BP No.'] || '',
-      });
+      setSaveModalLoading(true);
+      let finalPhotoUrl = viewingReading.photo_url || null;
 
-      const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
-        filename: `admin_edit_${Date.now()}.jpg`,
-        contentType: 'image/jpeg',
-      });
+      // If a new photo file was chosen, apply admin watermark and upload to S3/storage
+      if (selectedPhotoFile) {
+        const watermarkedBlob = await applyAdminWatermark(selectedPhotoFile, {
+          consumerName: viewingReading.consumer_name || '',
+          meterNo: viewingReading.meter_no || '',
+          bpNo: viewingReading.raw_sap_data?.['BP No.'] || '',
+        });
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: watermarkedBlob,
-        headers: { 'Content-Type': 'image/jpeg' },
-      });
+        const { uploadUrl, photoUrl } = await api.post('/agent/upload-url', {
+          filename: `admin_manual_${Date.now()}.jpg`,
+          contentType: 'image/jpeg',
+        });
 
-      if (!uploadRes.ok) throw new Error('Upload failed');
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: watermarkedBlob,
+          headers: { 'Content-Type': 'image/jpeg' },
+        });
 
-      // Update reading photo_url in database
-      const propId = viewingReading.property_id || viewingReading.id;
-      if (!propId) throw new Error('Property ID not found. Cannot update reading.');
+        if (!uploadRes.ok) throw new Error('Photo upload failed');
+        finalPhotoUrl = photoUrl;
+      }
+
+      // Call the backend endpoint
       await api.post(`/admin/areas/property/${propId}/reading`, {
-        status_code: viewingReading.status_code || 'reading_taken',
-        reading_value: viewingReading.reading_value || null,
-        note: viewingReading.note || null,
-        photo_url: photoUrl,
+        status_code: editStatusCode,
+        reading_value: editReadingValue !== '' ? parseFloat(editReadingValue) : null,
+        note: editNote || null,
+        photo_url: finalPhotoUrl,
       });
 
-      // Update local state so modal shows new photo immediately
-      setViewingReading(prev => ({ ...prev, photo_url: photoUrl }));
-      setEditPhotoWatermarkApplied(true);
-      setEditingPhoto(false);
+      // Update local modal and list state
+      setViewingReading(prev => ({
+        ...prev,
+        reading_value: editReadingValue !== '' ? parseFloat(editReadingValue) : null,
+        status_code: editStatusCode,
+        note: editNote,
+        photo_url: finalPhotoUrl,
+        task_status: 'COMPLETED'
+      }));
+
+      alert('Property details saved successfully!');
+      setViewingReading(null); // Close modal on success
     } catch (err) {
-      alert('Failed to update photo: ' + (err.message || 'Unknown error'));
+      alert('Failed to save property reading: ' + (err.message || 'Unknown error'));
     } finally {
-      setEditPhotoUploading(false);
+      setSaveModalLoading(false);
     }
   };
 
@@ -507,7 +542,7 @@ const Dashboard = ({ viewerMode = false }) => {
                     return (
                       <tr 
                         key={prop.id}
-                        onClick={() => setViewingReading(prop)}
+                        onClick={() => openReadingModal(prop)}
                         style={{ cursor: 'pointer' }}
                       >
                         {/* 1. Area / MRU */}
@@ -956,7 +991,7 @@ const Dashboard = ({ viewerMode = false }) => {
                       agentReadings.map((reading) => (
                         <tr 
                           key={reading.reading_id}
-                          onClick={() => setViewingReading(reading)}
+                          onClick={() => openReadingModal(reading)}
                           style={{ cursor: 'pointer' }}
                         >
                           <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reading.serial_no}</td>
@@ -1137,16 +1172,45 @@ const Dashboard = ({ viewerMode = false }) => {
                   <span style={{ fontSize: '14px', color: 'var(--text)' }}>{viewingReading.area_name}</span>
                 </div>
                 <div>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Status</span>
-                  <span className={`badge ${viewingReading.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
-                    {viewingReading.status_code ? viewingReading.status_code.replace(/_/g, ' ') : 'Not Visited'}
-                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Reading Status</span>
+                  {!viewerMode ? (
+                    <select
+                      className="form-input"
+                      value={editStatusCode}
+                      onChange={(e) => setEditStatusCode(e.target.value)}
+                      style={{ fontSize: '13px', padding: '6px', height: '36px', width: '100%', cursor: 'pointer' }}
+                    >
+                      <option value="reading_taken">Reading Taken</option>
+                      <option value="door_locked">Door Locked</option>
+                      <option value="not_reachable">Not Reachable</option>
+                      <option value="access_denied">Access Denied</option>
+                      <option value="meter_not_found">Meter Not Found</option>
+                      <option value="meter_damaged">Meter Damaged</option>
+                      <option value="revisit_needed">Revisit Needed</option>
+                      <option value="vacant_property">Vacant Property</option>
+                    </select>
+                  ) : (
+                    <span className={`badge ${viewingReading.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`} style={{ marginTop: '4px' }}>
+                      {viewingReading.status_code ? viewingReading.status_code.replace(/_/g, ' ') : 'Not Visited'}
+                    </span>
+                  )}
                 </div>
                 <div>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Reading Value</span>
-                  <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text)' }}>
-                    {viewingReading.reading_value !== null ? viewingReading.reading_value : 'No Reading'}
-                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Reading Value</span>
+                  {!viewerMode ? (
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={editReadingValue}
+                      onChange={(e) => setEditReadingValue(e.target.value)}
+                      placeholder="Enter value..."
+                      style={{ fontSize: '13px', padding: '6px', height: '36px', width: '100%' }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text)' }}>
+                      {viewingReading.reading_value !== null ? viewingReading.reading_value : 'No Reading'}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1157,12 +1221,25 @@ const Dashboard = ({ viewerMode = false }) => {
                 </span>
               </div>
 
-              {viewingReading.note && (
-                <div>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase' }}>Agent Note</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text)', fontStyle: 'italic' }}>"{viewingReading.note}"</span>
-                </div>
-              )}
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', fontWeight: '600', textTransform: 'uppercase', marginBottom: '4px' }}>Remark / Note</span>
+                {!viewerMode ? (
+                  <textarea
+                    className="form-input"
+                    rows="2"
+                    value={editNote}
+                    onChange={(e) => setEditNote(e.target.value)}
+                    placeholder="Enter remark or note..."
+                    style={{ fontSize: '13px', padding: '8px', width: '100%', resize: 'vertical' }}
+                  />
+                ) : (
+                  viewingReading.note ? (
+                    <span style={{ fontSize: '13px', color: 'var(--text)', fontStyle: 'italic' }}>"{viewingReading.note}"</span>
+                  ) : (
+                    <span style={{ fontSize: '13px', color: 'var(--muted)' }}>No notes provided</span>
+                  )
+                )}
+              </div>
 
               {viewingReading.is_anomalous && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent4)', padding: '12px', borderRadius: '8px', display: 'flex', gap: '10px' }}>
@@ -1197,7 +1274,7 @@ const Dashboard = ({ viewerMode = false }) => {
                       onClick={() => setEditingPhoto(!editingPhoto)}
                       style={{ fontSize: '11px', padding: '4px 10px', background: 'rgba(245,166,35,0.15)', border: '1px solid #f5a623', color: '#f5a623', borderRadius: '6px', cursor: 'pointer' }}
                     >
-                      {viewingReading.photo_url ? '✏️ Edit Photo' : '📷 Add Photo'}
+                      {editingPhoto ? 'Close Uploader' : (photoPreviewUrl ? '✏️ Edit Photo' : '📷 Add Photo')}
                     </button>
                   )}
                 </div>
@@ -1205,29 +1282,27 @@ const Dashboard = ({ viewerMode = false }) => {
                 {!viewerMode && editingPhoto && (
                   <div style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '8px', padding: '12px' }}>
                     <p style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-                      Select a photo. Watermark will be applied automatically.
+                      Select a photo. Watermark will be applied automatically upon saving.
                     </p>
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleDashboardPhotoEdit}
-                      disabled={editPhotoUploading}
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setSelectedPhotoFile(file);
+                          setPhotoPreviewUrl(URL.createObjectURL(file));
+                        }
+                      }}
                       style={{ fontSize: '12px', color: 'var(--muted)', width: '100%' }}
                     />
-                    {editPhotoUploading && (
-                      <p style={{ fontSize: '12px', color: '#f5a623', marginTop: '6px' }}>⏳ Applying watermark and uploading...</p>
-                    )}
                   </div>
                 )}
 
-                {editPhotoWatermarkApplied && (
-                  <p style={{ fontSize: '11px', color: '#22c55e', fontWeight: '600' }}>✓ Photo updated with watermark applied</p>
-                )}
-
-                {viewingReading.photo_url ? (
-                  <div style={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoomPhoto(viewingReading.photo_url)}>
+                {photoPreviewUrl ? (
+                  <div style={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoomPhoto(photoPreviewUrl)}>
                     <img
-                      src={viewingReading.photo_url}
+                      src={photoPreviewUrl}
                       alt="Verification meter upload"
                       style={{ width: '100%', maxHeight: '350px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: '#000' }}
                     />
@@ -1241,6 +1316,17 @@ const Dashboard = ({ viewerMode = false }) => {
                   </div>
                 )}
               </div>
+
+              {!viewerMode && (
+                <button 
+                  onClick={handleSavePropertyDetails} 
+                  disabled={saveModalLoading} 
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '16px', justifyContent: 'center', padding: '12px' }}
+                >
+                  {saveModalLoading ? 'Saving...' : 'Save & Complete Property'}
+                </button>
+              )}
             </div>
           </div>
         </div>
