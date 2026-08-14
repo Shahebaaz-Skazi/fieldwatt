@@ -72,6 +72,65 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
+app.get('/debug-wa-test', async (req, res) => {
+  const jwt = require('jsonwebtoken');
+  const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
+  const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSIYcfVCjOViQKILSKw2Pqb5xjy44CwdJD4LQlT2636zI1jdHzQS8KFoufXDXUsZACBmow0gxsZCVJXJAtsE8PgiDn7PTFueAkMLHpDpDl2kaXnQ4ZBA7uNaPEOCsldLAzqH3K61o4mIp9oxL6gpHR9te1iLawl4YZCkpYJywMoN45ZCmSdTHQGl1VBOZCZApha711j1UYsORZAXYZAAN9rXz1mpidwppNVhzqmxHIZCSE3jUa693j6x4aMzq1gNd58OgKFNSsNi5b7WjQn';
+  const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID || '364379373441618';
+  const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'mngl_self_reading_verification_link_v1';
+  
+  const token = jwt.sign(
+    { propertyId: '6374d44b-2e04-49d2-8a08-e91aabf17bb0', assignmentId: null, expiresAt: '7d' },
+    secret,
+    { expiresIn: '7d' }
+  );
+  
+  const selfReadingUrl = `https://fieldwatt.vercel.app/self-reading?token=${token}`;
+  
+  try {
+    const metaRes = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneIdVal}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenVal}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: '918446812734',
+          type: 'template',
+          template: {
+            name: templateVal,
+            language: { code: 'en' },
+            components: [{
+              type: 'body',
+              parameters: [
+                { type: 'text', text: 'RAMCHANDRA GABHANE' },
+                { type: 'text', text: selfReadingUrl }
+              ]
+            }]
+          }
+        })
+      }
+    );
+    
+    const status = metaRes.status;
+    const errorText = await metaRes.text();
+    res.json({
+      status,
+      errorText,
+      metaCredentialsUsed: {
+        tokenLength: tokenVal.length,
+        phoneIdVal,
+        templateVal
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
