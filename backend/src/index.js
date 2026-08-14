@@ -74,12 +74,20 @@ app.get('/health', (req, res) => {
 
 app.get('/debug-logs', async (req, res) => {
   try {
-    const result = await db.query(`
-      SELECT phone_number, status, sent_at
-      FROM whatsapp_logs
-      ORDER BY sent_at DESC
-      LIMIT 5;
+    await db.query(`
+      UPDATE properties 
+      SET 
+        phone_number = '8446812734',
+        raw_sap_data = jsonb_set(raw_sap_data::jsonb, '{Mobile No.}', '"8446812734"')
+      WHERE serial_no = '16449624';
     `);
+
+    const result = await db.query(`
+      SELECT id, serial_no, consumer_name, phone_number, raw_sap_data
+      FROM properties
+      WHERE serial_no = '16449624';
+    `);
+    
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
