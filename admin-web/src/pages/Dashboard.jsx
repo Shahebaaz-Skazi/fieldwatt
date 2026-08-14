@@ -40,53 +40,28 @@ const Dashboard = ({ viewerMode = false }) => {
   const [editPhotoWatermarkApplied, setEditPhotoWatermarkApplied] = useState(false);
   const [editPhotoUploading, setEditPhotoUploading] = useState(false);
 
-  // MRU data exporter states for viewerMode
+  // Shared metadata
   const [mrus, setMrus] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
+
+  // MRU Data Exporter states
   const [selectedMru, setSelectedMru] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [exportMruLoading, setExportMruLoading] = useState(false);
 
+  // Meter Image Downloader states
+  const [imageMru, setImageMru] = useState('all');
+  const [imageYear, setImageYear] = useState('');
+  const [imageMonth, setImageMonth] = useState('');
+  const [imageSociety, setImageSociety] = useState('');
+  const [imageQuery, setImageQuery] = useState('');
+  const [downloadImagesLoading, setDownloadImagesLoading] = useState(false);
+
   const closeReadingModal = () => {
     setViewingReading(null);
     setEditingPhoto(false);
     setEditPhotoWatermarkApplied(false);
-  };
-
-  const handleDownloadImages = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      setSuccess('Preparing image download zip...');
-      
-      const token = localStorage.getItem('admin_token');
-      const url = `${api.API_BASE_URL || 'http://localhost:3000'}/admin/dashboard/download-images`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Failed to download images.');
-      }
-      
-      const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = window.URL.createObjectURL(blob);
-      link.download = `meter_readings_images_${new Date().toISOString().slice(0, 10)}.zip`;
-      link.click();
-      
-      setSuccess('Download started successfully.');
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to download images.');
-    } finally {
-      setLoading(false);
-    }
   };
 
   useEffect(() => {
@@ -98,21 +73,24 @@ const Dashboard = ({ viewerMode = false }) => {
   }, [viewerMode]);
 
   useEffect(() => {
-    if (viewerMode && selectedMru) {
-      api.get('/admin/assignments/months', { params: { mru: selectedMru } })
+    if (viewerMode && (selectedMru || imageMru)) {
+      const mruToFetch = selectedMru || (imageMru !== 'all' ? imageMru : mrus[0]);
+      if (!mruToFetch) return;
+      api.get('/admin/assignments/months', { params: { mru: mruToFetch } })
         .then(monthsData => {
           setAvailableMonths(monthsData);
-          if (monthsData.length > 0) {
-            setSelectedYear(monthsData[0].year.toString());
-            setSelectedMonth(monthsData[0].month.toString());
-          } else {
-            setSelectedYear('');
-            setSelectedMonth('');
+          if (monthsData.length > 0 && !selectedYear && !imageYear) {
+            const yr = monthsData[0].year.toString();
+            const mo = monthsData[0].month.toString();
+            setSelectedYear(yr);
+            setSelectedMonth(mo);
+            setImageYear(yr);
+            setImageMonth(mo);
           }
         })
         .catch(err => console.error('Failed to load months:', err));
     }
-  }, [viewerMode, selectedMru]);
+  }, [viewerMode, selectedMru, imageMru, mrus]);
 
   const handleExport = async () => {
     if (!selectedMru || !selectedYear || !selectedMonth) {
@@ -154,6 +132,67 @@ const Dashboard = ({ viewerMode = false }) => {
       alert('Export failed: ' + err.message);
     } finally {
       setExportMruLoading(false);
+    }
+  };
+
+  const handleDownloadImages = async () => {
+    if (!imageYear || !imageMonth) {
+      alert('Please select Year and Month first.');
+      return;
+    }
+
+    try {
+      setDownloadImagesLoading(true);
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({
+        mru: imageMru,
+        year: imageYear,
+        month: imageMonth,
+        society: imageSociety,
+        q: imageQuery
+      });
+
+      const response = await fetch(`${api.API_BASE_URL}/admin/dashboard/download-images?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        let errorMsg = 'Failed to download images.';
+        try {
+          const errJson = JSON.parse(text);
+          errorMsg = errJson.error || errorMsg;
+        } catch {
+          errorMsg = text || errorMsg;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const monthName = imageMonth ? (monthNames[parseInt(imageMonth) - 1] || imageMonth) : 'Cycle';
+      const mruLabel = imageMru && imageMru !== 'all' ? imageMru : 'ALL';
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${mruLabel}_${monthName}_${imageYear || '2026'}.zip`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (err) {
+      alert('Download failed: ' + err.message);
+    } finally {
+      setDownloadImagesLoading(false);
     }
   };
 
@@ -552,10 +591,10 @@ const Dashboard = ({ viewerMode = false }) => {
           </div>
         </div>
       )}
-      {/* Bulk Image Export & MRU Exporter Grid for Viewers */}
+      {/* Exporter & Downloader Grid for Viewers */}
       {viewerMode && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          {/* Card 1: Bulk Image Export */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+          {/* Card 1: MRU Data Exporter */}
           <div style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
@@ -564,105 +603,172 @@ const Dashboard = ({ viewerMode = false }) => {
             boxShadow: 'var(--shadow)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                📥 Bulk Image Export
-              </h3>
-              <p style={{ color: 'var(--muted)', fontSize: '12px', lineHeight: '1.4' }}>Download all meter reading verification photos captured during the active cycle in a single ZIP file</p>
-            </div>
-            <div style={{ marginTop: 'auto' }}>
-              <button 
-                onClick={handleDownloadImages} 
-                className="btn btn-primary" 
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', fontSize: '14px', cursor: 'pointer', width: '100%', justifyContent: 'center' }}
-                disabled={loading}
-              >
-                Download Meter Images (ZIP)
-              </button>
-            </div>
-          </div>
-
-          {/* Card 2: MRU Data Exporter */}
-          <div style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '24px',
-            boxShadow: 'var(--shadow)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
+            gap: '20px'
           }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileDown size={18} style={{ color: 'var(--accent2)' }} />
               MRU Data Exporter
             </h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Area (MRU)</label>
-                <select
-                  className="form-input"
-                  value={selectedMru}
-                  onChange={(e) => setSelectedMru(e.target.value)}
-                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
-                >
-                  <option value="">-- MRU --</option>
-                  <option value="all">-- All --</option>
-                  {mrus.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Year</label>
-                <select
-                  className="form-input"
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
-                >
-                  <option value="">-- Year --</option>
-                  {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontSize: '11px', fontWeight: '600' }}>Month</label>
-                <select
-                  className="form-input"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  style={{ fontSize: '12px', cursor: 'pointer', padding: '8px' }}
-                >
-                  <option value="">-- Month --</option>
-                  {availableMonths
-                    .filter(m => m.year.toString() === selectedYear)
-                    .map(m => {
-                      const date = new Date(2000, m.month - 1);
-                      const monthName = date.toLocaleString('default', { month: 'short' });
-                      return (
-                        <option key={m.month} value={m.month}>{monthName}</option>
-                      );
-                    })}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 'auto' }}>
-              <button
-                onClick={handleExport}
-                disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Area (MRU)</label>
+              <select
+                className="form-input"
+                value={selectedMru}
+                onChange={(e) => setSelectedMru(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
               >
-                {exportMruLoading ? <RefreshCw size={16} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} /> : <FileDown size={16} />}
-                Export MRU Data to Excel (.xlsx)
-              </button>
+                <option value="">-- Select MRU --</option>
+                <option value="all">-- All Areas --</option>
+                {mrus.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
             </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Year</label>
+              <select
+                className="form-input"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Year --</option>
+                {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Month</label>
+              <select
+                className="form-input"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Month --</option>
+                {availableMonths
+                  .filter(m => m.year.toString() === selectedYear)
+                  .map(m => {
+                    const date = new Date(2000, m.month - 1);
+                    const monthName = date.toLocaleString('default', { month: 'long' });
+                    return (
+                      <option key={m.month} value={m.month}>{monthName}</option>
+                    );
+                  })}
+              </select>
+            </div>
+
+            <button
+              onClick={handleExport}
+              disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px', marginTop: 'auto' }}
+            >
+              {exportMruLoading ? <RefreshCw size={16} className="spin" /> : <FileDown size={16} />}
+              Export MRU Data to Excel (.xlsx)
+            </button>
+          </div>
+
+          {/* Card 2: Meter Image Downloader */}
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '24px',
+            boxShadow: 'var(--shadow)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px'
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileDown size={18} style={{ color: 'var(--accent3)' }} />
+              Meter Image Downloader
+            </h3>
+            
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Area (MRU)</label>
+              <select
+                className="form-input"
+                value={imageMru}
+                onChange={(e) => setImageMru(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="all">-- All Areas --</option>
+                {mrus.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Year</label>
+              <select
+                className="form-input"
+                value={imageYear}
+                onChange={(e) => setImageYear(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Year --</option>
+                {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Month</label>
+              <select
+                className="form-input"
+                value={imageMonth}
+                onChange={(e) => setImageMonth(e.target.value)}
+                style={{ fontSize: '13px', cursor: 'pointer' }}
+              >
+                <option value="">-- Select Month --</option>
+                {availableMonths
+                  .filter(m => m.year.toString() === imageYear)
+                  .map(m => {
+                    const date = new Date(2000, m.month - 1);
+                    const monthName = date.toLocaleString('default', { month: 'long' });
+                    return (
+                      <option key={m.month} value={m.month}>{monthName}</option>
+                    );
+                  })}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Society Name (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. Krishna Nayan"
+                value={imageSociety}
+                onChange={(e) => setImageSociety(e.target.value)}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label" style={{ fontSize: '12px' }}>Flat / BP / Name Search (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="e.g. 50319006"
+                value={imageQuery}
+                onChange={(e) => setImageQuery(e.target.value)}
+                style={{ fontSize: '13px' }}
+              />
+            </div>
+
+            <button
+              onClick={handleDownloadImages}
+              disabled={downloadImagesLoading || !imageYear || !imageMonth}
+              className="btn btn-primary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px', background: 'var(--accent3)', borderColor: 'var(--accent3)', marginTop: 'auto' }}
+            >
+              {downloadImagesLoading ? <RefreshCw size={16} className="spin" style={{ animation: 'spin 2s linear infinite' }} /> : <FileDown size={16} />}
+              Download Images (ZIP)
+            </button>
           </div>
         </div>
       )}
