@@ -112,7 +112,12 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
         );
 
         if (!metaRes.ok) {
-          const errData = await metaRes.json();
+          const errorText = await metaRes.text();
+          console.error('META API EXACT ERROR:', errorText);
+          let errData = {};
+          try {
+            errData = JSON.parse(errorText);
+          } catch {}
           status = 'failed';
           apiError = errData.error ? errData.error.message : 'Meta WhatsApp API error';
         }

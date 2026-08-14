@@ -72,6 +72,20 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
+app.get('/debug-logs', async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT phone_number, status, sent_at
+      FROM whatsapp_logs
+      ORDER BY sent_at DESC
+      LIMIT 5;
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
