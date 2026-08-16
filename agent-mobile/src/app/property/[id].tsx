@@ -67,7 +67,6 @@ export default function PropertyDetailScreen() {
   const [currentTime, setCurrentTime] = useState('');
   const [cameraGps, setCameraGps] = useState('Fetching GPS...');
   const cameraRef = useRef<any>(null);
-  const cameraViewShotRef = useRef<any>(null);
   const [captureTimestamp, setCaptureTimestamp] = useState('');
   const [captureGps, setCaptureGps] = useState('');
   const [watermarking, setWatermarking] = useState(false);
@@ -451,11 +450,7 @@ export default function PropertyDetailScreen() {
 
     return (
       <View style={styles.cameraContainer}>
-        <ViewShot
-          ref={cameraViewShotRef}
-          options={{ format: 'jpg', quality: 0.95 }}
-          style={{ flex: 1, width: '100%', height: '100%' }}
-        >
+        <View style={{ flex: 1, width: '100%', height: '100%' }}>
           <CameraView
             style={{ flex: 1 }}
             ref={cameraRef}
@@ -473,7 +468,7 @@ export default function PropertyDetailScreen() {
               <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
             </View>
           </View>
-        </ViewShot>
+        </View>
 
         {/* Shutter controls */}
         <View style={styles.cameraControls}>
@@ -488,23 +483,14 @@ export default function PropertyDetailScreen() {
             style={styles.shutterButton}
             onPress={async () => {
               try {
-                if (cameraRef.current && cameraViewShotRef.current) {
+                if (cameraRef.current) {
                   // Snapshot the timestamp and GPS at the exact moment of capture
                   setCaptureTimestamp(currentTime);
                   setCaptureGps(cameraGps);
                   
                   // Take the raw photo
-                  await cameraRef.current.takePictureAsync({ quality: 1.0, skipProcessing: false, exif: false });
-                  
-                  // Capture ViewShot with watermark burned in directly from live screen
-                  const uri = await cameraViewShotRef.current.capture();
-                  console.log('✔ Captured watermarked camera photo path:', uri);
-                  console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (camera watermarked):', uri);
-
-                  // Non-blocking background gallery save
-                  CameraRoll.saveAsset(uri, { type: 'photo' }).catch(err => {
-                    console.warn('Background gallery save notice:', err);
-                  });
+                  const photo = await cameraRef.current.takePictureAsync({ quality: 1.0, skipProcessing: false, exif: false });
+                  console.log('✔ Raw photo captured:', photo.uri);
 
                   // Close camera
                   setCameraActive(false);
@@ -512,7 +498,7 @@ export default function PropertyDetailScreen() {
                     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
                   } catch (e) {}
                   
-                  setPhotoUri(uri);
+                  setPendingWatermarkUri(photo.uri);
                 }
               } catch (err) {
                 console.error('Capture failed:', err);
@@ -1062,7 +1048,7 @@ const styles = StyleSheet.create({
   },
   burnedWatermarkText: {
     color: '#FFEB3B',
-    fontSize: 28,
+    fontSize: 14,
     fontWeight: 'bold',
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderRadius: 4,
