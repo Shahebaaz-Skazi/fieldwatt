@@ -77,6 +77,8 @@ export default function PropertyDetailScreen() {
   const watermarkImageReadyRef = useRef(false);
 
   const [photoAspect, setPhotoAspect] = useState<number | null>(null);
+  const [photoWidth, setPhotoWidth] = useState<number>(width);
+  const [photoHeight, setPhotoHeight] = useState<number>(height);
 
   useEffect(() => {
     if (!cameraActive) return;
@@ -191,6 +193,8 @@ export default function PropertyDetailScreen() {
 
         if (!isSubscribed) return;
         setPhotoAspect(imgW / imgH);
+        setPhotoWidth(imgW > width ? width : imgW);
+        setPhotoHeight(imgW > width ? Math.round(width * (imgH / imgW)) : imgH);
 
         // Wait for the Image inside ViewShot to fully decode its bitmap before capturing.
         // A fixed timeout races the image decoder — instead poll the onLoad ref.
@@ -776,27 +780,27 @@ export default function PropertyDetailScreen() {
           position: 'absolute',
           top: -9999,
           left: -9999,
-          width: width,
-          height: height * 2,
+          width: photoWidth,
+          height: photoHeight,
           zIndex: -1,
           opacity: 1,
-          backgroundColor: '#ffffff',
+          backgroundColor: 'transparent',
           overflow: 'hidden',
         }}>
           <ViewShot
             ref={watermarkShotRef}
-            options={{ format: 'jpg', quality: 0.92 }}
+            options={{ format: 'jpg', quality: 0.95 }}
             style={{
-              width: width,
-              height: photoAspect ? Math.round(width / photoAspect) : height,
-              backgroundColor: '#ffffff',
+              width: photoWidth,
+              height: photoHeight,
+              backgroundColor: 'transparent',
             }}
           >
-            <View style={{ width: '100%', height: '100%' }}>
+            <View style={{ width: photoWidth, height: photoHeight }}>
               <Image
                 source={{ uri: pendingWatermarkUri }}
-                style={{ width: '100%', height: '100%', backgroundColor: '#ffffff' }}
-                resizeMode="cover"
+                style={{ width: photoWidth, height: photoHeight }}
+                resizeMode="stretch"
                 onLoad={() => {
                   watermarkImageReadyRef.current = true;
                   setWatermarkImageReady(true);
