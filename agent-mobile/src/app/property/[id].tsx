@@ -224,12 +224,15 @@ export default function PropertyDetailScreen() {
             console.warn('Background gallery save notice:', err);
           });
 
+          console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (watermarked):', watermarkedUri);
           setPhotoUri(watermarkedUri);
         } else {
+          console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (target):', targetUri);
           setPhotoUri(targetUri);
         }
       } catch (err) {
         console.warn('Watermark burn error, using base photo:', err);
+        console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (fallback raw):', pendingWatermarkUri);
         setPhotoUri(pendingWatermarkUri);
       } finally {
         if (isSubscribed) {
@@ -706,9 +709,11 @@ export default function PropertyDetailScreen() {
                 <View style={styles.photoContainer}>
                   <Image
                     source={{ uri: photoUri! }}
-                    style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8 }}
+                    style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8, backgroundColor: '#ffffff' }}
                     resizeMode="contain"
-                    onError={(e) => console.warn('Photo preview load error:', e.nativeEvent.error)}
+                    fadeDuration={0}
+                    onLoad={() => console.log('✔ [PREVIEW DIAGNOSTIC] Preview Image loaded successfully')}
+                    onError={(e) => console.warn('❌ [PREVIEW DIAGNOSTIC] Preview Image load error:', e.nativeEvent.error)}
                   />
                   <TouchableOpacity onPress={() => setPhotoUri(null)} style={styles.removePhotoBtn}>
                     <Text style={styles.removePhotoText}>Remove & Retake</Text>
