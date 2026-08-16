@@ -225,6 +225,18 @@ export default function PropertyDetailScreen() {
           });
 
           console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (watermarked):', watermarkedUri);
+          try {
+            const { width: w, height: h } = await new Promise<{ width: number; height: number }>((resolve) => {
+              Image.getSize(
+                watermarkedUri,
+                (w, h) => resolve({ width: w, height: h }),
+                () => resolve({ width: 0, height: 0 })
+              );
+            });
+            console.log('✔ [PREVIEW DIAGNOSTIC] watermarkedUri dimensions:', `${w}x${h}`);
+          } catch (e) {
+            console.warn('Failed to load dimensions:', e);
+          }
           setPhotoUri(watermarkedUri);
         } else {
           console.log('✔ [PREVIEW DIAGNOSTIC] Assigning photoUri (target):', targetUri);
