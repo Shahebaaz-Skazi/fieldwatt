@@ -75,7 +75,7 @@ export default function PropertyDetailScreen() {
   const [captureGps, setCaptureGps] = useState('');
   const [watermarkImageReady, setWatermarkImageReady] = useState(false);
   const watermarkImageReadyRef = useRef(false);
-  const [captureMode, setCaptureMode] = useState(false);
+
   const [photoAspect, setPhotoAspect] = useState<number | null>(null);
 
   useEffect(() => {
@@ -164,7 +164,6 @@ export default function PropertyDetailScreen() {
       try {
         watermarkImageReadyRef.current = false;
         setWatermarkImageReady(false);
-        setCaptureMode(true);
 
         // 1. Fast pre-compress/resize to 1080px to make ViewShot render instantly without UI lag
         let targetUri = pendingWatermarkUri;
@@ -212,6 +211,8 @@ export default function PropertyDetailScreen() {
             format: 'jpg',
             quality: 0.95,
             result: 'tmpfile',
+            useRenderInContext: true,
+            snapshotContentContainer: false,
           });
 
           if (!isSubscribed) return;
@@ -231,7 +232,6 @@ export default function PropertyDetailScreen() {
       } finally {
         if (isSubscribed) {
           setPendingWatermarkUri(null);
-          setCaptureMode(false);
         }
       }
     };
@@ -776,11 +776,11 @@ export default function PropertyDetailScreen() {
       {pendingWatermarkUri && (
         <View style={{
           position: 'absolute',
-          top: captureMode ? 0 : -9999,
-          left: captureMode ? 0 : -9999,
-          zIndex: captureMode ? 999 : -1,
-          opacity: captureMode ? 1 : 0,
-          backgroundColor: 'transparent',
+          top: -9999,
+          left: -9999,
+          zIndex: -1,
+          opacity: 0,
+          backgroundColor: '#000',
         }}>
           <ViewShot
             ref={watermarkShotRef}
@@ -793,8 +793,8 @@ export default function PropertyDetailScreen() {
             <View style={{ width: '100%', height: '100%' }}>
               <Image
                 source={{ uri: pendingWatermarkUri }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
+                style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
+                resizeMode="contain"
                 onLoad={() => {
                   watermarkImageReadyRef.current = true;
                   setWatermarkImageReady(true);
