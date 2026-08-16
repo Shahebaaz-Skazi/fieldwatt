@@ -72,61 +72,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
-app.get('/debug-agent-check', async (req, res) => {
-  try {
-    // 1. Find the agent
-    const agentResult = await db.query(`
-      SELECT id, name, phone FROM agents WHERE name ILIKE '%Krishna Kadam%' LIMIT 1
-    `);
-    if (agentResult.rows.length === 0) {
-      return res.json({ error: 'Agent "Krishna Kadam" not found in database.' });
-    }
-    const agent = agentResult.rows[0];
-
-    // 2. Check active cycle
-    const cycleResult = await db.query(`SELECT id, label, is_active FROM cycles WHERE is_active = true LIMIT 1`);
-    const activeCycle = cycleResult.rows[0] || null;
-
-    // 3. Run diagnostic assignment query
-    const asgResult = await db.query(`
-      SELECT 
-        a.id AS assignment_id,
-        a.property_id,
-        a.agent_id,
-        a.cycle_id,
-        c.is_active AS cycle_is_active,
-        r.status_code,
-        r.reading_value
-      FROM assignments a
-      JOIN cycles c ON c.id = a.cycle_id
-      LEFT JOIN readings r ON r.assignment_id = a.id
-      WHERE a.agent_id = $1
-      LIMIT 10
-    `, [agent.id]);
-
-    // 4. Count all assignments and completed ones
-    const countResult = await db.query(`
-      SELECT 
-        COUNT(*) AS total_assignments,
-        COUNT(r.id) AS with_readings,
-        COUNT(CASE WHEN c.is_active = true THEN 1 END) AS in_active_cycle
-      FROM assignments a
-      JOIN cycles c ON c.id = a.cycle_id
-      LEFT JOIN readings r ON r.assignment_id = a.id
-      WHERE a.agent_id = $1
-    `, [agent.id]);
-
-    res.json({
-      agent,
-      activeCycle,
-      sampleAssignments: asgResult.rows,
-      counts: countResult.rows[0]
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
