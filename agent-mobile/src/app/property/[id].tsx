@@ -70,6 +70,7 @@ export default function PropertyDetailScreen() {
   const [captureTimestamp, setCaptureTimestamp] = useState('');
   const [captureGps, setCaptureGps] = useState('');
   const [watermarking, setWatermarking] = useState(false);
+  const [hideWatermarkText, setHideWatermarkText] = useState(false);
 
   const watermarkShotRef = useRef<any>(null);
   const [pendingWatermarkUri, setPendingWatermarkUri] = useState<string | null>(null);
@@ -213,17 +214,34 @@ export default function PropertyDetailScreen() {
         });
 
         if (watermarkShotRef.current) {
+          // --- TEST 2: Capture ViewShot with ONLY <Image> (Text hidden) ---
+          setHideWatermarkText(true);
+          // Wait for re-render
+          await new Promise((resolve) => setTimeout(resolve, 150));
+
+          const viewShotOnlyUri = await watermarkShotRef.current.capture({
+            format: 'jpg',
+            quality: 0.95,
+            result: 'tmpfile',
+          });
+          console.log('✔ Test 2 — VIEWSHOT_ONLY Captured:', viewShotOnlyUri);
+          CameraRoll.saveAsset(viewShotOnlyUri, { type: 'photo' }).catch(err => {
+            console.warn('Gallery save error for ViewShot-only image:', err);
+          });
+
+          // --- TEST 3: Capture ViewShot with <Image> + Watermark ---
+          setHideWatermarkText(false);
+          // Wait for re-render
+          await new Promise((resolve) => setTimeout(resolve, 150));
+
           const watermarkedUri = await watermarkShotRef.current.capture({
             format: 'jpg',
             quality: 0.95,
             result: 'tmpfile',
           });
-
-          if (!isSubscribed) return;
-
-          // Non-blocking background gallery save
+          console.log('✔ Test 3 — VIEWSHOT_WATERMARKED Captured:', watermarkedUri);
           CameraRoll.saveAsset(watermarkedUri, { type: 'photo' }).catch(err => {
-            console.warn('Background gallery save notice:', err);
+            console.warn('Gallery save error for watermarked image:', err);
           });
 
           setPhotoUri(watermarkedUri);
@@ -489,7 +507,12 @@ export default function PropertyDetailScreen() {
                   
                   // Take the raw photo
                   const photo = await cameraRef.current.takePictureAsync({ quality: 1.0, skipProcessing: false, exif: false });
-                  console.log('✔ Raw photo captured:', photo.uri);
+                  console.log('✔ Test 1 — Raw photo captured (ORIGINAL):', photo.uri);
+
+                  // Save original raw photo to gallery directly for Test 1
+                  CameraRoll.saveAsset(photo.uri, { type: 'photo' }).catch(err => {
+                    console.warn('Gallery save error for Test 1 original camera image:', err);
+                  });
 
                   // Close camera
                   setCameraActive(false);
@@ -809,31 +832,33 @@ export default function PropertyDetailScreen() {
                 }}
               />
               {/* Watermark overlay container covering the ViewShot */}
-              <View collapsable={false} style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                justifyContent: 'space-between',
-                backgroundColor: 'transparent',
-              }}>
-                {/* Top Row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    {useAuthStore.getState().user?.name || 'Agent'}
-                  </Text>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    {captureTimestamp}
-                  </Text>
+              {!hideWatermarkText && (
+                <View collapsable={false} style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  justifyContent: 'space-between',
+                  backgroundColor: 'transparent',
+                }}>
+                  {/* Top Row */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
+                    <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                      {useAuthStore.getState().user?.name || 'Agent'}
+                    </Text>
+                    <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                      {captureTimestamp}
+                    </Text>
+                  </View>
+                  {/* Bottom Row */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
+                    <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                      Meter: {property?.meter_no || 'N/A'}
+                    </Text>
+                    <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                      BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
+                    </Text>
+                  </View>
                 </View>
-                {/* Bottom Row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    Meter: {property?.meter_no || 'N/A'}
-                  </Text>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
-                  </Text>
-                </View>
-              </View>
+              )}
             </View>
           </ViewShot>
         </View>
