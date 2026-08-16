@@ -784,19 +784,20 @@ export default function PropertyDetailScreen() {
           height: photoHeight,
           zIndex: -1,
           opacity: 1,
-          backgroundColor: 'transparent',
+          backgroundColor: '#000',
           overflow: 'hidden',
         }}>
           <ViewShot
             ref={watermarkShotRef}
+            collapsable={false}
             options={{ format: 'jpg', quality: 0.95 }}
             style={{
               width: photoWidth,
               height: photoHeight,
-              backgroundColor: 'transparent',
+              backgroundColor: '#000',
             }}
           >
-            <View style={{ width: photoWidth, height: photoHeight }}>
+            <View collapsable={false} style={{ width: photoWidth, height: photoHeight, backgroundColor: '#000' }}>
               <Image
                 source={{ uri: pendingWatermarkUri }}
                 style={{ width: photoWidth, height: photoHeight }}
@@ -807,7 +808,7 @@ export default function PropertyDetailScreen() {
                 }}
               />
               {/* Watermark overlay container covering the ViewShot */}
-              <View style={{
+              <View collapsable={false} style={{
                 position: 'absolute',
                 top: 0, left: 0, right: 0, bottom: 0,
                 justifyContent: 'space-between',
