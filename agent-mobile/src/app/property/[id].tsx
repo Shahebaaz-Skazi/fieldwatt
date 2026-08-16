@@ -211,8 +211,6 @@ export default function PropertyDetailScreen() {
             format: 'jpg',
             quality: 0.95,
             result: 'tmpfile',
-            useRenderInContext: true,
-            snapshotContentContainer: false,
           });
 
           if (!isSubscribed) return;
@@ -778,9 +776,12 @@ export default function PropertyDetailScreen() {
           position: 'absolute',
           top: -9999,
           left: -9999,
+          width: width,
+          height: height * 2,
           zIndex: -1,
-          opacity: 0,
-          backgroundColor: '#000',
+          opacity: 1,
+          backgroundColor: '#ffffff',
+          overflow: 'hidden',
         }}>
           <ViewShot
             ref={watermarkShotRef}
@@ -788,13 +789,14 @@ export default function PropertyDetailScreen() {
             style={{
               width: width,
               height: photoAspect ? Math.round(width / photoAspect) : height,
+              backgroundColor: '#ffffff',
             }}
           >
             <View style={{ width: '100%', height: '100%' }}>
               <Image
                 source={{ uri: pendingWatermarkUri }}
-                style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
-                resizeMode="contain"
+                style={{ width: '100%', height: '100%', backgroundColor: '#ffffff' }}
+                resizeMode="cover"
                 onLoad={() => {
                   watermarkImageReadyRef.current = true;
                   setWatermarkImageReady(true);
