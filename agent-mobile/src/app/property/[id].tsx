@@ -193,15 +193,25 @@ export default function PropertyDetailScreen() {
         if (!isSubscribed) return;
         setPhotoAspect(imgW / imgH);
 
-        // Short frame wait for ViewShot mount
-        await new Promise(resolve => setTimeout(resolve, 60));
+        // Wait for the Image inside ViewShot to fully decode its bitmap before capturing.
+        // A fixed timeout races the image decoder — instead poll the onLoad ref.
+        await new Promise<void>((resolve) => {
+          const deadline = Date.now() + 3000; // 3s safety timeout
+          const check = () => {
+            if (watermarkImageReadyRef.current || Date.now() >= deadline) {
+              resolve();
+            } else {
+              setTimeout(check, 30);
+            }
+          };
+          setTimeout(check, 30); // first check after one frame
+        });
 
         if (watermarkShotRef.current) {
           const watermarkedUri = await watermarkShotRef.current.capture({
             format: 'jpg',
             quality: 0.95,
             result: 'tmpfile',
-            useRenderInContext: true,
           });
 
           if (!isSubscribed) return;
@@ -696,7 +706,7 @@ export default function PropertyDetailScreen() {
                 <View style={styles.photoContainer}>
                   <Image
                     source={{ uri: photoUri! }}
-                    style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8, backgroundColor: '#111' }}
+                    style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 8 }}
                     resizeMode="contain"
                     onError={(e) => console.warn('Photo preview load error:', e.nativeEvent.error)}
                   />
