@@ -72,6 +72,46 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
 });
 
+app.get('/debug-global-rollover', async (req, res) => {
+  try {
+    const migrationResult = await db.query(`
+      WITH current_active AS (
+        SELECT id FROM cycles WHERE is_active = true LIMIT 1
+      ),
+      previous_cycle AS (
+        SELECT id FROM cycles WHERE is_active = false ORDER BY created_at DESC LIMIT 1
+      )
+      INSERT INTO assignments (property_id, cycle_id, agent_id, assigned_by, assigned_at)
+      SELECT 
+        a.property_id,
+        (SELECT id FROM current_active),
+        a.agent_id,
+        a.assigned_by,
+        NOW()
+      FROM assignments a
+      LEFT JOIN readings r ON r.assignment_id = a.id
+      WHERE a.cycle_id = (SELECT id FROM previous_cycle)
+        AND r.id IS NULL
+      ON CONFLICT DO NOTHING;
+    `);
+
+    const countResult = await db.query(`
+      SELECT COUNT(*) as active_unvisited_count
+      FROM assignments a
+      JOIN cycles c ON c.id = a.cycle_id
+      LEFT JOIN readings r ON r.assignment_id = a.id
+      WHERE c.is_active = true AND r.id IS NULL;
+    `);
+
+    res.json({
+      rowCountMigrated: migrationResult.rowCount,
+      activeUnvisitedCount: parseInt(countResult.rows[0].active_unvisited_count, 10)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Load BullMQ background worker
 require('./workers/sync.worker');
