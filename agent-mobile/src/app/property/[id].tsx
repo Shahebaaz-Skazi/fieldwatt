@@ -12,7 +12,7 @@ import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
-import ViewShot from 'react-native-view-shot';
+import { createWatermarkedPhoto } from '../../utils/watermark';
 // FileSystem removed to prevent native unlinked load crash
 import { sharedData } from '../../utils/sharedData';
 
@@ -66,19 +66,10 @@ export default function PropertyDetailScreen() {
   const [cameraActive, setCameraActive] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
   const [cameraGps, setCameraGps] = useState('Fetching GPS...');
-  const viewShotRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
-
-  const watermarkShotRef = useRef<any>(null);
-  const [pendingWatermarkUri, setPendingWatermarkUri] = useState<string | null>(null);
   const [captureTimestamp, setCaptureTimestamp] = useState('');
   const [captureGps, setCaptureGps] = useState('');
-  const [watermarkImageReady, setWatermarkImageReady] = useState(false);
-  const watermarkImageReadyRef = useRef(false);
-
-  const [photoAspect, setPhotoAspect] = useState<number | null>(null);
-  const [photoWidth, setPhotoWidth] = useState<number>(width);
-  const [photoHeight, setPhotoHeight] = useState<number>(height);
+  const [watermarking, setWatermarking] = useState(false);
 
   useEffect(() => {
     if (!cameraActive) return;
@@ -156,94 +147,7 @@ export default function PropertyDetailScreen() {
     };
   }, []);
 
-  // Effect to process and burn watermark into static image after capture / gallery pick
-  useEffect(() => {
-    if (!pendingWatermarkUri) return;
 
-    let isSubscribed = true;
-
-    const burnWatermark = async () => {
-      try {
-        watermarkImageReadyRef.current = false;
-        setWatermarkImageReady(false);
-
-        // 1. Fast pre-compress/resize to 1080px to make ViewShot render instantly without UI lag
-        let targetUri = pendingWatermarkUri;
-        try {
-          const manipulated = await ImageManipulator.manipulateAsync(
-            pendingWatermarkUri,
-            [{ resize: { width: 1080 } }],
-            { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG }
-          );
-          targetUri = manipulated.uri;
-        } catch (e) {
-          console.warn('Fast resize skipped, using raw image:', e);
-        }
-
-        if (!isSubscribed) return;
-
-        // Get dimensions of optimized image
-        const { width: imgW, height: imgH } = await new Promise<{ width: number; height: number }>((resolve) => {
-          Image.getSize(
-            targetUri,
-            (w, h) => resolve({ width: w, height: h }),
-            () => resolve({ width: 1080, height: 1440 })
-          );
-        });
-
-        if (!isSubscribed) return;
-        setPhotoAspect(imgW / imgH);
-        setPhotoWidth(imgW > width ? width : imgW);
-        setPhotoHeight(imgW > width ? Math.round(width * (imgH / imgW)) : imgH);
-
-        // Wait for the Image inside ViewShot to fully decode its bitmap before capturing.
-        // A fixed timeout races the image decoder — instead poll the onLoad ref.
-        await new Promise<void>((resolve) => {
-          const deadline = Date.now() + 3000; // 3s safety timeout
-          const check = () => {
-            if (watermarkImageReadyRef.current || Date.now() >= deadline) {
-              resolve();
-            } else {
-              setTimeout(check, 30);
-            }
-          };
-          setTimeout(check, 30); // first check after one frame
-        });
-
-        if (watermarkShotRef.current) {
-          const watermarkedUri = await watermarkShotRef.current.capture({
-            format: 'jpg',
-            quality: 0.95,
-            result: 'tmpfile',
-          });
-
-          if (!isSubscribed) return;
-
-          // Non-blocking background gallery save
-          CameraRoll.saveAsset(watermarkedUri, { type: 'photo' }).catch(err => {
-            console.warn('Background gallery save notice:', err);
-          });
-
-          setPhotoUri(watermarkedUri);
-        } else {
-          setPhotoUri(targetUri);
-        }
-      } catch (err) {
-        console.warn('Watermark burn error, using base photo:', err);
-        setPhotoUri(pendingWatermarkUri);
-      } finally {
-        if (isSubscribed) {
-          setPendingWatermarkUri(null);
-        }
-      }
-    };
-
-    burnWatermark();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [pendingWatermarkUri]);
 
   const closeCamera = async () => {
     setCameraActive(false);
@@ -323,7 +227,21 @@ export default function PropertyDetailScreen() {
       })();
 
       // Feed into watermark pipeline immediately
-      setPendingWatermarkUri(selectedUri);
+      setWatermarking(true);
+      const agentName = useAuthStore.getState().user?.name || 'Agent';
+      const meterNo = property?.meter_no || 'N/A';
+      const bpNo = (property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString();
+
+      createWatermarkedPhoto(selectedUri, { agentName, meterNo, bpNo })
+        .then((watermarked) => {
+          setPhotoUri(watermarked);
+          setWatermarking(false);
+        })
+        .catch((e) => {
+          console.warn('Gallery pick watermark error:', e);
+          setPhotoUri(selectedUri);
+          setWatermarking(false);
+        });
     } catch (err) {
       console.error('Gallery pick failed:', err);
       showAlert('Gallery Error', 'Could not open gallery. Please try again.');
@@ -488,16 +406,26 @@ export default function PropertyDetailScreen() {
                   const photo = await cameraRef.current.takePictureAsync({ quality: 1.0, skipProcessing: false, exif: false });
                   console.log('✔ Raw photo captured:', photo.uri);
 
-
-                  
-                  // Close camera and trigger watermark processing
+                  // Close camera
                   setCameraActive(false);
                   try {
                     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
                   } catch (e) {}
                   
-                  // This triggers the useEffect that burns watermark and saves to gallery
-                  setPendingWatermarkUri(photo.uri);
+                  setWatermarking(true);
+                  const agentName = useAuthStore.getState().user?.name || 'Agent';
+                  const meterNo = property?.meter_no || 'N/A';
+                  const bpNo = (property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString();
+
+                  const watermarked = await createWatermarkedPhoto(photo.uri, { agentName, meterNo, bpNo });
+
+                  // Save to gallery
+                  CameraRoll.saveAsset(watermarked, { type: 'photo' }).catch(err => {
+                    console.warn('Background gallery save notice:', err);
+                  });
+
+                  setPhotoUri(watermarked);
+                  setWatermarking(false);
                 }
               } catch (err) {
                 console.error('Capture failed:', err);
@@ -755,7 +683,7 @@ export default function PropertyDetailScreen() {
             />
           </View>
 
-          {pendingWatermarkUri !== null && (
+          {watermarking && (
             <Text style={{ color: '#f5a623', textAlign: 'center', marginBottom: 8, fontSize: 13 }}>
               ⏳ Processing photo watermark...
             </Text>
@@ -763,8 +691,8 @@ export default function PropertyDetailScreen() {
 
           <TouchableOpacity 
             onPress={handleSubmit} 
-            disabled={submitting || pendingWatermarkUri !== null}
-            style={[styles.submitBtn, (submitting || pendingWatermarkUri !== null) && { opacity: 0.6 }]}
+            disabled={submitting || watermarking}
+            style={[styles.submitBtn, (submitting || watermarking) && { opacity: 0.6 }]}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -775,68 +703,7 @@ export default function PropertyDetailScreen() {
         </View>
       </ScrollView>
 
-      {pendingWatermarkUri && (
-        <View style={{
-          position: 'absolute',
-          top: -9999,
-          left: -9999,
-          width: photoWidth,
-          height: photoHeight,
-          zIndex: -1,
-          opacity: 1,
-          backgroundColor: '#000',
-          overflow: 'hidden',
-        }}>
-          <ViewShot
-            ref={watermarkShotRef}
-            collapsable={false}
-            options={{ format: 'jpg', quality: 0.95 }}
-            style={{
-              width: photoWidth,
-              height: photoHeight,
-              backgroundColor: '#000',
-            }}
-          >
-            <View collapsable={false} style={{ width: photoWidth, height: photoHeight, backgroundColor: '#000' }}>
-              <Image
-                source={{ uri: pendingWatermarkUri }}
-                style={{ width: photoWidth, height: photoHeight }}
-                resizeMode="stretch"
-                onLoad={() => {
-                  watermarkImageReadyRef.current = true;
-                  setWatermarkImageReady(true);
-                }}
-              />
-              {/* Watermark overlay container covering the ViewShot */}
-              <View collapsable={false} style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                justifyContent: 'space-between',
-                backgroundColor: 'transparent',
-              }}>
-                {/* Top Row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    {useAuthStore.getState().user?.name || 'Agent'}
-                  </Text>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    {captureTimestamp}
-                  </Text>
-                </View>
-                {/* Bottom Row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    Meter: {property?.meter_no || 'N/A'}
-                  </Text>
-                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                    BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ViewShot>
-        </View>
-      )}
+
     </SafeAreaView>
   );
 }
