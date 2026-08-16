@@ -210,6 +210,9 @@ export default function PropertyDetailScreen() {
           setTimeout(check, 30); // first check after one frame
         });
 
+        // Give the Android Yoga layout engine 150ms to settle the new dimensions
+        await new Promise((resolve) => setTimeout(resolve, 150));
+
         if (watermarkShotRef.current) {
           const watermarkedUri = await watermarkShotRef.current.capture({
             format: 'jpg',
