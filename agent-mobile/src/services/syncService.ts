@@ -1,36 +1,12 @@
 import { getUnsyncedReadings, markReadingsAsSynced } from '../db/sqlite';
 import api from '../utils/api';
 import * as FileSystem from 'expo-file-system/legacy';
-import { CameraRoll } from '@react-native-camera-roll/camera-roll';
-import { Image } from 'react-native';
 
 let isSyncing = false;
 
 // Upload local photo to Supabase before syncing the reading
 const uploadLocalPhoto = async (uri: string): Promise<string> => {
   if (uri.startsWith('http')) return uri;
-
-  // --- DIAGNOSTICS BEFORE UPLOAD (STAGE C) ---
-  try {
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const { width, height } = await new Promise<{ width: number; height: number }>((resolve) => {
-      Image.getSize(
-        uri,
-        (w, h) => resolve({ width: w, height: h }),
-        () => resolve({ width: 0, height: 0 })
-      );
-    });
-
-    console.log(`[STAGE C - BEFORE UPLOAD] URI: ${uri}`);
-    console.log(`[STAGE C - BEFORE UPLOAD] Size: ${fileInfo.exists ? fileInfo.size : 'N/A'} bytes`);
-    console.log(`[STAGE C - BEFORE UPLOAD] Dimensions: ${width}x${height}`);
-
-    // Save exact copy of what we are uploading to gallery
-    const savedBefore = await CameraRoll.saveAsset(uri, { type: 'photo' });
-    console.log(`[STAGE C - BEFORE UPLOAD] Saved to gallery: ${savedBefore.uri}`);
-  } catch (diagErr) {
-    console.warn('Diagnostics stage C error:', diagErr);
-  }
 
   const filename = `meter_${Date.now()}.jpg`;
 
@@ -55,34 +31,6 @@ const uploadLocalPhoto = async (uri: string): Promise<string> => {
   }
 
   console.log('✔ Photo uploaded successfully:', photoUrl);
-
-  // --- DIAGNOSTICS AFTER UPLOAD (STAGE D) ---
-  try {
-    // Download the uploaded file back from the public server URL
-    const tempDest = `${FileSystem.cacheDirectory}downloaded_test_${Date.now()}.jpg`;
-    const downloadResult = await FileSystem.downloadAsync(photoUrl, tempDest);
-    
-    const downloadInfo = await FileSystem.getInfoAsync(downloadResult.uri);
-    const { width: dw, height: dh } = await new Promise<{ width: number; height: number }>((resolve) => {
-      Image.getSize(
-        downloadResult.uri,
-        (w, h) => resolve({ width: w, height: h }),
-        () => resolve({ width: 0, height: 0 })
-      );
-    });
-
-    console.log(`[STAGE D - AFTER UPLOAD / DOWNLOAD] Public URL: ${photoUrl}`);
-    console.log(`[STAGE D - AFTER UPLOAD / DOWNLOAD] Local URI: ${downloadResult.uri}`);
-    console.log(`[STAGE D - AFTER UPLOAD / DOWNLOAD] Size: ${downloadInfo.exists ? downloadInfo.size : 'N/A'} bytes`);
-    console.log(`[STAGE D - AFTER UPLOAD / DOWNLOAD] Dimensions: ${dw}x${dh}`);
-
-    // Save exact copy of downloaded file to gallery
-    const savedAfter = await CameraRoll.saveAsset(downloadResult.uri, { type: 'photo' });
-    console.log(`[STAGE D - AFTER UPLOAD / DOWNLOAD] Saved to gallery: ${savedAfter.uri}`);
-  } catch (diagErr) {
-    console.warn('Diagnostics stage D error:', diagErr);
-  }
-
   return photoUrl;
 };
 
