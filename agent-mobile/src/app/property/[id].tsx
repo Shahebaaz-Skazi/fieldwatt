@@ -800,30 +800,31 @@ export default function PropertyDetailScreen() {
                   setWatermarkImageReady(true);
                 }}
               />
-              {/* Slim bottom watermark strip only — does NOT cover the rest of the image */}
+              {/* Watermark overlay container covering the ViewShot */}
               <View style={{
                 position: 'absolute',
-                left: 0, right: 0, bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.55)',
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                flexDirection: 'row',
+                top: 0, left: 0, right: 0, bottom: 0,
                 justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 4,
+                backgroundColor: 'transparent',
               }}>
-                <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                  {useAuthStore.getState().user?.name || 'Agent'}
-                </Text>
-                <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                  {captureTimestamp}
-                </Text>
-                <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                  Meter: {property?.meter_no || 'N/A'}
-                </Text>
-                <Text style={styles.burnedWatermarkText} numberOfLines={1}>
-                  BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
-                </Text>
+                {/* Top Row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    {useAuthStore.getState().user?.name || 'Agent'}
+                  </Text>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    {captureTimestamp}
+                  </Text>
+                </View>
+                {/* Bottom Row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 8 }}>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    Meter: {property?.meter_no || 'N/A'}
+                  </Text>
+                  <Text style={styles.burnedWatermarkText} numberOfLines={1}>
+                    BP: {(property?.bp_no || property?.raw_sap_data?.['BP No.'] || 'N/A').toString()}
+                  </Text>
+                </View>
               </View>
             </View>
           </ViewShot>
@@ -1034,9 +1035,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   burnedWatermarkText: {
-    color: '#ffff00',
-    fontSize: 12,
-    fontWeight: '700',
+    color: '#FFEB3B',
+    fontSize: 14,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     flexShrink: 1,
   },
   cameraControls: {
