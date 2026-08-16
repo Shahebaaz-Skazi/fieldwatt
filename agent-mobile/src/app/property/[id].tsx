@@ -184,6 +184,11 @@ export default function PropertyDetailScreen() {
           console.warn('Fast resize skipped, using raw image:', e);
         }
 
+        // Save pre-compressed copy to gallery for Stage B diagnostics
+        CameraRoll.saveAsset(targetUri, { type: 'photo' })
+          .then(asset => console.log('✔ Test 1.5 — Stage B (Pre-compressed) Saved:', asset.uri))
+          .catch(err => console.warn('Gallery save error for Stage B image:', err));
+
         if (!isSubscribed) return;
 
         // Get dimensions of optimized image
