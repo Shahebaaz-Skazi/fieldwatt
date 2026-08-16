@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
   },
   burnedWatermarkText: {
     color: '#FFEB3B',
-    fontSize: 14,
+    fontSize: 28,
     fontWeight: 'bold',
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderRadius: 4,
