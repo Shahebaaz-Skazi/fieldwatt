@@ -49,7 +49,16 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
         }
 
         // Determine phone number
-        let rawPhone = phoneNumbers[propertyId] || property.phone_number;
+        let rawPhone = phoneNumbers[propertyId] || property.phone_number || (
+          property.raw_sap_data ? (
+            property.raw_sap_data['Mobile No.'] ||
+            property.raw_sap_data['Mobile'] ||
+            property.raw_sap_data['Telephone No.'] ||
+            property.raw_sap_data['Telephone'] ||
+            property.raw_sap_data['Phone'] ||
+            property.raw_sap_data['Contact No']
+          ) : null
+        );
         if (!rawPhone) {
           results.push({ propertyId, status: 'failed', error: 'No phone number available' });
           failedCount++;

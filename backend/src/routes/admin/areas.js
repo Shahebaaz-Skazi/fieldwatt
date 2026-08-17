@@ -288,7 +288,15 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
       p.meter_no, 
       p.property_type, 
       p.society,
-      p.phone_number,
+      COALESCE(
+        p.phone_number,
+        p.raw_sap_data->>'Mobile No.',
+        p.raw_sap_data->>'Mobile',
+        p.raw_sap_data->>'Telephone No.',
+        p.raw_sap_data->>'Telephone',
+        p.raw_sap_data->>'Phone',
+        p.raw_sap_data->>'Contact No'
+      ) AS phone_number,
       p.lat, 
       p.lng,
       asg.id as assignment_id,
