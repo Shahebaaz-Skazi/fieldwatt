@@ -174,7 +174,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
            sub_society = excluded.sub_society,
            building_code = excluded.building_code,
            bp_no = excluded.bp_no,
-           reading_status = CASE WHEN ? = 1 THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
+           reading_status = CASE WHEN ? = 1 AND properties.assignment_id = excluded.assignment_id THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
         [
           prop.property_id,
           prop.assignment_id,
@@ -241,7 +241,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
                sub_society = excluded.sub_society,
                building_code = excluded.building_code,
                bp_no = excluded.bp_no,
-               reading_status = CASE WHEN ? = 1 THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
+               reading_status = CASE WHEN ? = 1 AND properties.assignment_id = excluded.assignment_id THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
             [
               prop.property_id,
               prop.assignment_id,
