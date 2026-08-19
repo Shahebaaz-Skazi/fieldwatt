@@ -90,7 +90,7 @@ const initDb = async () => {
       console.log('Database initialized successfully (001_init.sql applied).');
     }
   } catch (error) {
-    console.error('Error applying 001_init.sql:', error.message);
+    console.error('Error applying 001_init.sql:', error);
   }
 
   // Helper to run individual migration queries safely
@@ -99,7 +99,7 @@ const initDb = async () => {
       await db.query(sql);
       console.log(`✔ Migration applied: ${name}`);
     } catch (error) {
-      console.error(`❌ Migration failed: ${name} (${error.message})`);
+      console.error(`❌ Migration failed: ${name}`, error);
     }
   };
 
