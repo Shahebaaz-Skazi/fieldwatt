@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
-import { TrendingUp, Users, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { TrendingUp, Users, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 const STATUS_CONFIG = {
   reading_taken:  { label: 'Reading Done',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
@@ -21,6 +21,64 @@ const AgentPerformance = () => {
   const [selectedCycleId, setSelectedCycleId] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [expandedAgent, setExpandedAgent] = useState(null);
+
+  // Calendar Modal States
+  const [calendarAgent, setCalendarAgent] = useState(null);
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth() + 1);
+  const [calendarStats, setCalendarStats] = useState({});
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const fetchCalendarData = useCallback(async (agentId, year, month) => {
+    setCalendarLoading(true);
+    try {
+      const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+      const res = await api.get(`/admin/agent-performance/${agentId}/calendar?month=${monthStr}`);
+      setCalendarStats(res.stats || {});
+    } catch (err) {
+      console.error('Failed to fetch calendar data:', err);
+    } finally {
+      setCalendarLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (calendarAgent) {
+      fetchCalendarData(calendarAgent.agent_id, calendarYear, calendarMonth);
+    }
+  }, [calendarAgent, calendarYear, calendarMonth, fetchCalendarData]);
+
+  const handlePrevMonth = () => {
+    if (calendarMonth === 1) {
+      setCalendarMonth(12);
+      setCalendarYear(y => y - 1);
+    } else {
+      setCalendarMonth(m => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 12) {
+      setCalendarMonth(1);
+      setCalendarYear(y => y + 1);
+    } else {
+      setCalendarMonth(m => m + 1);
+    }
+  };
+
+  const getDaysInMonth = (year, month) => {
+    const date = new Date(year, month - 1, 1);
+    const days = [];
+    const firstDayIndex = date.getDay();
+    const totalDays = new Date(year, month, 0).getDate();
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let d = 1; d <= totalDays; d++) {
+      days.push(d);
+    }
+    return days;
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -194,6 +252,30 @@ const AgentPerformance = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: '600', whiteSpace: 'nowrap' }}>✓ {readingTaken} Done</span>
                     <span style={{ fontSize: '12px', padding: '4px 12px', borderRadius: '20px', background: 'rgba(148,163,184,0.1)', color: '#94a3b8', whiteSpace: 'nowrap' }}>⏳ {notVisited} Pending</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCalendarAgent(agent);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--muted)',
+                        cursor: 'pointer',
+                        padding: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '4px',
+                        marginLeft: '8px',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--border)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      title="View daily activity calendar"
+                    >
+                      <Calendar size={16} />
+                    </button>
                     <span style={{ fontSize: '16px', color: 'var(--muted)', marginLeft: '8px' }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </div>
@@ -217,6 +299,106 @@ const AgentPerformance = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Calendar Modal */}
+      {calendarAgent && (
+        <div className="modal-overlay" onClick={() => setCalendarAgent(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', width: '95%', padding: '24px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text)', margin: 0 }}>Daily Activity Calendar</h3>
+                <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>Agent: <strong>{calendarAgent.agent_name}</strong></p>
+              </div>
+              <button className="btn btn-secondary" onClick={() => setCalendarAgent(null)} style={{ padding: '4px', cursor: 'pointer', border: 'none', background: 'none' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Calendar Month Control */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--border-light, #f3f4f6)', borderRadius: '10px', padding: '10px 14px' }}>
+              <button className="btn btn-secondary" onClick={handlePrevMonth} style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                <ChevronLeft size={16} /> Prev
+              </button>
+              <span style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text)' }}>
+                {new Date(calendarYear, calendarMonth - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+              <button className="btn btn-secondary" onClick={handleNextMonth} style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {/* Calendar Grid */}
+            {calendarLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '60px', color: 'var(--muted)', fontSize: '13px' }}>Loading calendar data...</div>
+            ) : (
+              <div>
+                {/* Day Names Row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontWeight: '600', fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}
+                </div>
+
+                {/* Day Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+                  {getDaysInMonth(calendarYear, calendarMonth).map((day, idx) => {
+                    if (day === null) {
+                      return <div key={`empty-${idx}`} style={{ minHeight: '65px', background: 'transparent' }} />;
+                    }
+
+                    const dateStr = `${calendarYear}-${calendarMonth.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                    const stats = calendarStats[dateStr];
+
+                    return (
+                      <div 
+                        key={dateStr} 
+                        style={{ 
+                          minHeight: '65px', 
+                          border: '1px solid var(--border)', 
+                          borderRadius: '8px', 
+                          padding: '6px', 
+                          background: 'var(--surface)', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          justifyContent: 'space-between',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)' }}>{day}</span>
+                        {stats && stats.total > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {stats.done > 0 && (
+                              <span style={{ fontSize: '9px', fontWeight: '700', color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '1px 3px', borderRadius: '4px', textAlign: 'center', display: 'block', whiteSpace: 'nowrap' }} title="Readings Taken">
+                                ✓ {stats.done}
+                              </span>
+                            )}
+                            {stats.other > 0 && (
+                              <span style={{ fontSize: '9px', fontWeight: '700', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 3px', borderRadius: '4px', textAlign: 'center', display: 'block', whiteSpace: 'nowrap' }} title="Locks / Other Status">
+                                ⚠ {stats.other}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: '16px', fontSize: '11px', color: 'var(--muted)', borderTop: '1px solid var(--border)', paddingTop: '12px', justifyContent: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} /> Reading Done
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b' }} /> Door Locked / Other
+              </span>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

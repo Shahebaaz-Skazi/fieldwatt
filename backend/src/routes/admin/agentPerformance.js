@@ -73,4 +73,56 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
+// GET /admin/agent-performance/:agentId/calendar?month=YYYY-MM
+router.get('/:agentId/calendar', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { month } = req.query; // e.g. "2026-08"
+
+    let yearVal, monthVal;
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      [yearVal, monthVal] = month.split('-').map(Number);
+    } else {
+      const now = new Date();
+      yearVal = now.getFullYear();
+      monthVal = now.getMonth() + 1;
+    }
+
+    const queryText = `
+      SELECT 
+        TO_CHAR(timezone('Asia/Kolkata', r.submitted_at), 'YYYY-MM-DD') as date,
+        COUNT(r.id)::int as total,
+        COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END)::int as done,
+        COUNT(CASE WHEN r.status_code != 'reading_taken' THEN 1 END)::int as other
+      FROM readings r
+      INNER JOIN assignments asg ON r.assignment_id = asg.id
+      WHERE asg.agent_id = $1
+        AND EXTRACT(YEAR FROM timezone('Asia/Kolkata', r.submitted_at)) = $2
+        AND EXTRACT(MONTH FROM timezone('Asia/Kolkata', r.submitted_at)) = $3
+      GROUP BY TO_CHAR(timezone('Asia/Kolkata', r.submitted_at), 'YYYY-MM-DD')
+      ORDER BY date ASC
+    `;
+
+    const result = await db.query(queryText, [agentId, yearVal, monthVal]);
+    
+    const dailyStats = {};
+    result.rows.forEach(row => {
+      dailyStats[row.date] = {
+        total: row.total,
+        done: row.done,
+        other: row.other
+      };
+    });
+
+    res.json({
+      agent_id: agentId,
+      year: yearVal,
+      month: monthVal,
+      stats: dailyStats
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
