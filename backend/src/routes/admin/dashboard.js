@@ -103,6 +103,7 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
         r.submitted_at,
         p.id as property_id,
         p.serial_no,
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
@@ -162,7 +163,7 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
     }
 
     const queryText = `
-      SELECT p.id, p.serial_no, p.consumer_name, p.address
+      SELECT p.id, p.serial_no, p.raw_sap_data->>'BP No.' AS bp_no, p.consumer_name, p.address
       FROM assignments asg
       INNER JOIN properties p ON asg.property_id = p.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
@@ -197,6 +198,7 @@ router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) =>
         r.submitted_at,
         p.id as property_id,
         p.serial_no,
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
@@ -301,6 +303,7 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         p.id,
         p.id as property_id,
         p.serial_no,
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
@@ -393,6 +396,7 @@ router.get('/download-images', authMiddleware, requireViewer, async (req, res) =
         r.photo_url, 
         r.submitted_at, 
         p.serial_no, 
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.raw_sap_data->>'BP No.' as sap_bp_no
       FROM readings r

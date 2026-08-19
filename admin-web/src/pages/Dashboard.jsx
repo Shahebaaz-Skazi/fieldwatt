@@ -973,7 +973,7 @@ const Dashboard = ({ viewerMode = false }) => {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Serial No</th>
+                      <th>BP No</th>
                       <th>Consumer Name</th>
                       <th>Status</th>
                       <th>Reading Value</th>
@@ -994,7 +994,7 @@ const Dashboard = ({ viewerMode = false }) => {
                           onClick={() => openReadingModal(reading)}
                           style={{ cursor: 'pointer' }}
                         >
-                          <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reading.serial_no}</td>
+                          <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reading.bp_no || reading.serial_no}</td>
                           <td>{reading.consumer_name}</td>
                           <td>
                             <span className={`badge ${reading.status_code === 'reading_taken' ? 'badge-success' : 'badge-danger'}`}>
@@ -1079,7 +1079,7 @@ const Dashboard = ({ viewerMode = false }) => {
                 <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Properties to Reassign:</span>
                 {pendingProps.map(p => (
                   <div key={p.id} style={{ fontSize: '12px', color: 'var(--text)', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                    Sr. {p.serial_no} · {p.consumer_name}
+                    BP No. {p.bp_no || p.serial_no} · {p.consumer_name}
                   </div>
                 ))}
               </div>
@@ -1144,7 +1144,7 @@ const Dashboard = ({ viewerMode = false }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               <div>
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>Reading Details</h2>
-                <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>Consumer Order Sr. {viewingReading.serial_no}</p>
+                <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>BP No. {viewingReading.bp_no || viewingReading.serial_no}</p>
               </div>
               <button onClick={closeReadingModal} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>
                 <X size={16} />

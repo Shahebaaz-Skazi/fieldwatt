@@ -661,7 +661,7 @@ const Assignment = () => {
             <input
               type="text"
               className="form-input"
-              placeholder="Search Name, Serial, or Address..."
+              placeholder="Search Name, BP No, or Address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -698,7 +698,7 @@ const Assignment = () => {
                     />
                   </th>
                   <th>Consumer Details</th>
-                  <th>Serial / Meter No</th>
+                  <th>BP / Meter No</th>
                   <th>Society</th>
                   <th>Area Location</th>
                   <th>Task Status</th>
@@ -731,7 +731,7 @@ const Assignment = () => {
                         <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>{prop.address}</div>
                       </td>
                       <td>
-                        <div style={{ fontWeight: '500' }}>{prop.serial_no}</div>
+                        <div style={{ fontWeight: '500' }}>{prop.bp_no || prop.serial_no}</div>
                         {prop.meter_no && <div style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px' }}>Meter: {prop.meter_no}</div>}
                       </td>
                       <td style={{ color: 'var(--text)' }}>{prop.society || '-'}</td>

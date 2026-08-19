@@ -689,7 +689,7 @@ const Areas = () => {
           <input
             type="text"
             className="form-input"
-            placeholder="Search consumer, serial, meter..."
+            placeholder="Search consumer, BP No, meter..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: '40px', fontSize: '13px' }}
@@ -824,7 +824,7 @@ const Areas = () => {
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>Sr. {seat.serial_no}</span>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>BP No. {seat.bp_no || seat.serial_no}</span>
                         <span style={{ fontSize: '10px', color: 'var(--muted)' }}>
                           {seat.property_type === 'flat' ? '🏢 Flat' : seat.property_type === 'bungalow' ? '🏡 Bungalow' : '🏠 Raw House'}
                         </span>
@@ -913,7 +913,7 @@ const Areas = () => {
                       }}
                     >
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)' }}>Sr. {seat.serial_no}</span>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)' }}>BP No. {seat.bp_no || seat.serial_no}</span>
                         <p style={{ fontSize: '11px', color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {seat.consumer_name}
                         </p>
@@ -1010,8 +1010,8 @@ const Areas = () => {
                 </div>
 
                 <div>
-                  <h4 style={{ color: 'var(--muted)', fontSize: '10px', textTransform: 'uppercase' }}>Serial ID</h4>
-                  <p style={{ color: 'var(--accent2)', fontSize: '13px', fontWeight: '700', fontFamily: 'monospace' }}>{selectedProperty.serial_no}</p>
+                  <h4 style={{ color: 'var(--muted)', fontSize: '10px', textTransform: 'uppercase' }}>BP No</h4>
+                  <p style={{ color: 'var(--accent2)', fontSize: '13px', fontWeight: '700', fontFamily: 'monospace' }}>{selectedProperty.bp_no || selectedProperty.serial_no}</p>
                 </div>
 
                 <div>

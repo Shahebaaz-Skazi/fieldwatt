@@ -92,6 +92,7 @@ router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmi
       SELECT
         p.id,
         p.serial_no,
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
@@ -283,6 +284,7 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
     let selectFields = `
       p.id, 
       p.serial_no, 
+      p.raw_sap_data->>'BP No.' AS bp_no,
       p.consumer_name, 
       p.address, 
       p.meter_no, 

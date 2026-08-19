@@ -96,7 +96,7 @@ const Alerts = () => {
         <table className="table">
           <thead>
             <tr>
-              <th>Serial</th>
+              <th>BP No</th>
               <th>Consumer Name</th>
               <th>Address</th>
               <th>Assigned Agent</th>
@@ -119,7 +119,7 @@ const Alerts = () => {
             ) : (
               anomalies.map((a) => (
                 <tr key={a.reading_id}>
-                  <td style={{ fontWeight: '600', color: 'var(--text)' }}>{a.serial_no}</td>
+                  <td style={{ fontWeight: '600', color: 'var(--text)' }}>{a.bp_no || a.serial_no}</td>
                   <td>{a.consumer_name}</td>
                   <td style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.address}</td>
                   <td>{a.agent_name}</td>

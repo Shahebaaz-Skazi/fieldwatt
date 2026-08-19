@@ -99,7 +99,7 @@ const MapView = () => {
 
           const popupContent = `
             <div style="font-family: sans-serif; font-size: 12px; color: #111;">
-              <strong style="font-size: 13px;">Serial: ${prop.serial_no}</strong><br/>
+              <strong style="font-size: 13px;">BP No: ${prop.bp_no || prop.serial_no}</strong><br/>
               <b>Consumer:</b> ${prop.consumer_name}<br/>
               <b>Address:</b> ${prop.address}<br/>
               <b>Meter:</b> ${prop.meter_no || 'N/A'}<br/>

@@ -289,6 +289,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       SELECT 
         p.id,
         p.serial_no,
+        p.raw_sap_data->>'BP No.' AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
