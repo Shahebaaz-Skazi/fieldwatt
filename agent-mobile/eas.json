@@ -29,6 +29,13 @@
         "key": "fieldwatt-v1",
         "cacheDefaultPaths": true
       }
+    },
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fieldwatt-backend-staging.onrender.com"
+      }
     }
   },
   "submit": {

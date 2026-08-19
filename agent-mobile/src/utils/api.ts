@@ -13,10 +13,10 @@ const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location?.hostname;
     if (hostname === 'localhost') return 'http://localhost:3000';
-    return 'https://fieldwatt-backend.onrender.com';
+    return process.env.EXPO_PUBLIC_API_URL || 'https://fieldwatt-backend.onrender.com';
   }
   // Fallback for production native build
-  return 'https://fieldwatt-backend.onrender.com';
+  return process.env.EXPO_PUBLIC_API_URL || 'https://fieldwatt-backend.onrender.com';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
