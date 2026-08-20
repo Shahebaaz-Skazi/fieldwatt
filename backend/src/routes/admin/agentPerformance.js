@@ -27,30 +27,53 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         ag.name as agent_name,
         ag.last_login,
         COUNT(DISTINCT asg.id) as total_assigned,
-        -- All-time completed (for not_visited and completion % — unaffected by period filter)
-        COUNT(DISTINCT r_all.id) as total_submitted_alltime,
-        COUNT(DISTINCT asg.id) - COUNT(DISTINCT r_all.id) as not_visited,
-        -- Period-filtered counts (for the breakdown cards)
-        COUNT(DISTINCT r.id) as total_submitted,
-        COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END) as reading_taken,
-        COUNT(CASE WHEN r.status_code = 'door_locked' THEN 1 END) as door_locked,
-        COUNT(CASE WHEN r.status_code = 'not_reachable' THEN 1 END) as not_reachable,
-        COUNT(CASE WHEN r.status_code = 'access_denied' THEN 1 END) as access_denied,
-        COUNT(CASE WHEN r.status_code = 'meter_not_found' THEN 1 END) as meter_not_found,
-        COUNT(CASE WHEN r.status_code = 'meter_damaged' THEN 1 END) as meter_damaged,
-        COUNT(CASE WHEN r.status_code = 'vacant_property' THEN 1 END) as vacant_property,
-        COUNT(CASE WHEN r.status_code = 'revisit_needed' THEN 1 END) as revisit_needed,
+        COALESCE(alltime.total_submitted_alltime, 0) as total_submitted_alltime,
+        COUNT(DISTINCT asg.id) - COALESCE(alltime.total_submitted_alltime, 0) as not_visited,
+        COALESCE(period_counts.total_submitted, 0) as total_submitted,
+        COALESCE(period_counts.reading_taken, 0) as reading_taken,
+        COALESCE(period_counts.door_locked, 0) as door_locked,
+        COALESCE(period_counts.not_reachable, 0) as not_reachable,
+        COALESCE(period_counts.access_denied, 0) as access_denied,
+        COALESCE(period_counts.meter_not_found, 0) as meter_not_found,
+        COALESCE(period_counts.meter_damaged, 0) as meter_damaged,
+        COALESCE(period_counts.vacant_property, 0) as vacant_property,
+        COALESCE(period_counts.revisit_needed, 0) as revisit_needed,
         ROUND(
           CASE WHEN COUNT(DISTINCT asg.id) > 0
-          THEN COUNT(DISTINCT r_all.id)::numeric / COUNT(DISTINCT asg.id) * 100
+          THEN COALESCE(alltime.total_submitted_alltime, 0)::numeric / COUNT(DISTINCT asg.id) * 100
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
       LEFT JOIN assignments asg ON ag.id = asg.agent_id
-      LEFT JOIN readings r_all ON asg.id = r_all.assignment_id
-      LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
+      -- Subquery 1: all-time counts, no date filter
+      LEFT JOIN (
+        SELECT asg2.agent_id, COUNT(DISTINCT r2.id) as total_submitted_alltime
+        FROM assignments asg2
+        LEFT JOIN readings r2 ON asg2.id = r2.assignment_id
+        GROUP BY asg2.agent_id
+      ) alltime ON alltime.agent_id = ag.id
+      -- Subquery 2: period-filtered counts
+      LEFT JOIN (
+        SELECT 
+          asg3.agent_id,
+          COUNT(DISTINCT r3.id) as total_submitted,
+          COUNT(CASE WHEN r3.status_code = 'reading_taken' THEN 1 END) as reading_taken,
+          COUNT(CASE WHEN r3.status_code = 'door_locked' THEN 1 END) as door_locked,
+          COUNT(CASE WHEN r3.status_code = 'not_reachable' THEN 1 END) as not_reachable,
+          COUNT(CASE WHEN r3.status_code = 'access_denied' THEN 1 END) as access_denied,
+          COUNT(CASE WHEN r3.status_code = 'meter_not_found' THEN 1 END) as meter_not_found,
+          COUNT(CASE WHEN r3.status_code = 'meter_damaged' THEN 1 END) as meter_damaged,
+          COUNT(CASE WHEN r3.status_code = 'vacant_property' THEN 1 END) as vacant_property,
+          COUNT(CASE WHEN r3.status_code = 'revisit_needed' THEN 1 END) as revisit_needed
+        FROM assignments asg3
+        LEFT JOIN readings r3 ON asg3.id = r3.assignment_id ${dateFilter}
+        GROUP BY asg3.agent_id
+      ) period_counts ON period_counts.agent_id = ag.id
       WHERE ag.is_active = true
-      GROUP BY ag.id, ag.name, ag.last_login
+      GROUP BY ag.id, ag.name, ag.last_login, alltime.total_submitted_alltime,
+        period_counts.total_submitted, period_counts.reading_taken, period_counts.door_locked,
+        period_counts.not_reachable, period_counts.access_denied, period_counts.meter_not_found,
+        period_counts.meter_damaged, period_counts.vacant_property, period_counts.revisit_needed
       ORDER BY total_assigned DESC
     `);
 

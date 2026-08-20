@@ -17,6 +17,7 @@ const STATUS_CONFIG = {
 const AgentPerformance = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [period, setPeriod] = useState('monthly');
   const [selectedCycleId, setSelectedCycleId] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState(null);
@@ -89,9 +90,11 @@ const AgentPerformance = () => {
       }
       const result = await api.get(`/admin/agent-performance?${params}`);
       setData(result);
+      setError(null);
       setLastRefreshed(new Date());
     } catch (err) {
       console.error('Failed to fetch agent performance:', err);
+      setError('Failed to load agent data. Click Refresh to try again.');
     } finally {
       setLoading(false);
     }
@@ -191,6 +194,13 @@ const AgentPerformance = () => {
               <span style={{ fontSize: '28px', fontWeight: '700', color: card.color }}>{card.value}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Error Alert */}
+      {error && !loading && (
+        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', borderRadius: '10px', padding: '16px', color: '#ef4444', marginBottom: '20px' }}>
+          ⚠️ {error}
         </div>
       )}
 
