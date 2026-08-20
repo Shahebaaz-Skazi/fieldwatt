@@ -55,19 +55,19 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
       -- Subquery 2: period-filtered counts
       LEFT JOIN (
         SELECT 
-          asg3.agent_id,
-          COUNT(DISTINCT r3.id) as total_submitted,
-          COUNT(CASE WHEN r3.status_code = 'reading_taken' THEN 1 END) as reading_taken,
-          COUNT(CASE WHEN r3.status_code = 'door_locked' THEN 1 END) as door_locked,
-          COUNT(CASE WHEN r3.status_code = 'not_reachable' THEN 1 END) as not_reachable,
-          COUNT(CASE WHEN r3.status_code = 'access_denied' THEN 1 END) as access_denied,
-          COUNT(CASE WHEN r3.status_code = 'meter_not_found' THEN 1 END) as meter_not_found,
-          COUNT(CASE WHEN r3.status_code = 'meter_damaged' THEN 1 END) as meter_damaged,
-          COUNT(CASE WHEN r3.status_code = 'vacant_property' THEN 1 END) as vacant_property,
-          COUNT(CASE WHEN r3.status_code = 'revisit_needed' THEN 1 END) as revisit_needed
-        FROM assignments asg3
-        LEFT JOIN readings r3 ON asg3.id = r3.assignment_id ${dateFilter}
-        GROUP BY asg3.agent_id
+          asg.agent_id,
+          COUNT(DISTINCT r.id) as total_submitted,
+          COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END) as reading_taken,
+          COUNT(CASE WHEN r.status_code = 'door_locked' THEN 1 END) as door_locked,
+          COUNT(CASE WHEN r.status_code = 'not_reachable' THEN 1 END) as not_reachable,
+          COUNT(CASE WHEN r.status_code = 'access_denied' THEN 1 END) as access_denied,
+          COUNT(CASE WHEN r.status_code = 'meter_not_found' THEN 1 END) as meter_not_found,
+          COUNT(CASE WHEN r.status_code = 'meter_damaged' THEN 1 END) as meter_damaged,
+          COUNT(CASE WHEN r.status_code = 'vacant_property' THEN 1 END) as vacant_property,
+          COUNT(CASE WHEN r.status_code = 'revisit_needed' THEN 1 END) as revisit_needed
+        FROM assignments asg
+        LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
+        GROUP BY asg.agent_id
       ) period_counts ON period_counts.agent_id = ag.id
       WHERE ag.is_active = true
       GROUP BY ag.id, ag.name, ag.last_login, alltime.total_submitted_alltime,
