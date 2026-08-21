@@ -9,6 +9,16 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const { period = 'monthly', cycle_id } = req.query;
 
+    let targetCycleId = cycle_id;
+    if (!targetCycleId) {
+      const activeCycleRes = await db.query(`SELECT id FROM cycles WHERE is_active = true LIMIT 1`);
+      if (activeCycleRes.rows.length > 0) {
+        targetCycleId = activeCycleRes.rows[0].id;
+      } else {
+        targetCycleId = '00000000-0000-0000-0000-000000000000';
+      }
+    }
+
     // Build date filter based on period
     let dateFilter = '';
     if (period === 'daily') {
@@ -17,8 +27,8 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
       dateFilter = `AND r.submitted_at >= NOW() - INTERVAL '7 days'`;
     } else if (period === 'monthly') {
       dateFilter = `AND DATE_TRUNC('month', r.submitted_at) = DATE_TRUNC('month', NOW())`;
-    } else if (period === 'cycle' && cycle_id) {
-      dateFilter = `AND asg.cycle_id = '${cycle_id}'`;
+    } else if (period === 'cycle' && targetCycleId) {
+      dateFilter = `AND asg.cycle_id = '${targetCycleId}'`;
     }
 
     const result = await db.query(`
@@ -44,12 +54,13 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
-      LEFT JOIN assignments asg ON ag.id = asg.agent_id
+      LEFT JOIN assignments asg ON ag.id = asg.agent_id AND asg.cycle_id = $1
       -- Subquery 1: all-time counts, no date filter
       LEFT JOIN (
         SELECT asg2.agent_id, COUNT(DISTINCT r2.id) as total_submitted_alltime
         FROM assignments asg2
         LEFT JOIN readings r2 ON asg2.id = r2.assignment_id
+        WHERE asg2.cycle_id = $1
         GROUP BY asg2.agent_id
       ) alltime ON alltime.agent_id = ag.id
       -- Subquery 2: period-filtered counts
@@ -67,6 +78,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
           COUNT(CASE WHEN r.status_code = 'revisit_needed' THEN 1 END) as revisit_needed
         FROM assignments asg
         LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
+        WHERE asg.cycle_id = $1
         GROUP BY asg.agent_id
       ) period_counts ON period_counts.agent_id = ag.id
       WHERE ag.is_active = true
@@ -75,7 +87,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         period_counts.not_reachable, period_counts.access_denied, period_counts.meter_not_found,
         period_counts.meter_damaged, period_counts.vacant_property, period_counts.revisit_needed
       ORDER BY total_assigned DESC
-    `);
+    `, [targetCycleId]);
 
     // Also fetch cycles for the dropdown
     const cyclesResult = await db.query(`
