@@ -153,7 +153,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
           failedCount++;
         }
 
-        results.push({ propertyId, phone: formattedPhone, status, error: apiError, url: selfReadingUrl, tokenUsedPrefix: (tokenVal || '').substring(0, 15) + '...', phoneIdUsed: finalPhoneId });
+        results.push({ propertyId, phone: formattedPhone, status, error: apiError, url: selfReadingUrl });
 
       } catch (err) {
         failedCount++;
