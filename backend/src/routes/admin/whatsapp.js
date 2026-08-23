@@ -208,6 +208,40 @@ router.get('/logs', requireAdmin, async (req, res, next) => {
   }
 });
 
+// GET /admin/whatsapp/generate-token
+router.get('/generate-token', async (req, res, next) => {
+  try {
+    const resProp = await db.query(`
+      SELECT p.id as property_id, asg.id as assignment_id
+      FROM properties p
+      LEFT JOIN assignments asg ON asg.property_id = p.id
+      LIMIT 1
+    `);
 
+    if (resProp.rows.length === 0) {
+      return res.status(404).json({ error: 'No properties/assignments found in DB' });
+    }
+
+    const { property_id, assignment_id } = resProp.rows[0];
+    const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
+
+    const token = jwt.sign(
+      {
+        propertyId: property_id,
+        assignmentId: assignment_id,
+        expiresAt: '7d'
+      },
+      secret,
+      { expiresIn: '7d' }
+    );
+
+    const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
+    const selfReadingUrl = `${origin}/self-reading?token=${token}`;
+
+    res.json({ url: selfReadingUrl });
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;
