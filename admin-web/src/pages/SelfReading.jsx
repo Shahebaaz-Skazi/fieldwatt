@@ -78,6 +78,7 @@ const SelfReading = () => {
   // Interactive styling focus helper states
   const [inputFocused, setInputFocused] = useState(false);
   const [uploadHovered, setUploadHovered] = useState(false);
+  const [btnHovered, setBtnHovered] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -185,8 +186,8 @@ const SelfReading = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#080b12',
-      color: '#f3f4f6',
+      backgroundColor: '#0A0A0A',
+      color: '#FFFFFF',
       fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       display: 'flex',
       flexDirection: 'column',
@@ -197,27 +198,27 @@ const SelfReading = () => {
     }}>
       {/* Header Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-        <div style={{ background: '#4f9cf9', padding: '8px', borderRadius: '10px', display: 'flex', boxShadow: '0 4px 12px rgba(79, 156, 249, 0.3)' }}>
+        <div style={{ background: '#27272A', padding: '8px', borderRadius: '10px', display: 'flex' }}>
           <Zap size={22} color="#ffffff" />
         </div>
-        <span style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px' }}>
-          Field<span style={{ color: '#4f9cf9' }}>Watt</span>
+        <span style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px', color: '#FFFFFF' }}>
+          Field<span>Watt</span>
         </span>
       </div>
 
       <div style={{
         width: '100%',
         maxWidth: '480px',
-        backgroundColor: '#1e2230',
-        border: '1px solid #2a2f42',
+        backgroundColor: '#171717',
+        border: '1px solid #27272A',
         borderRadius: '20px',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.6)',
         overflow: 'hidden',
         boxSizing: 'border-box'
       }}>
         {loading ? (
-          <div style={{ padding: '64px 24px', textAlign: 'center', color: '#94a3b8' }}>
-            <RefreshCw size={40} className="spinning" style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 20px', color: '#4f9cf9' }} />
+          <div style={{ padding: '64px 24px', textAlign: 'center', color: '#A1A1AA' }}>
+            <RefreshCw size={40} className="spinning" style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 20px', color: '#FFFFFF' }} />
             <p style={{ fontSize: '14px', fontWeight: '500' }}>Retrieving your property details...</p>
           </div>
         ) : error ? (
@@ -246,21 +247,21 @@ const SelfReading = () => {
 
             {/* Consumer Details Card */}
             <div style={{
-              backgroundColor: '#151922',
+              backgroundColor: '#1E1E1E',
               borderRadius: '14px',
               padding: '20px',
-              border: '1px solid #2a2f42',
+              border: '1px solid #27272A',
               marginBottom: '28px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <User size={16} color="#4f9cf9" />
-                <span style={{ fontSize: '16px', fontWeight: '700', color: '#ffffff' }}>
+                <User size={16} color="#FFFFFF" />
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#FFFFFF' }}>
                   {propertyDetails?.consumerName}
                 </span>
               </div>
               
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', color: '#94a3b8', fontSize: '13px', lineHeight: '1.4', marginBottom: '16px' }}>
-                <MapPin size={15} style={{ color: '#ef4444', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', color: '#A1A1AA', fontSize: '13px', lineHeight: '1.4', marginBottom: '16px' }}>
+                <MapPin size={15} style={{ color: '#A1A1AA', flexShrink: 0, marginTop: '2px' }} />
                 <span>{propertyDetails?.address}</span>
               </div>
 
@@ -269,17 +270,17 @@ const SelfReading = () => {
                 gridTemplateColumns: '1fr 1fr', 
                 gap: '12px', 
                 fontSize: '12.5px', 
-                borderTop: '1px solid #2a2f42', 
+                borderTop: '1px solid #27272A', 
                 paddingTop: '14px',
-                color: '#94a3b8'
+                color: '#A1A1AA'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Hash size={13} style={{ color: '#4f9cf9' }} />
-                  <span>Meter: <strong style={{ color: '#ffffff' }}>{propertyDetails?.meterNo}</strong></span>
+                  <Hash size={13} style={{ color: '#A1A1AA' }} />
+                  <span>Meter: <strong style={{ color: '#FFFFFF' }}>{propertyDetails?.meterNo}</strong></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Hash size={13} style={{ color: '#4f9cf9' }} />
-                  <span>BP: <strong style={{ color: '#ffffff' }}>{propertyDetails?.bpNo}</strong></span>
+                  <Hash size={13} style={{ color: '#A1A1AA' }} />
+                  <span>BP: <strong style={{ color: '#FFFFFF' }}>{propertyDetails?.bpNo}</strong></span>
                 </div>
               </div>
             </div>
@@ -293,7 +294,7 @@ const SelfReading = () => {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#A1A1AA', marginBottom: '8px' }}>
                   Current Meter Reading
                 </label>
                 <input
@@ -308,13 +309,13 @@ const SelfReading = () => {
                   style={{
                     width: '100%',
                     padding: '14px 16px',
-                    backgroundColor: '#0f172a',
-                    border: inputFocused ? '1px solid #4f9cf9' : '1px solid #334155',
+                    backgroundColor: '#18181B',
+                    border: inputFocused ? '1px solid #FFFFFF' : '1px solid #27272A',
                     borderRadius: '10px',
-                    color: '#ffffff',
+                    color: '#FFFFFF',
                     fontSize: '16px',
                     outline: 'none',
-                    boxShadow: inputFocused ? '0 0 0 3px rgba(79, 156, 249, 0.25)' : 'none',
+                    boxShadow: inputFocused ? '0 0 0 2px rgba(255, 255, 255, 0.15)' : 'none',
                     boxSizing: 'border-box',
                     transition: 'all 0.2s ease-in-out'
                   }}
@@ -322,7 +323,7 @@ const SelfReading = () => {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#d1d5db', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#A1A1AA', marginBottom: '8px' }}>
                   Meter Verification Photo
                 </label>
                 <input
@@ -345,10 +346,10 @@ const SelfReading = () => {
                     justifyContent: 'center',
                     gap: '10px',
                     padding: '24px 16px',
-                    backgroundColor: '#0f172a',
-                    border: uploadHovered ? '2px dashed #4f9cf9' : '2px dashed #334155',
+                    backgroundColor: '#18181B',
+                    border: uploadHovered ? '2px dashed #FFFFFF' : '2px dashed #3F3F46',
                     borderRadius: '12px',
-                    color: '#94a3b8',
+                    color: uploadHovered ? '#FFFFFF' : '#A1A1AA',
                     cursor: 'pointer',
                     fontSize: '14px',
                     fontWeight: '500',
@@ -356,8 +357,8 @@ const SelfReading = () => {
                     transition: 'all 0.2s ease-in-out'
                   }}
                 >
-                  <div style={{ background: 'rgba(79, 156, 249, 0.1)', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Camera size={20} style={{ color: '#4f9cf9' }} />
+                  <div style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Camera size={20} style={{ color: '#FFFFFF' }} />
                   </div>
                   <span>{photoPreview ? 'Change Selection' : 'Capture or Upload Photo'}</span>
                 </label>
@@ -366,23 +367,23 @@ const SelfReading = () => {
                   <div style={{
                     marginTop: '16px',
                     borderRadius: '12px',
-                    border: '1px solid #2a2f42',
+                    border: '1px solid #27272A',
                     height: '180px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '12px',
-                    backgroundColor: '#151922',
-                    color: '#94a3b8'
+                    backgroundColor: '#18181B',
+                    color: '#A1A1AA'
                   }}>
-                    <RefreshCw size={24} className="spinning" style={{ color: '#4f9cf9', animation: 'spin 1.5s linear infinite' }} />
+                    <RefreshCw size={24} className="spinning" style={{ color: '#FFFFFF', animation: 'spin 1.5s linear infinite' }} />
                     <span style={{ fontSize: '13px', fontWeight: '500' }}>Retrieving GPS & stamping watermark...</span>
                   </div>
                 )}
 
                 {photoPreview && !processingPhoto && (
-                  <div style={{ marginTop: '16px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #2a2f42', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)' }}>
+                  <div style={{ marginTop: '16px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #27272A', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)' }}>
                     <img src={photoPreview} alt="Watermarked Verification" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'contain', backgroundColor: '#000000' }} />
                   </div>
                 )}
@@ -391,18 +392,19 @@ const SelfReading = () => {
               <button
                 type="submit"
                 disabled={submitting || processingPhoto}
+                onMouseEnter={() => setBtnHovered(true)}
+                onMouseLeave={() => setBtnHovered(false)}
                 style={{
                   width: '100%',
                   padding: '14px',
-                  backgroundColor: '#4f9cf9',
-                  color: '#ffffff',
+                  backgroundColor: btnHovered ? '#E4E4E7' : '#FFFFFF',
+                  color: '#000000',
                   border: 'none',
                   borderRadius: '10px',
                   fontSize: '15px',
                   fontWeight: '700',
                   cursor: submitting ? 'not-allowed' : 'pointer',
                   opacity: submitting || processingPhoto ? 0.7 : 1,
-                  boxShadow: '0 4px 14px rgba(79, 156, 249, 0.25)',
                   boxSizing: 'border-box',
                   transition: 'all 0.2s ease-in-out',
                   marginTop: '8px'
@@ -410,7 +412,7 @@ const SelfReading = () => {
               >
                 {submitting ? (
                   <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    <RefreshCw size={16} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} />
+                    <RefreshCw size={16} className="spinning" style={{ animation: 'spin 1.5s linear infinite', color: '#000000' }} />
                     <span>Submitting Reading...</span>
                   </span>
                 ) : (
