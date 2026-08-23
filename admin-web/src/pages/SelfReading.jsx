@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { Camera, CheckCircle2, AlertCircle, RefreshCw, Zap, MapPin, Hash, User } from 'lucide-react';
 
-const applyWatermark = (imageFile, propertyDetails) => {
+const applyWatermark = (imageFile, propertyDetails, gpsString) => {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -13,42 +13,40 @@ const applyWatermark = (imageFile, propertyDetails) => {
       ctx.drawImage(img, 0, 0);
 
       // Scale font size based on image width for optimal legibility
-      const fontSize = Math.max(20, Math.floor(canvas.width / 35));
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-      ctx.lineWidth = Math.max(2, Math.floor(fontSize / 8));
-
+      const fontSize = Math.max(16, Math.floor(canvas.width / 38));
       const pad = Math.max(15, Math.floor(canvas.width / 50));
+      const lineSpacing = fontSize * 0.45;
+      const textHeight = fontSize * 3 + lineSpacing * 2;
+      const bannerHeight = textHeight + pad * 2;
+
+      // Draw semi-transparent black banner at the bottom
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(0, canvas.height - bannerHeight, canvas.width, bannerHeight);
+
+      // Configure text style for banner drawing
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.textAlign = 'left';
+
       const now = new Date().toLocaleString('en-IN');
 
-      // Top left — consumer name
-      ctx.textAlign = 'left';
-      ctx.strokeText(propertyDetails.consumerName || '', pad, pad + fontSize);
-      ctx.fillText(propertyDetails.consumerName || '', pad, pad + fontSize);
+      // Prepare metadata lines
+      const line1 = `Consumer: ${propertyDetails.consumerName || 'N/A'}`;
+      const line2 = `Meter: ${propertyDetails.meterNo || 'N/A'}  |  BP: ${propertyDetails.bpNo || 'N/A'}`;
+      const line3 = `${gpsString}  |  ${now}`;
 
-      // Top right — date time
+      const startY = canvas.height - bannerHeight + pad + fontSize;
+      ctx.fillText(line1, pad, startY);
+      ctx.fillText(line2, pad, startY + fontSize + lineSpacing);
+      ctx.fillText(line3, pad, startY + (fontSize + lineSpacing) * 2);
+
+      // Draw App Branding logo at bottom right
       ctx.textAlign = 'right';
-      ctx.strokeText(now, canvas.width - pad, pad + fontSize);
-      ctx.fillText(now, canvas.width - pad, pad + fontSize);
+      ctx.font = `bold ${fontSize * 1.35}px sans-serif`;
+      ctx.fillStyle = 'rgba(79, 156, 249, 0.95)'; // brand blue accent color
+      ctx.fillText('FieldWatt', canvas.width - pad, canvas.height - pad - (bannerHeight / 2) + (fontSize * 0.5));
 
-      // Bottom left — meter number
-      ctx.textAlign = 'left';
-      const meterText = `Meter: ${propertyDetails.meterNo || 'N/A'}`;
-      ctx.strokeText(meterText, pad, canvas.height - pad - (fontSize * 1.2));
-      ctx.fillText(meterText, pad, canvas.height - pad - (fontSize * 1.2));
-
-      // Bottom left second line — BP number
-      const bpText = `BP: ${propertyDetails.bpNo || 'N/A'}`;
-      ctx.strokeText(bpText, pad, canvas.height - pad);
-      ctx.fillText(bpText, pad, canvas.height - pad);
-
-      // Bottom right — FieldWatt
-      ctx.textAlign = 'right';
-      ctx.strokeText('FieldWatt', canvas.width - pad, canvas.height - pad);
-      ctx.fillText('FieldWatt', canvas.width - pad, canvas.height - pad);
-
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
     };
     img.src = URL.createObjectURL(imageFile);
   });
@@ -104,7 +102,27 @@ const SelfReading = () => {
     setSubmitError('');
 
     try {
-      const watermarkedBlob = await applyWatermark(file, propertyDetails || {});
+      // Fetch GPS location with a 5-second timeout and high accuracy
+      const gpsString = await new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          resolve('GPS: Not Supported');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(6);
+            const lng = pos.coords.longitude.toFixed(6);
+            resolve(`GPS: ${lat}, ${lng}`);
+          },
+          (err) => {
+            console.warn('Geolocation error:', err);
+            resolve('GPS: Permission Denied');
+          },
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      });
+
+      const watermarkedBlob = await applyWatermark(file, propertyDetails || {}, gpsString);
       setPhotoBlob(watermarkedBlob);
       const previewUrl = URL.createObjectURL(watermarkedBlob);
       setPhotoPreview(previewUrl);
