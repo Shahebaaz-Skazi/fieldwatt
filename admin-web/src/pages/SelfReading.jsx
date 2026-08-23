@@ -14,39 +14,40 @@ const applyWatermark = (imageFile, propertyDetails, gpsString) => {
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
 
-        // Scale font size based on image width for optimal legibility (e.g. 2.6% of image width)
-        const fontSize = Math.max(16, Math.floor(canvas.width * 0.026));
-        const pad = Math.max(15, Math.floor(canvas.width * 0.022));
-        const lineSpacing = fontSize * 0.45;
-        const textHeight = fontSize * 3 + lineSpacing * 2;
-        const bannerHeight = textHeight + pad * 2;
-
-        // Draw semi-transparent black banner at the bottom
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(0, canvas.height - bannerHeight, canvas.width, bannerHeight);
-
-        // Configure text style for banner drawing
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.textAlign = 'left';
+        // Scale styling dynamically based on canvas.width
+        const fontSize = Math.max(16, Math.floor(canvas.width * 0.024));
+        const margin = Math.max(15, Math.floor(canvas.width * 0.022));
+        const xPad = fontSize * 0.45;
+        const yPad = fontSize * 0.35;
+        const boxHeight = fontSize + yPad * 2;
 
         const now = new Date().toLocaleString('en-IN');
 
-        // Prepare metadata lines
-        const line1 = `Consumer: ${propertyDetails.consumerName || 'N/A'}`;
-        const line2 = `Meter: ${propertyDetails.meterNo || 'N/A'}  |  BP: ${propertyDetails.bpNo || 'N/A'}`;
-        const line3 = `${gpsString}  |  ${now}`;
+        // Helper to draw a semi-transparent black rectangular box in the corners
+        const drawCornerBox = (text, isLeft, isTop) => {
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          const textWidth = ctx.measureText(text).width;
+          const boxWidth = textWidth + xPad * 2;
 
-        const startY = canvas.height - bannerHeight + pad + fontSize;
-        ctx.fillText(line1, pad, startY);
-        ctx.fillText(line2, pad, startY + fontSize + lineSpacing);
-        ctx.fillText(line3, pad, startY + (fontSize + lineSpacing) * 2);
+          const boxX = isLeft ? margin : (canvas.width - margin - boxWidth);
+          const boxY = isTop ? margin : (canvas.height - margin - boxHeight);
 
-        // Draw App Branding logo at bottom right
-        ctx.textAlign = 'right';
-        ctx.font = `bold ${fontSize * 1.35}px sans-serif`;
-        ctx.fillStyle = 'rgba(79, 156, 249, 0.95)'; // brand blue accent color
-        ctx.fillText('FieldWatt', canvas.width - pad, canvas.height - pad - (bannerHeight / 2) + (fontSize * 0.5));
+          // Draw banner background box
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+          // Burn in white text aligned middle
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, boxX + xPad, boxY + boxHeight / 2);
+        };
+
+        // Render metadata into the four corners
+        drawCornerBox(propertyDetails.consumerName || 'N/A', true, true); // Top-Left
+        drawCornerBox(now, false, true); // Top-Right
+        drawCornerBox(`Meter: ${propertyDetails.meterNo || 'N/A'}`, true, false); // Bottom-Left
+        drawCornerBox(`BP: ${propertyDetails.bpNo || 'N/A'}`, false, false); // Bottom-Right
 
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         resolve(dataUrl);
