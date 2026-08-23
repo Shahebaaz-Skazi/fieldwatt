@@ -85,15 +85,15 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
           await db.query('UPDATE properties SET phone_number = $1 WHERE id = $2', [rawPhone, propertyId]);
         }
 
-        // Generate signed JWT token containing { propertyId, expiresAt: '7d' } and assignmentId
+        // Generate signed JWT token containing { propertyId, expiresAt: '30d' } and assignmentId
         const token = jwt.sign(
           {
             propertyId,
             assignmentId: property.assignment_id || null,
-            expiresAt: '7d'
+            expiresAt: '30d'
           },
           secret,
-          { expiresIn: '7d' }
+          { expiresIn: '30d' }
         );
 
         const selfReadingUrl = `${origin}/self-reading?token=${token}`;
@@ -229,10 +229,10 @@ router.get('/generate-token', async (req, res, next) => {
       {
         propertyId: property_id,
         assignmentId: assignment_id,
-        expiresAt: '7d'
+        expiresAt: '30d'
       },
       secret,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
