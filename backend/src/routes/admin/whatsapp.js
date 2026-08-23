@@ -194,58 +194,6 @@ router.get('/logs', requireAdmin, async (req, res, next) => {
   }
 });
 
-// GET /admin/whatsapp/test-env
-router.get('/test-env', async (req, res) => {
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1155780700962650';
-  const token = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSIYcfVCjOViQKILSKw2Pqb5xjy44CwdJD4LQlT2636zI1jdHzQS8KFoufXDXUsZACBmow0gxsZCVJXJAtsE8PgiDn7PTFueAkMLHpDpDl2kaXnQ4ZBA7uNaPEOCsldLAzqH3K61o4mIp9oxL6gpHR9te1iLawl4YZCkpYJywMoN45ZCmSdTHQGl1VBOZCZApha711j1UYsORZAXYZAAN9rXz1mpidwppNVhzqmxHIZCSE3jUa693j6x4aMzq1gNd58OgKFNSsNi5b7WjQn';
-  const templateName = 'meter_reading_request';
-  
-  const toPhone = '918446812734';
-  const consumerName = 'AMIT THAKUR';
-  const selfReadingUrl = 'https://fieldwatt.vercel.app/self-reading?token=test_token_here';
 
-  const body = {
-    messaging_product: 'whatsapp',
-    to: toPhone,
-    type: 'template',
-    template: {
-      name: templateName,
-      language: { code: 'en' },
-      components: [{
-        type: 'body',
-        parameters: [
-          { type: 'text', text: consumerName },
-          { type: 'text', text: selfReadingUrl }
-        ]
-      }]
-    }
-  };
-
-  const url = `https://graph.facebook.com/v18.0/${phoneId}/messages`;
-
-  try {
-    const metaRes = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
-
-    const status = metaRes.status;
-    const text = await metaRes.text();
-    let json = {};
-    try { json = JSON.parse(text); } catch {}
-
-    res.json({
-      url,
-      status,
-      response: json
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 module.exports = router;
