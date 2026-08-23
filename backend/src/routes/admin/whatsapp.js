@@ -21,8 +21,13 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
     const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
     const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
     
-    // Meta API configuration with hardcoded default credentials from the prompt
-    const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID || '1155780700962650';
+    // Meta API configuration
+    const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!phoneIdVal) {
+      console.error('ERROR: WHATSAPP_PHONE_NUMBER_ID environment variable is missing at runtime. Defaulting to test ID 1155780700962650.');
+    }
+    const finalPhoneId = phoneIdVal || '1155780700962650';
+
     const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSIYcfVCjOViQKILSKw2Pqb5xjy44CwdJD4LQlT2636zI1jdHzQS8KFoufXDXUsZACBmow0gxsZCVJXJAtsE8PgiDn7PTFueAkMLHpDpDl2kaXnQ4ZBA7uNaPEOCsldLAzqH3K61o4mIp9oxL6gpHR9te1iLawl4YZCkpYJywMoN45ZCmSdTHQGl1VBOZCZApha711j1UYsORZAXYZAAN9rXz1mpidwppNVhzqmxHIZCSE3jUa693j6x4aMzq1gNd58OgKFNSsNi5b7WjQn';
     const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
 
@@ -94,7 +99,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
 
         // Call Meta Cloud API
         const metaRes = await fetch(
-          `https://graph.facebook.com/v18.0/${phoneIdVal}/messages`,
+          `https://graph.facebook.com/v18.0/${finalPhoneId}/messages`,
           {
             method: 'POST',
             headers: {
