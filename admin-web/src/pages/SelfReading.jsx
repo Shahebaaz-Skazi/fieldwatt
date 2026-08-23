@@ -3,52 +3,59 @@ import api from '../utils/api';
 import { Camera, CheckCircle2, AlertCircle, RefreshCw, Zap, MapPin, Hash, User } from 'lucide-react';
 
 const applyWatermark = (imageFile, propertyDetails, gpsString) => {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-      // Scale font size based on image width for optimal legibility
-      const fontSize = Math.max(16, Math.floor(canvas.width / 38));
-      const pad = Math.max(15, Math.floor(canvas.width / 50));
-      const lineSpacing = fontSize * 0.45;
-      const textHeight = fontSize * 3 + lineSpacing * 2;
-      const bannerHeight = textHeight + pad * 2;
+        // Scale font size based on image width for optimal legibility (e.g. 2.6% of image width)
+        const fontSize = Math.max(16, Math.floor(canvas.width * 0.026));
+        const pad = Math.max(15, Math.floor(canvas.width * 0.022));
+        const lineSpacing = fontSize * 0.45;
+        const textHeight = fontSize * 3 + lineSpacing * 2;
+        const bannerHeight = textHeight + pad * 2;
 
-      // Draw semi-transparent black banner at the bottom
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(0, canvas.height - bannerHeight, canvas.width, bannerHeight);
+        // Draw semi-transparent black banner at the bottom
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(0, canvas.height - bannerHeight, canvas.width, bannerHeight);
 
-      // Configure text style for banner drawing
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-      ctx.textAlign = 'left';
+        // Configure text style for banner drawing
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.textAlign = 'left';
 
-      const now = new Date().toLocaleString('en-IN');
+        const now = new Date().toLocaleString('en-IN');
 
-      // Prepare metadata lines
-      const line1 = `Consumer: ${propertyDetails.consumerName || 'N/A'}`;
-      const line2 = `Meter: ${propertyDetails.meterNo || 'N/A'}  |  BP: ${propertyDetails.bpNo || 'N/A'}`;
-      const line3 = `${gpsString}  |  ${now}`;
+        // Prepare metadata lines
+        const line1 = `Consumer: ${propertyDetails.consumerName || 'N/A'}`;
+        const line2 = `Meter: ${propertyDetails.meterNo || 'N/A'}  |  BP: ${propertyDetails.bpNo || 'N/A'}`;
+        const line3 = `${gpsString}  |  ${now}`;
 
-      const startY = canvas.height - bannerHeight + pad + fontSize;
-      ctx.fillText(line1, pad, startY);
-      ctx.fillText(line2, pad, startY + fontSize + lineSpacing);
-      ctx.fillText(line3, pad, startY + (fontSize + lineSpacing) * 2);
+        const startY = canvas.height - bannerHeight + pad + fontSize;
+        ctx.fillText(line1, pad, startY);
+        ctx.fillText(line2, pad, startY + fontSize + lineSpacing);
+        ctx.fillText(line3, pad, startY + (fontSize + lineSpacing) * 2);
 
-      // Draw App Branding logo at bottom right
-      ctx.textAlign = 'right';
-      ctx.font = `bold ${fontSize * 1.35}px sans-serif`;
-      ctx.fillStyle = 'rgba(79, 156, 249, 0.95)'; // brand blue accent color
-      ctx.fillText('FieldWatt', canvas.width - pad, canvas.height - pad - (bannerHeight / 2) + (fontSize * 0.5));
+        // Draw App Branding logo at bottom right
+        ctx.textAlign = 'right';
+        ctx.font = `bold ${fontSize * 1.35}px sans-serif`;
+        ctx.fillStyle = 'rgba(79, 156, 249, 0.95)'; // brand blue accent color
+        ctx.fillText('FieldWatt', canvas.width - pad, canvas.height - pad - (bannerHeight / 2) + (fontSize * 0.5));
 
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = event.target.result;
     };
-    img.src = URL.createObjectURL(imageFile);
+    reader.onerror = reject;
+    reader.readAsDataURL(imageFile);
   });
 };
 
@@ -59,7 +66,7 @@ const SelfReading = () => {
   const [propertyDetails, setPropertyDetails] = useState(null);
 
   const [readingValue, setReadingValue] = useState('');
-  const [photoBlob, setPhotoBlob] = useState(null);
+  const [photoBlob, setPhotoBlob] = useState(null); // stores the base64 watermarked URL
   const [photoPreview, setPhotoPreview] = useState(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
 
@@ -122,10 +129,9 @@ const SelfReading = () => {
         );
       });
 
-      const watermarkedBlob = await applyWatermark(file, propertyDetails || {}, gpsString);
-      setPhotoBlob(watermarkedBlob);
-      const previewUrl = URL.createObjectURL(watermarkedBlob);
-      setPhotoPreview(previewUrl);
+      const watermarkedUrl = await applyWatermark(file, propertyDetails || {}, gpsString);
+      setPhotoBlob(watermarkedUrl);
+      setPhotoPreview(watermarkedUrl);
     } catch (err) {
       console.error('Watermark error:', err);
       setSubmitError('Failed to process image. Please try selecting the photo again.');
@@ -147,12 +153,7 @@ const SelfReading = () => {
     try {
       let photoBase64 = null;
       if (photoBlob) {
-        photoBase64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(photoBlob);
-        });
+        photoBase64 = photoBlob;
       }
 
       const baseUrl = api.API_BASE_URL || '';
@@ -361,15 +362,27 @@ const SelfReading = () => {
                 </label>
 
                 {processingPhoto && (
-                  <div style={{ fontSize: '12px', color: '#4f9cf9', marginTop: '8px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <RefreshCw size={12} className="spinning" style={{ animation: 'spin 1.5s linear infinite' }} />
-                    <span>Overlaying watermark metadata...</span>
+                  <div style={{
+                    marginTop: '16px',
+                    borderRadius: '12px',
+                    border: '1px solid #2a2f42',
+                    height: '180px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px',
+                    backgroundColor: '#151922',
+                    color: '#94a3b8'
+                  }}>
+                    <RefreshCw size={24} className="spinning" style={{ color: '#4f9cf9', animation: 'spin 1.5s linear infinite' }} />
+                    <span style={{ fontSize: '13px', fontWeight: '500' }}>Retrieving GPS & stamping watermark...</span>
                   </div>
                 )}
 
                 {photoPreview && !processingPhoto && (
                   <div style={{ marginTop: '16px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #2a2f42', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)' }}>
-                    <img src={photoPreview} alt="Watermarked Verification" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'cover' }} />
+                    <img src={photoPreview} alt="Watermarked Verification" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'contain', backgroundColor: '#000000' }} />
                   </div>
                 )}
               </div>
