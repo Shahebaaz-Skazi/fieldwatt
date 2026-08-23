@@ -28,8 +28,11 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
     }
     const finalPhoneId = phoneIdVal || '1155780700962650';
 
-    const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSIYcfVCjOViQKILSKw2Pqb5xjy44CwdJD4LQlT2636zI1jdHzQS8KFoufXDXUsZACBmow0gxsZCVJXJAtsE8PgiDn7PTFueAkMLHpDpDl2kaXnQ4ZBA7uNaPEOCsldLAzqH3K61o4mIp9oxL6gpHR9te1iLawl4YZCkpYJywMoN45ZCmSdTHQGl1VBOZCZApha711j1UYsORZAXYZAAN9rXz1mpidwppNVhzqmxHIZCSE3jUa693j6x4aMzq1gNd58OgKFNSsNi5b7WjQn';
+    const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN;
     const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
+
+    console.log('Sending message via Phone ID:', finalPhoneId);
+    console.log('Using Token prefix:', (process.env.WHATSAPP_ACCESS_TOKEN || '').substring(0, 15) + '...');
 
     const results = [];
     let sentCount = 0;
@@ -128,6 +131,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
         if (!metaRes.ok) {
           const errorText = await metaRes.text();
           console.error('META API EXACT ERROR:', errorText);
+          console.error('Meta API Error Details:', errorText);
           let errData = {};
           try {
             errData = JSON.parse(errorText);
