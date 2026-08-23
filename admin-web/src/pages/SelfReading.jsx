@@ -326,6 +326,25 @@ const SelfReading = () => {
                 <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
                   Meter Verification Photo
                 </label>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  backgroundColor: '#F4F4F5',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  color: '#27272A',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  lineHeight: '1.4',
+                  marginBottom: '12px'
+                }}>
+                  <span style={{ fontSize: '14px' }}>📸</span>
+                  <span>Please take the photo in landscape (horizontal) mode for accurate meter reading.</span>
+                </div>
+
                 <input
                   type="file"
                   accept="image/*"
