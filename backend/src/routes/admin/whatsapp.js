@@ -30,6 +30,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
 
     const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN;
     const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
+    const langCode = process.env.WHATSAPP_TEMPLATE_LANG || 'en_US';
 
     console.log('Sending message via Phone ID:', finalPhoneId);
     console.log('Using Token prefix:', (process.env.WHATSAPP_ACCESS_TOKEN || '').substring(0, 15) + '...');
@@ -115,14 +116,23 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
               type: 'template',
               template: {
                 name: templateVal,
-                language: { code: 'en' },
-                components: [{
-                  type: 'body',
-                  parameters: [
-                    { type: 'text', text: property.consumer_name },
-                    { type: 'text', text: selfReadingUrl }
-                  ]
-                }]
+                language: { code: langCode },
+                components: [
+                  {
+                    type: 'body',
+                    parameters: [
+                      { type: 'text', text: property.consumer_name }
+                    ]
+                  },
+                  {
+                    type: 'button',
+                    sub_type: 'url',
+                    index: '0',
+                    parameters: [
+                      { type: 'text', text: token }
+                    ]
+                  }
+                ]
               }
             })
           }
