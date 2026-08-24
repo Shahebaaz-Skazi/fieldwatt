@@ -31,8 +31,14 @@ function convertPg(sql) {
   s = s.replace(/~\s*'\^\\\[0-9\\\]\+\\$'/gi, "NOT GLOB '*[^0-9]*'");
   s = s.replace(/~\s*'\^\[0-9\]\+\$'/gi, "NOT GLOB '*[^0-9]*'");
   
-  // 2. Placeholders: $1, $2 ... -> ?
-  s = s.replace(/\$\d+/g, '?');
+  // 1c. Convert PostgreSQL timezone(), EXTRACT() and ILIKE to SQLite equivalents
+  s = s.replace(/timezone\s*\(\s*'[^']*'\s*,\s*(.*?)\)/gi, '$1');
+  s = s.replace(/EXTRACT\s*\(\s*YEAR\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%Y', $1) AS INTEGER)");
+  s = s.replace(/EXTRACT\s*\(\s*MONTH\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%m', $1) AS INTEGER)");
+  s = s.replace(/\bILIKE\b/gi, 'LIKE');
+  
+  // 2. Placeholders: $1, $2 ... -> ?1, ?2 ... (SQLite supports numbered parameters)
+  s = s.replace(/\$(\d+)/g, '?$1');
   
   // 3. date_trunc / DATE_TRUNC -> strftime
   s = s.replace(/DATE_TRUNC\s*\(\s*'month'\s*,\s*(.*?)\)/gi, "strftime('%Y-%m-01', $1)");
