@@ -18,8 +18,24 @@ function getCreds() {
 }
 
 
+// Translate Postgres $1, $2 placeholders to SQLite ? positional placeholders,
+// duplicating parameter values where the same index is reused in the query.
+function translateParams(sql, params = []) {
+  const matches = [...sql.matchAll(/\$(\d+)/g)];
+  if (matches.length === 0) {
+    return { sql, params };
+  }
+  const newParams = [];
+  matches.forEach(m => {
+    const index = parseInt(m[1], 10) - 1;
+    newParams.push(params[index]);
+  });
+  const newSql = sql.replace(/\$(\d+)/g, '?');
+  return { sql: newSql, params: newParams };
+}
+
 /**
- * Convert Postgres-style placeholders ($1, $2 …) and SQL dialects to D1-compatible SQLite syntax.
+ * Convert Postgres-style SQL dialects to D1-compatible SQLite syntax.
  */
 function convertPg(sql) {
   let s = sql;
@@ -37,8 +53,8 @@ function convertPg(sql) {
   s = s.replace(/EXTRACT\s*\(\s*MONTH\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%m', $1) AS INTEGER)");
   s = s.replace(/\bILIKE\b/gi, 'LIKE');
   
-  // 2. Placeholders: $1, $2 ... -> ?1, ?2 ... (SQLite supports numbered parameters)
-  s = s.replace(/\$(\d+)/g, '?$1');
+  // 2. Placeholders: converted to positional ? (handled by translateParams first)
+  s = s.replace(/\$(\d+)/g, '?');
   
   // 3. date_trunc / DATE_TRUNC -> strftime
   s = s.replace(/DATE_TRUNC\s*\(\s*'month'\s*,\s*(.*?)\)/gi, "strftime('%Y-%m-01', $1)");
@@ -76,11 +92,14 @@ async function query(sql, params = []) {
     );
   }
 
+  // Translate placeholders and duplicate reused parameters for positional SQLite binding
+  const translated = translateParams(sql, params ?? []);
+
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
   const response = await fetch(endpoint, {
     method:  'POST',
     headers: { 'Authorization': 'Bearer ' + apiToken, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ sql: convertPg(sql), params: params ?? [] }),
+    body:    JSON.stringify({ sql: convertPg(translated.sql), params: translated.params }),
   });
 
   const json = await response.json();
@@ -117,10 +136,13 @@ async function batch(statements) {
 
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
   const body = {
-    batch: statements.map(s => ({
-      sql: convertPg(s.sql),
-      params: s.params ?? [],
-    })),
+    batch: statements.map(s => {
+      const translated = translateParams(s.sql, s.params ?? []);
+      return {
+        sql: convertPg(translated.sql),
+        params: translated.params,
+      };
+    }),
   };
 
   const response = await fetch(endpoint, {
