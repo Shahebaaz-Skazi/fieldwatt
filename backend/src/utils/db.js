@@ -53,6 +53,10 @@ function convertPg(sql) {
   s = s.replace(/EXTRACT\s*\(\s*MONTH\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%m', $1) AS INTEGER)");
   s = s.replace(/\bILIKE\b/gi, 'LIKE');
   
+  // 1d. Convert Postgres boolean literals to SQLite integers (true -> 1, false -> 0)
+  s = s.replace(/\bTRUE\b/gi, '1');
+  s = s.replace(/\bFALSE\b/gi, '0');
+  
   // 2. Placeholders: converted to positional ? (handled by translateParams first)
   s = s.replace(/\$(\d+)/g, '?');
   
