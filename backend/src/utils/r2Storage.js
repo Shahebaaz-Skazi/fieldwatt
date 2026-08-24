@@ -21,7 +21,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const ACCOUNT_ID        = process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
 const ACCESS_KEY_ID     = process.env.R2_ACCESS_KEY_ID;
 const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'meter-photos';
+const BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'fieldwatt-meter-photos';
 const PUBLIC_BASE_URL   = (process.env.R2_PUBLIC_BASE_URL || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').replace(/\/$/, '');
 
 const client = new S3Client({

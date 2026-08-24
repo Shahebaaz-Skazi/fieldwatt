@@ -44,7 +44,7 @@ const D1_BASE        = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOU
 const R2_ACCOUNT_ID    = process.env.R2_ACCOUNT_ID || CF_ACCOUNT_ID;
 const R2_KEY           = process.env.R2_ACCESS_KEY_ID     || '39dec7bba58fd973160bfa779356c542';
 const R2_SECRET        = process.env.R2_SECRET_ACCESS_KEY || '2df4946482e6e2d1f52ad1e2f663234a1948fb579088c221dc2b57dc61cd3a11';
-const R2_BUCKET        = process.env.R2_BUCKET_NAME       || 'meter-photos';
+const R2_BUCKET        = process.env.R2_BUCKET_NAME       || 'fieldwatt-meter-photos';
 const R2_PUBLIC_BASE   = (process.env.R2_PUBLIC_BASE_URL  || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').replace(/\/$/, '');
 
 const BATCH_SIZE       = 20;   // rows per D1 batch
