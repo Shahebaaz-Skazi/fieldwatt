@@ -24,9 +24,12 @@ function getCreds() {
 function convertPg(sql) {
   let s = sql;
   
-  // 1. Remove ::jsonb or other PostgreSQL casts
-  s = s.replace(/::jsonb/gi, '');
-  s = s.replace(/::text/gi, '');
+  // 1. Remove all PostgreSQL type casts (e.g. ::int, ::text, ::jsonb, ::uuid[], etc.)
+  s = s.replace(/::[a-zA-Z_0-9]+(?:\[\])?/gi, '');
+  
+  // 1b. Replace PostgreSQL POSIX regex matches (~ '^[0-9]+$') with standard SQLite GLOB operator
+  s = s.replace(/~\s*'\^\\\[0-9\\\]\+\\$'/gi, "NOT GLOB '*[^0-9]*'");
+  s = s.replace(/~\s*'\^\[0-9\]\+\$'/gi, "NOT GLOB '*[^0-9]*'");
   
   // 2. Placeholders: $1, $2 ... -> ?
   s = s.replace(/\$\d+/g, '?');
@@ -135,4 +138,4 @@ async function batch(statements) {
   }));
 }
 
-module.exports = { query, batch };
+module.exports = { query, batch, convertPg };

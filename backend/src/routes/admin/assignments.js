@@ -105,20 +105,24 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'property_ids array must not be empty.' });
     }
 
-    // We can do standard INSERT for each property in transaction or bulk insert query
-    // Let's use bulk insert by joining array
-    const queryText = `
-      INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
-      SELECT $1, unnest($2::uuid[]), $3, $4
-      ON CONFLICT (property_id, cycle_id) 
-      DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
-      RETURNING id
-    `;
-    const result = await db.query(queryText, [agent_id, property_ids, targetCycleId, adminId]);
+    // We do bulk insert using Cloudflare D1 batching for high performance
+    const statements = property_ids.map(propId => ({
+      sql: `
+        INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (property_id, cycle_id) 
+        DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
+        RETURNING id
+      `,
+      params: [agent_id, propId, targetCycleId, adminId]
+    }));
+
+    const batchRes = await db.batch(statements);
+    const totalCount = batchRes.reduce((sum, res) => sum + res.rowCount, 0);
 
     res.json({
-      message: `Assigned ${result.rowCount} properties to agent successfully.`,
-      count: result.rowCount
+      message: `Assigned ${totalCount} properties to agent successfully.`,
+      count: totalCount
     });
   } catch (error) {
     next(error);
@@ -329,9 +333,10 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
     if (societies) {
       const socList = societies.split(',').map(s => s.trim()).filter(Boolean);
       if (socList.length > 0) {
-        queryText += ` AND p.society = ANY($${paramCount}::varchar[])`;
-        params.push(socList);
-        paramCount++;
+        const placeholders = socList.map((_, idx) => `$${paramCount + idx}`).join(', ');
+        queryText += ` AND p.society IN (${placeholders})`;
+        params.push(...socList);
+        paramCount += socList.length;
       }
     }
     
