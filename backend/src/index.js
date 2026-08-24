@@ -67,9 +67,26 @@ app.use('/admin/agent-performance', agentPerformanceRouter);
 // Let's also support POST /agent/upload-url route directly for consistency
 app.post('/agent/upload-url', agentUploadRouter);
 
-// Health check endpoint (used to keep Render.com awake)
+// Health check endpoint with secure environment diagnostics
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date(), version: '1.0.5' });
+  const mask = (val) => {
+    if (!val) return 'MISSING';
+    const clean = val.trim();
+    if (clean.length <= 8) return `SET (len: ${clean.length})`;
+    return `${clean.slice(0, 4)}...${clean.slice(-4)} (len: ${clean.length})`;
+  };
+
+  res.json({
+    status: 'ok',
+    timestamp: new Date(),
+    version: '1.0.6',
+    diagnostics: {
+      account_id: mask(process.env.CLOUDFLARE_ACCOUNT_ID),
+      database_id: mask(process.env.CLOUDFLARE_D1_DATABASE_ID),
+      api_token_set: !!process.env.CLOUDFLARE_API_TOKEN,
+      r2_bucket: process.env.R2_BUCKET_NAME || 'default',
+    }
+  });
 });
 
 
