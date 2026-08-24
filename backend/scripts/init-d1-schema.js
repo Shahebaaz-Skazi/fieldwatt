@@ -172,9 +172,15 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_properties_society     ON properties(society)`,
   `CREATE INDEX IF NOT EXISTS idx_properties_sub_society ON properties(sub_society)`,
   `CREATE INDEX IF NOT EXISTS idx_properties_wing_code   ON properties(wing_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_properties_phone       ON properties(phone_number)`,
   `CREATE INDEX IF NOT EXISTS idx_assignments_property   ON assignments(property_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_assignments_agent      ON assignments(agent_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_assignments_cycle      ON assignments(cycle_id)`,
   `CREATE INDEX IF NOT EXISTS idx_readings_assignment    ON readings(assignment_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_readings_status        ON readings(status_code)`,
   `CREATE INDEX IF NOT EXISTS idx_whatsapp_property      ON whatsapp_logs(property_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_whatsapp_phone         ON whatsapp_logs(phone_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_whatsapp_cycle         ON whatsapp_logs(cycle_id)`,
 ];
 
 // D1 REST API only exposes /query (not /batch). Run each statement individually.

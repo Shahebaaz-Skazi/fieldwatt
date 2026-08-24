@@ -24,10 +24,38 @@ function checkConfig() {
 }
 
 /**
- * Convert Postgres-style placeholders ($1, $2 …) to D1-style (?, ? …).
+ * Convert Postgres-style placeholders ($1, $2 …) and SQL dialects to D1-compatible SQLite syntax.
  */
 function convertPg(sql) {
-  return sql.replace(/\$\d+/g, '?');
+  let s = sql;
+  
+  // 1. Remove ::jsonb or other PostgreSQL casts
+  s = s.replace(/::jsonb/gi, '');
+  s = s.replace(/::text/gi, '');
+  
+  // 2. Placeholders: $1, $2 ... -> ?
+  s = s.replace(/\$\d+/g, '?');
+  
+  // 3. date_trunc / DATE_TRUNC -> strftime
+  s = s.replace(/DATE_TRUNC\s*\(\s*'month'\s*,\s*(.*?)\)/gi, "strftime('%Y-%m-01', $1)");
+  s = s.replace(/date_trunc\s*\(\s*'month'\s*,\s*(.*?)\)/gi, "strftime('%Y-%m-01', $1)");
+  
+  // 4. NOW() -> datetime('now')
+  s = s.replace(/\bNOW\(\)/gi, "datetime('now')");
+  
+  // 5. CURRENT_DATE modifications
+  s = s.replace(/\bCURRENT_DATE\s*\+\s*1\b/gi, "date('now', '+1 day')");
+  s = s.replace(/\bCURRENT_DATE\s*-\s*5\b/gi, "date('now', '-5 days')");
+  s = s.replace(/\bCURRENT_DATE\s*\+\s*25\b/gi, "date('now', '+25 days')");
+  s = s.replace(/\bCURRENT_DATE\b(?!\s*[\+\-])/gi, "date('now')");
+  
+  // 6. INTERVAL clauses
+  s = s.replace(/datetime\('now'\)\s*-\s*INTERVAL\s*'7 days'/gi, "datetime('now', '-7 days')");
+  
+  // 7. gen_random_uuid() -> D1 RFC4122 v4 UUID generator
+  s = s.replace(/\bgen_random_uuid\(\)/gi, "(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))))");
+
+  return s;
 }
 
 /**

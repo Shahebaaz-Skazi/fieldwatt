@@ -1,15 +1,8 @@
 const { workerData, parentPort } = require('worker_threads');
 const XLSX = require('xlsx');
-const { Pool } = require('pg');
-require('dotenv').config();
-
+const db = require('../db');
+const pool = db.pool;
 const { filePath, adminId } = workerData;
-
-// Initialize independent connection pool for the worker thread
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 2, // ponytail: minimal connections for background workers
-});
 
 // ─────────────────────────────────────────────
 // Normalise any string: trim, collapse spaces, uppercase
@@ -399,7 +392,7 @@ const processExcel = async () => {
         let paramCount = 1;
 
         for (const row of parsedChunkRows) {
-          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}, $${paramCount+9}, $${paramCount+10}::jsonb, $${paramCount+11})`);
+          valueStrings.push(`($${paramCount}, $${paramCount+1}, $${paramCount+2}, $${paramCount+3}, $${paramCount+4}, $${paramCount+5}, $${paramCount+6}, $${paramCount+7}, $${paramCount+8}, $${paramCount+9}, $${paramCount+10}, $${paramCount+11})`);
           values.push(row.areaId, row.serial_no, row.consumer_name, row.address, row.meter_no, row.property_type, importId, row.society, row.sub_society, row.wing_code, JSON.stringify(row.raw_sap_data), row.phone_number);
           paramCount += 12;
         }

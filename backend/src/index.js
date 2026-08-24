@@ -79,54 +79,14 @@ require('./workers/sync.worker');
 // Error handler
 app.use(errorHandler);
 
-// Database initialization helper (run migrations on start)
+// Database initialization helper (verify D1 connection on start)
 const initDb = async () => {
-  // Apply 001_init.sql
   try {
-    const migrationPath = path.join(__dirname, '../migrations/001_init.sql');
-    if (fs.existsSync(migrationPath)) {
-      const sql = fs.readFileSync(migrationPath, 'utf8');
-      await db.query(sql);
-      console.log('Database initialized successfully (001_init.sql applied).');
-    }
+    await db.query('SELECT 1');
+    console.log('✔ Cloudflare D1 connection verified successfully.');
   } catch (error) {
-    console.error('Error applying 001_init.sql:', error);
+    console.error('❌ Cloudflare D1 connection failed:', error.message);
   }
-
-  // Helper to run individual migration queries safely
-  const runQuery = async (name, sql) => {
-    try {
-      await db.query(sql);
-      console.log(`✔ Migration applied: ${name}`);
-    } catch (error) {
-      console.error(`❌ Migration failed: ${name}`, error);
-    }
-  };
-
-  // Run auto-migrate schema updates sequentially
-  await runQuery('raw_sap_data', `ALTER TABLE properties ADD COLUMN IF NOT EXISTS raw_sap_data JSONB DEFAULT NULL;`);
-  await runQuery('sub_society', `ALTER TABLE properties ADD COLUMN IF NOT EXISTS sub_society VARCHAR(255);`);
-  await runQuery('wing_code', `ALTER TABLE properties ADD COLUMN IF NOT EXISTS wing_code VARCHAR(100);`);
-  await runQuery('idx_properties_sub_society', `CREATE INDEX IF NOT EXISTS idx_properties_sub_society ON properties(sub_society);`);
-  await runQuery('idx_properties_wing_code', `CREATE INDEX IF NOT EXISTS idx_properties_wing_code ON properties(wing_code);`);
-  await runQuery('agents username', `ALTER TABLE agents ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE DEFAULT NULL;`);
-  
-  // WhatsApp outreach schema additions
-  await runQuery('readings source', `ALTER TABLE readings ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'agent';`);
-  await runQuery('readings submitted_by_type', `ALTER TABLE readings ADD COLUMN IF NOT EXISTS submitted_by_type TEXT DEFAULT 'agent';`);
-  await runQuery('properties phone_number', `ALTER TABLE properties ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20) DEFAULT NULL;`);
-  await runQuery('create whatsapp_logs', `
-    CREATE TABLE IF NOT EXISTS whatsapp_logs (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      property_id UUID,
-      phone_number TEXT NOT NULL,
-      status TEXT DEFAULT 'sent',
-      sent_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  await runQuery('whatsapp_logs token', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS token TEXT DEFAULT NULL;`);
-  await runQuery('whatsapp_logs consumer_name', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS consumer_name TEXT DEFAULT NULL;`);
-  await runQuery('whatsapp_logs cycle_id', `ALTER TABLE whatsapp_logs ADD COLUMN IF NOT EXISTS cycle_id UUID DEFAULT NULL;`);
 };
 
 app.listen(PORT, async () => {
