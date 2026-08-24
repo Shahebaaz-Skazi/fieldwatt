@@ -24,11 +24,14 @@ if (!ACCOUNT_ID || !DATABASE_ID || !API_TOKEN) {
   process.exit(1);
 }
 
-// D1 SQLite schema - mirrors the Postgres schema, adapted for SQLite dialect
+// RFC4122 v4 UUID generator in SQLite
+const UUID_DEFAULT = "(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))))";
+
+// D1 SQLite schema - mirrors the Postgres schema, adapted for SQLite dialect with automatic UUID generators
 const STATEMENTS = [
   // Cycles
   `CREATE TABLE IF NOT EXISTS cycles (
-    id         TEXT PRIMARY KEY,
+    id         TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     label      TEXT NOT NULL,
     start_date TEXT,
     end_date   TEXT,
@@ -38,7 +41,7 @@ const STATEMENTS = [
 
   // Areas
   `CREATE TABLE IF NOT EXISTS areas (
-    id         TEXT PRIMARY KEY,
+    id         TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     name       TEXT UNIQUE NOT NULL,
     city       TEXT,
     created_at TEXT DEFAULT (datetime('now'))
@@ -46,7 +49,7 @@ const STATEMENTS = [
 
   // Admins
   `CREATE TABLE IF NOT EXISTS admins (
-    id            TEXT PRIMARY KEY,
+    id            TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     name          TEXT NOT NULL,
     email         TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -55,7 +58,7 @@ const STATEMENTS = [
 
   // Imports
   `CREATE TABLE IF NOT EXISTS imports (
-    id             TEXT PRIMARY KEY,
+    id             TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     file_name      TEXT NOT NULL,
     file_code      TEXT NOT NULL,
     scheduled_date TEXT,
@@ -67,7 +70,7 @@ const STATEMENTS = [
 
   // Properties
   `CREATE TABLE IF NOT EXISTS properties (
-    id            TEXT PRIMARY KEY,
+    id            TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     area_id       TEXT REFERENCES areas(id) ON DELETE SET NULL,
     import_id     TEXT REFERENCES imports(id) ON DELETE SET NULL,
     serial_no     TEXT UNIQUE NOT NULL,
@@ -87,7 +90,7 @@ const STATEMENTS = [
 
   // Agents
   `CREATE TABLE IF NOT EXISTS agents (
-    id               TEXT PRIMARY KEY,
+    id               TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     name             TEXT NOT NULL,
     phone            TEXT UNIQUE NOT NULL,
     email            TEXT UNIQUE,
@@ -101,7 +104,7 @@ const STATEMENTS = [
 
   // Assignments
   `CREATE TABLE IF NOT EXISTS assignments (
-    id          TEXT PRIMARY KEY,
+    id          TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     agent_id    TEXT REFERENCES agents(id) ON DELETE CASCADE,
     property_id TEXT REFERENCES properties(id) ON DELETE CASCADE,
     cycle_id    TEXT REFERENCES cycles(id) ON DELETE CASCADE,
@@ -112,7 +115,7 @@ const STATEMENTS = [
 
   // Readings
   `CREATE TABLE IF NOT EXISTS readings (
-    id                TEXT PRIMARY KEY,
+    id                TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     assignment_id     TEXT REFERENCES assignments(id) ON DELETE CASCADE,
     idempotency_key   TEXT UNIQUE NOT NULL,
     reading_value     REAL,
@@ -136,7 +139,7 @@ const STATEMENTS = [
 
   // Attendance
   `CREATE TABLE IF NOT EXISTS attendance (
-    id          TEXT PRIMARY KEY,
+    id          TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     agent_id    TEXT REFERENCES agents(id) ON DELETE CASCADE,
     date        TEXT NOT NULL,
     login_time  TEXT,
@@ -147,7 +150,7 @@ const STATEMENTS = [
 
   // Revisits
   `CREATE TABLE IF NOT EXISTS revisits (
-    id             TEXT PRIMARY KEY,
+    id             TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     property_id    TEXT REFERENCES properties(id) ON DELETE CASCADE,
     cycle_id       TEXT REFERENCES cycles(id) ON DELETE CASCADE,
     scheduled_date TEXT NOT NULL,
@@ -158,7 +161,7 @@ const STATEMENTS = [
 
   // WhatsApp logs
   `CREATE TABLE IF NOT EXISTS whatsapp_logs (
-    id            TEXT PRIMARY KEY,
+    id            TEXT PRIMARY KEY DEFAULT ${UUID_DEFAULT},
     property_id   TEXT,
     phone_number  TEXT NOT NULL,
     status        TEXT DEFAULT 'sent',
@@ -231,7 +234,11 @@ async function main() {
   console.log('\n✅  D1 schema initialization complete! (' + ok + '/' + STATEMENTS.length + ' statements applied)');
 }
 
-main().catch(err => {
-  console.error('❌  Schema init failed:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('❌  Schema init failed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { STATEMENTS, main };
