@@ -54,6 +54,7 @@ const STATEMENTS = [
     name          TEXT NOT NULL,
     email         TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    role          TEXT DEFAULT 'admin',
     created_at    TEXT DEFAULT (datetime('now'))
   )`,
 
