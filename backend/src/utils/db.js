@@ -5,10 +5,11 @@
  */
 require('dotenv').config();
 
-// Trim all CF env vars to guard against trailing newlines from copy-paste or .env editors
-const ACCOUNT_ID  = (process.env.CLOUDFLARE_ACCOUNT_ID       || '').trim();
-const DATABASE_ID = (process.env.CLOUDFLARE_D1_DATABASE_ID   || '').trim();
-const API_TOKEN   = (process.env.CLOUDFLARE_API_TOKEN        || '').trim();
+// Trim and strip wrapping quotes from env vars to prevent malformed UUID errors
+const cleanEnvVal = (val) => (val || '').trim().replace(/^["']|["']$/g, '');
+const ACCOUNT_ID  = cleanEnvVal(process.env.CLOUDFLARE_ACCOUNT_ID);
+const DATABASE_ID = cleanEnvVal(process.env.CLOUDFLARE_D1_DATABASE_ID);
+const API_TOKEN   = cleanEnvVal(process.env.CLOUDFLARE_API_TOKEN);
 
 function d1Url(path) {
   return 'https://api.cloudflare.com/client/v4/accounts/' + ACCOUNT_ID + '/d1/database/' + DATABASE_ID + path;

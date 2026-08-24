@@ -14,9 +14,10 @@
  */
 require('dotenv').config();
 
-const ACCOUNT_ID  = (process.env.CLOUDFLARE_ACCOUNT_ID       || '').trim();
-const DATABASE_ID = (process.env.CLOUDFLARE_D1_DATABASE_ID   || '').trim();
-const API_TOKEN   = (process.env.CLOUDFLARE_API_TOKEN        || '').trim();
+const cleanEnvVal = (val) => (val || '').trim().replace(/^["']|["']$/g, '');
+const ACCOUNT_ID  = cleanEnvVal(process.env.CLOUDFLARE_ACCOUNT_ID);
+const DATABASE_ID = cleanEnvVal(process.env.CLOUDFLARE_D1_DATABASE_ID);
+const API_TOKEN   = cleanEnvVal(process.env.CLOUDFLARE_API_TOKEN);
 const D1_BASE     = 'https://api.cloudflare.com/client/v4/accounts/' + ACCOUNT_ID + '/d1/database/' + DATABASE_ID;
 
 if (!ACCOUNT_ID || !DATABASE_ID || !API_TOKEN) {
