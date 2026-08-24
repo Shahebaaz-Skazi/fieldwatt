@@ -14,9 +14,10 @@
  */
 require('dotenv').config();
 
-const ACCOUNT_ID  = process.env.CLOUDFLARE_ACCOUNT_ID;
-const DATABASE_ID = process.env.CLOUDFLARE_D1_DATABASE_ID;
-const API_TOKEN   = process.env.CLOUDFLARE_API_TOKEN;
+const ACCOUNT_ID  = (process.env.CLOUDFLARE_ACCOUNT_ID       || '').trim();
+const DATABASE_ID = (process.env.CLOUDFLARE_D1_DATABASE_ID   || '').trim();
+const API_TOKEN   = (process.env.CLOUDFLARE_API_TOKEN        || '').trim();
+const D1_BASE     = 'https://api.cloudflare.com/client/v4/accounts/' + ACCOUNT_ID + '/d1/database/' + DATABASE_ID;
 
 if (!ACCOUNT_ID || !DATABASE_ID || !API_TOKEN) {
   console.error('❌  Missing CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, or CLOUDFLARE_API_TOKEN');
@@ -176,23 +177,26 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_whatsapp_property      ON whatsapp_logs(property_id)`,
 ];
 
-async function runBatch(statements) {
-  const url = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/d1/database/${DATABASE_ID}/batch`;
+// D1 REST API only exposes /query (not /batch). Run each statement individually.
+async function runStatement(sql) {
+  const url = D1_BASE + '/query';
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${API_TOKEN}`,
+      'Authorization': 'Bearer ' + API_TOKEN,
       'Content-Type':  'application/json',
     },
-    body: JSON.stringify(statements.map(sql => ({ sql, params: [] }))),
+    body: JSON.stringify({ sql, params: [] }),
   });
 
   const json = await response.json();
 
   if (!response.ok || !json.success) {
-    const errors = json.errors?.map(e => e.message).join('\n') || response.statusText;
-    throw new Error(`D1 batch error:\n${errors}`);
+    const errors = (json.errors || []).map(e => (typeof e === 'string' ? e : e.message)).join('\n') || response.statusText;
+    console.error('[D1] runStatement failed — endpoint:', url);
+    console.error('[D1] response body:', JSON.stringify(json));
+    throw new Error('D1 error:\n' + errors);
   }
 
   return json.result;
@@ -200,16 +204,25 @@ async function runBatch(statements) {
 
 async function main() {
   console.log('🚀  Pushing schema to Cloudflare D1 …');
+  console.log('    Account:', ACCOUNT_ID);
+  console.log('    Database:', DATABASE_ID);
+  console.log('    Statements:', STATEMENTS.length);
 
-  // D1 batch endpoint accepts up to 100 statements; split into chunks just in case
-  const CHUNK = 20;
-  for (let i = 0; i < STATEMENTS.length; i += CHUNK) {
-    const chunk = STATEMENTS.slice(i, i + CHUNK);
-    await runBatch(chunk);
-    console.log(`  ✔  Batch ${Math.floor(i / CHUNK) + 1}: ${chunk.length} statements applied.`);
+  let ok = 0;
+  for (const sql of STATEMENTS) {
+    const label = sql.slice(0, 60).replace(/\s+/g, ' ').trim();
+    try {
+      await runStatement(sql);
+      ok++;
+      console.log('  ✔ ', label + ' …');
+    } catch (err) {
+      console.error('  ❌  Failed:', label);
+      console.error('     ', err.message);
+      // Don't abort — continue with remaining statements
+    }
   }
 
-  console.log('\n✅  D1 schema initialization complete!');
+  console.log('\n✅  D1 schema initialization complete! (' + ok + '/' + STATEMENTS.length + ' statements applied)');
 }
 
 main().catch(err => {

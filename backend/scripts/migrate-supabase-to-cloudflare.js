@@ -36,16 +36,16 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 // ──────────────────────────────────────────────────
 // CONFIG
 // ──────────────────────────────────────────────────
-const CF_ACCOUNT_ID  = process.env.CLOUDFLARE_ACCOUNT_ID;
-const D1_DATABASE_ID = process.env.CLOUDFLARE_D1_DATABASE_ID;
-const CF_API_TOKEN   = process.env.CLOUDFLARE_API_TOKEN;
-const D1_BASE        = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/d1/database/${D1_DATABASE_ID}`;
+const CF_ACCOUNT_ID  = (process.env.CLOUDFLARE_ACCOUNT_ID       || '').trim();
+const D1_DATABASE_ID = (process.env.CLOUDFLARE_D1_DATABASE_ID   || '').trim();
+const CF_API_TOKEN   = (process.env.CLOUDFLARE_API_TOKEN        || '').trim();
+const D1_BASE        = 'https://api.cloudflare.com/client/v4/accounts/' + CF_ACCOUNT_ID + '/d1/database/' + D1_DATABASE_ID;
 
-const R2_ACCOUNT_ID    = process.env.R2_ACCOUNT_ID || CF_ACCOUNT_ID;
-const R2_KEY           = process.env.R2_ACCESS_KEY_ID     || '39dec7bba58fd973160bfa779356c542';
-const R2_SECRET        = process.env.R2_SECRET_ACCESS_KEY || '2df4946482e6e2d1f52ad1e2f663234a1948fb579088c221dc2b57dc61cd3a11';
-const R2_BUCKET        = process.env.R2_BUCKET_NAME       || 'fieldwatt-meter-photos';
-const R2_PUBLIC_BASE   = (process.env.R2_PUBLIC_BASE_URL  || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').replace(/\/$/, '');
+const R2_ACCOUNT_ID    = (process.env.R2_ACCOUNT_ID || CF_ACCOUNT_ID).trim();
+const R2_KEY           = (process.env.R2_ACCESS_KEY_ID     || '39dec7bba58fd973160bfa779356c542').trim();
+const R2_SECRET        = (process.env.R2_SECRET_ACCESS_KEY || '2df4946482e6e2d1f52ad1e2f663234a1948fb579088c221dc2b57dc61cd3a11').trim();
+const R2_BUCKET        = (process.env.R2_BUCKET_NAME       || 'fieldwatt-meter-photos').trim();
+const R2_PUBLIC_BASE   = (process.env.R2_PUBLIC_BASE_URL   || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').trim().replace(/\/$/, '');
 
 const BATCH_SIZE       = 20;   // rows per D1 batch
 const PAUSE_MS         = 500;  // ms between batches
@@ -66,18 +66,27 @@ const r2 = new S3Client({
 // ──────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function d1Batch(statements) {
-  const res = await fetch(`${D1_BASE}/batch`, {
+// D1 REST API only exposes /query. Run each statement sequentially.
+async function d1Query(sql, params) {
+  const res = await fetch(D1_BASE + '/query', {
     method:  'POST',
-    headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify(statements),
+    headers: { 'Authorization': 'Bearer ' + CF_API_TOKEN, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ sql, params: params || [] }),
   });
   const json = await res.json();
   if (!res.ok || !json.success) {
-    const errs = json.errors?.map(e => e.message).join('; ') || res.statusText;
-    throw new Error(`D1 batch error: ${errs}`);
+    const errs = (json.errors || []).map(e => (typeof e === 'string' ? e : e.message)).join('; ') || res.statusText;
+    console.error('[D1] failed — SQL:', sql.slice(0, 80));
+    console.error('[D1] response:', JSON.stringify(json));
+    throw new Error('D1 query error: ' + errs);
   }
   return json.result;
+}
+
+async function d1Batch(statements) {
+  for (const s of statements) {
+    await d1Query(s.sql, s.params);
+  }
 }
 
 async function uploadPhotoToR2(photoUrl) {
