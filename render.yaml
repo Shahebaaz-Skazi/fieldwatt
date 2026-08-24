@@ -14,13 +14,21 @@ services:
         value: production
       - key: JWT_EXPIRES_IN
         value: 24h
-      - key: DATABASE_URL
-        sync: false # Set in Render Dashboard (Supabase PostgreSQL URL)
       - key: JWT_SECRET
-        sync: false # Set in Render Dashboard (Secret security string)
+        sync: false # Set in Render Dashboard
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false # Cloudflare Account ID
+      - key: CLOUDFLARE_D1_DATABASE_ID
+        sync: false # Cloudflare D1 Database ID (UUID format)
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false # Cloudflare API Token
+      - key: R2_ACCESS_KEY_ID
+        sync: false # R2 S3-compatible Access Key ID
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false # R2 S3-compatible Secret Access Key
+      - key: R2_BUCKET_NAME
+        value: fieldwatt-meter-photos
+      - key: R2_PUBLIC_BASE_URL
+        value: https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev
       - key: REDIS_URL
-        sync: false # Set in Render Dashboard (Upstash Redis URL for queues)
-      - key: SUPABASE_URL
-        sync: false # Set in Render Dashboard (Supabase Project URL)
-      - key: SUPABASE_SERVICE_KEY
-        sync: false # Set in Render Dashboard (Supabase Service Role Key)
+        sync: false # Upstash Redis URL (for BullMQ workers)
