@@ -11,7 +11,12 @@ console.log('Token prefix:', tok.slice(0, 10) + '...');
 fetch(url, {
   method: 'POST',
   headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ sql: 'SELECT 1 as ok', params: [] })
+  body: JSON.stringify({
+    batch: [
+      { sql: 'SELECT 1 as ok', params: [] },
+      { sql: 'SELECT 2 as ok2', params: [] }
+    ]
+  })
 })
 .then(function(r) { return r.json(); })
 .then(function(j) { console.log(JSON.stringify(j, null, 2)); })

@@ -61,16 +61,40 @@ async function query(sql, params = []) {
 }
 
 /**
- * Execute multiple SQL statements sequentially (D1 REST only supports /query, not /batch).
+ * Execute multiple SQL statements in a single batch request (D1 transaction).
  * Each element: { sql, params }
  * Returns array of { rows, rowCount } results.
  */
 async function batch(statements) {
-  const results = [];
-  for (const s of statements) {
-    results.push(await query(s.sql, s.params));
+  checkConfig();
+
+  const endpoint = d1Url('/query');
+  const body = {
+    batch: statements.map(s => ({
+      sql: convertPg(s.sql),
+      params: s.params ?? [],
+    })),
+  };
+
+  const response = await fetch(endpoint, {
+    method:  'POST',
+    headers: { 'Authorization': 'Bearer ' + API_TOKEN, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  });
+
+  const json = await response.json();
+
+  if (!response.ok || !json.success) {
+    const errors = (json.errors || []).map(e => e.message).join(', ') || response.statusText;
+    console.error('[D1] batch failed — endpoint:', endpoint);
+    console.error('[D1] response body:', JSON.stringify(json));
+    throw new Error('D1 batch failed: ' + errors);
   }
-  return results;
+
+  return json.result.map(r => ({
+    rows:     r.results ?? [],
+    rowCount: r.results?.length ?? 0,
+  }));
 }
 
 module.exports = { query, batch };

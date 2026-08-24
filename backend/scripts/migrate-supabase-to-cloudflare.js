@@ -47,8 +47,8 @@ const R2_SECRET        = (process.env.R2_SECRET_ACCESS_KEY || '2df4946482e6e2d1f
 const R2_BUCKET        = (process.env.R2_BUCKET_NAME       || 'fieldwatt-meter-photos').trim();
 const R2_PUBLIC_BASE   = (process.env.R2_PUBLIC_BASE_URL   || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').trim().replace(/\/$/, '');
 
-const BATCH_SIZE       = 20;   // rows per D1 batch
-const PAUSE_MS         = 500;  // ms between batches
+const BATCH_SIZE = 50;  // rows per batch — larger = fewer round-trips
+const PAUSE_MS   = 100; // ms between batches; retries handle transient failures
 
 // ──────────────────────────────────────────────────
 // CLIENTS
@@ -57,7 +57,7 @@ const pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const r2 = new S3Client({
   region:   'auto',
-  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint: 'https://' + R2_ACCOUNT_ID + '.r2.cloudflarestorage.com',
   credentials: { accessKeyId: R2_KEY, secretAccessKey: R2_SECRET },
 });
 
@@ -66,41 +66,96 @@ const r2 = new S3Client({
 // ──────────────────────────────────────────────────
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// D1 REST API only exposes /query. Run each statement sequentially.
-async function d1Query(sql, params) {
-  const res = await fetch(D1_BASE + '/query', {
-    method:  'POST',
-    headers: { 'Authorization': 'Bearer ' + CF_API_TOKEN, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ sql, params: params || [] }),
-  });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    const errs = (json.errors || []).map(e => (typeof e === 'string' ? e : e.message)).join('; ') || res.statusText;
-    console.error('[D1] failed — SQL:', sql.slice(0, 80));
-    console.error('[D1] response:', JSON.stringify(json));
-    throw new Error('D1 query error: ' + errs);
+/**
+ * Execute one SQL statement against D1 /query with retry + exponential backoff.
+ * Retries up to 4 times on network errors or 5xx responses.
+ */
+async function d1Query(sql, params, attempt = 0) {
+  const MAX_ATTEMPTS = 4;
+  const controller   = new AbortController();
+  const timer        = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+  try {
+    const res  = await fetch(D1_BASE + '/query', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + CF_API_TOKEN, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sql, params: params || [] }),
+      signal:  controller.signal,
+    });
+    clearTimeout(timer);
+
+    const json = await res.json();
+
+    if (!res.ok || !json.success) {
+      const errs = (json.errors || []).map(e => (typeof e === 'string' ? e : e.message)).join('; ') || res.statusText;
+      // 409 Conflict = duplicate key (INSERT OR IGNORE should prevent, but don't retry)
+      if (res.status === 409 || errs.includes('UNIQUE constraint failed')) return json.result;
+      throw new Error('D1 query error (' + res.status + '): ' + errs);
+    }
+
+    return json.result;
+  } catch (err) {
+    clearTimeout(timer);
+    if (attempt < MAX_ATTEMPTS) {
+      const backoff = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+      console.warn('  ⟳  Retrying (' + (attempt + 1) + '/' + MAX_ATTEMPTS + ') after ' + backoff + 'ms — ' + err.message.slice(0, 60));
+      await sleep(backoff);
+      return d1Query(sql, params, attempt + 1);
+    }
+    throw err;
   }
-  return json.result;
 }
 
-async function d1Batch(statements) {
-  for (const s of statements) {
-    await d1Query(s.sql, s.params);
+async function d1Batch(statements, attempt = 0) {
+  if (statements.length === 0) return;
+  const MAX_ATTEMPTS = 4;
+  const controller   = new AbortController();
+  const timer        = setTimeout(() => controller.abort(), 30000); // 30s timeout for batch
+
+  try {
+    const res  = await fetch(D1_BASE + '/query', {
+      method:  'POST',
+      headers: { 'Authorization': 'Bearer ' + CF_API_TOKEN, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ batch: statements }),
+      signal:  controller.signal,
+    });
+    clearTimeout(timer);
+
+    const json = await res.json();
+
+    if (!res.ok || !json.success) {
+      const errs = (json.errors || []).map(e => (typeof e === 'string' ? e : e.message)).join('; ') || res.statusText;
+      if (res.status === 409 || errs.includes('UNIQUE constraint failed')) return json.result;
+      throw new Error('D1 batch query error (' + res.status + '): ' + errs);
+    }
+
+    return json.result;
+  } catch (err) {
+    clearTimeout(timer);
+    if (attempt < MAX_ATTEMPTS) {
+      const backoff = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+      console.warn('  ⟳  Retrying batch (' + (attempt + 1) + '/' + MAX_ATTEMPTS + ') after ' + backoff + 'ms — ' + err.message.slice(0, 60));
+      await sleep(backoff);
+      return d1Batch(statements, attempt + 1);
+    }
+    throw err;
   }
 }
 
 async function uploadPhotoToR2(photoUrl) {
   if (!photoUrl) return null;
   try {
-    const resp = await fetch(photoUrl);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buf  = Buffer.from(await resp.arrayBuffer());
-    // Build key from last path segment
-    const key  = `migrated/${Date.now()}_${photoUrl.split('/').pop().split('?')[0]}`;
+    const controller = new AbortController();
+    const timer      = setTimeout(() => controller.abort(), 20000);
+    const resp = await fetch(photoUrl, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    const key = 'migrated/' + Date.now() + '_' + photoUrl.split('/').pop().split('?')[0];
     await r2.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: buf, ContentType: 'image/jpeg' }));
-    return `${R2_PUBLIC_BASE}/${key}`;
+    return R2_PUBLIC_BASE + '/' + key;
   } catch (err) {
-    console.warn(`  ⚠️  Photo upload skipped (${photoUrl}): ${err.message}`);
+    console.warn('  ⚠️  Photo upload skipped (' + (photoUrl || '').slice(0, 60) + '): ' + err.message);
     return photoUrl; // keep old URL as fallback
   }
 }
@@ -115,24 +170,27 @@ function chunks(arr, size) {
 // MIGRATE SIMPLE TABLES (no photo, no FK complexity)
 // ──────────────────────────────────────────────────
 async function migrateSimple(table, pgSql, toStatements) {
-  console.log(`\n📋  Migrating: ${table}`);
+  console.log('\n📋  Migrating: ' + table);
   const { rows } = await pgPool.query(pgSql);
-  console.log(`    ${rows.length} rows found.`);
+  console.log('    ' + rows.length + ' rows found.');
   if (rows.length === 0) return;
 
   let ok = 0, fail = 0;
-  for (const batch of chunks(rows, BATCH_SIZE)) {
+  const batches = chunks(rows, BATCH_SIZE);
+  for (let i = 0; i < batches.length; i++) {
+    const batch = batches[i];
     try {
       const stmts = batch.map(row => toStatements(row)).filter(Boolean);
       await d1Batch(stmts);
       ok += batch.length;
+      if ((i + 1) % 10 === 0) console.log('    … ' + ok + '/' + rows.length + ' rows done');
     } catch (err) {
       fail += batch.length;
-      console.error(`  ❌  Batch failed: ${err.message}`);
+      console.error('  ❌  Batch ' + (i + 1) + ' failed: ' + err.message);
     }
     await sleep(PAUSE_MS);
   }
-  console.log(`    ✔  ${ok} inserted, ${fail} failed.`);
+  console.log('    ✔  ' + ok + ' inserted, ' + fail + ' failed.');
 }
 
 // ──────────────────────────────────────────────────
