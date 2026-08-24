@@ -297,6 +297,71 @@ const SelfReading = () => {
                 <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
                   Current Meter Reading
                 </label>
+
+                {/* Visual Gas Meter Reading Guide */}
+                <div style={{ marginBottom: '12px' }}>
+                  {/* Digit boxes container */}
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', margin: '8px 0' }}>
+                    {/* Black digits (Whole units) */}
+                    {['0', '1', '3', '2', '5'].map((digit, idx) => (
+                      <span key={`black-${idx}`} style={{
+                        backgroundColor: '#000000',
+                        color: '#FFFFFF',
+                        fontFamily: 'monospace',
+                        fontWeight: 'bold',
+                        fontSize: '15px',
+                        padding: '4px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #27272A',
+                        boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.1)'
+                      }}>
+                        {digit}
+                      </span>
+                    ))}
+                    
+                    {/* Red digits (Decimals) */}
+                    {['8', '3', '1'].map((digit, idx) => (
+                      <span key={`red-${idx}`} style={{
+                        backgroundColor: '#DC2626',
+                        color: '#FFFFFF',
+                        fontFamily: 'monospace',
+                        fontWeight: 'bold',
+                        fontSize: '15px',
+                        padding: '4px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #B91C1C',
+                        boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.2)'
+                      }}>
+                        {digit}
+                      </span>
+                    ))}
+
+                    {/* Unit badge */}
+                    <span style={{
+                      marginLeft: '6px',
+                      color: '#475569',
+                      fontSize: '14px',
+                      fontWeight: '700'
+                    }}>
+                      m³
+                    </span>
+                  </div>
+
+                  {/* Helper Instruction Note */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '12px',
+                    color: '#475569',
+                    fontWeight: '500',
+                    marginTop: '6.5px'
+                  }}>
+                    <span>ℹ️</span>
+                    <span>Please enter only the digits shown on the black background (ignore the red digits).</span>
+                  </div>
+                </div>
+
                 <input
                   type="number"
                   step="any"
