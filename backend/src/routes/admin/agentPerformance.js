@@ -68,14 +68,14 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         SELECT 
           asg.agent_id,
           COUNT(DISTINCT r.id) as total_submitted,
-          COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END) as reading_taken,
-          COUNT(CASE WHEN r.status_code = 'door_locked' THEN 1 END) as door_locked,
-          COUNT(CASE WHEN r.status_code = 'not_reachable' THEN 1 END) as not_reachable,
-          COUNT(CASE WHEN r.status_code = 'access_denied' THEN 1 END) as access_denied,
-          COUNT(CASE WHEN r.status_code = 'meter_not_found' THEN 1 END) as meter_not_found,
-          COUNT(CASE WHEN r.status_code = 'meter_damaged' THEN 1 END) as meter_damaged,
-          COUNT(CASE WHEN r.status_code = 'vacant_property' THEN 1 END) as vacant_property,
-          COUNT(CASE WHEN r.status_code = 'revisit_needed' THEN 1 END) as revisit_needed
+          SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as reading_taken,
+          SUM(CASE WHEN r.status_code = 'door_locked' THEN 1 ELSE 0 END) as door_locked,
+          SUM(CASE WHEN r.status_code = 'not_reachable' THEN 1 ELSE 0 END) as not_reachable,
+          SUM(CASE WHEN r.status_code = 'access_denied' THEN 1 ELSE 0 END) as access_denied,
+          SUM(CASE WHEN r.status_code = 'meter_not_found' THEN 1 ELSE 0 END) as meter_not_found,
+          SUM(CASE WHEN r.status_code = 'meter_damaged' THEN 1 ELSE 0 END) as meter_damaged,
+          SUM(CASE WHEN r.status_code = 'vacant_property' THEN 1 ELSE 0 END) as vacant_property,
+          SUM(CASE WHEN r.status_code = 'revisit_needed' THEN 1 ELSE 0 END) as revisit_needed
         FROM assignments asg
         LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
         WHERE asg.cycle_id = $1
@@ -126,9 +126,9 @@ router.get('/:agentId/calendar', authMiddleware, requireAdmin, async (req, res) 
     const queryText = `
       SELECT 
         TO_CHAR(timezone('Asia/Kolkata', r.submitted_at), 'YYYY-MM-DD') as date,
-        COUNT(r.id)::int as total,
-        COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END)::int as done,
-        COUNT(CASE WHEN r.status_code != 'reading_taken' THEN 1 END)::int as other
+        COUNT(r.id) as total,
+        SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as done,
+        SUM(CASE WHEN r.status_code != 'reading_taken' THEN 1 ELSE 0 END) as other
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       WHERE asg.agent_id = $1

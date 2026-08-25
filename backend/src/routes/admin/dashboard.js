@@ -37,16 +37,16 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         att.login_time,
         att.last_active,
         att.is_on_leave,
-        COUNT(asg.id)::int as assigned_count,
-        COUNT(CASE WHEN r.status_code = 'reading_taken' THEN 1 END)::int as done_count,
-        COUNT(CASE WHEN r.id IS NOT NULL AND r.status_code != 'reading_taken' THEN 1 END)::int as problem_count,
-        COUNT(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 END)::int as pending_count
+        COUNT(asg.id) as assigned_count,
+        SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as done_count,
+        SUM(CASE WHEN r.id IS NOT NULL AND r.status_code != 'reading_taken' THEN 1 ELSE 0 END) as problem_count,
+        SUM(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 ELSE 0 END) as pending_count
       FROM agents a
-      LEFT JOIN attendance att ON att.agent_id = a.id AND att.date = CURRENT_DATE
+      LEFT JOIN attendance att ON att.agent_id = a.id AND DATE(att.date) = CURRENT_DATE
       LEFT JOIN assignments asg ON asg.agent_id = a.id AND asg.cycle_id = $1
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE a.is_active = true
-      GROUP BY a.id, att.id
+      GROUP BY a.id
       ORDER BY a.name ASC
     `;
     const result = await db.query(queryText, [cycleId]);
@@ -323,13 +323,13 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         r.submitted_at
       FROM properties p
       LEFT JOIN areas a ON p.area_id = a.id
-      LEFT JOIN LATERAL (
-        SELECT id, agent_id
+      LEFT JOIN assignments asg ON asg.id = (
+        SELECT id
         FROM assignments
         WHERE property_id = p.id
         ORDER BY assigned_at DESC, id DESC
         LIMIT 1
-      ) asg ON true
+      )
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE 

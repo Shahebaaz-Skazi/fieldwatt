@@ -308,7 +308,10 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
       r.reading_value,
       r.status_code as reading_status,
       r.photo_url,
-      r.submitted_at as reading_submitted_at
+      r.submitted_at as reading_submitted_at,
+      CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
+      CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
+      CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
     `;
 
     // Clone whereParams to append cycleId, limit, and offset for dataQuery

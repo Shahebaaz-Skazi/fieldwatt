@@ -52,6 +52,7 @@ function convertPg(sql) {
   s = s.replace(/EXTRACT\s*\(\s*YEAR\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%Y', $1) AS INTEGER)");
   s = s.replace(/EXTRACT\s*\(\s*MONTH\s+FROM\s+(.*?)\)/gi, "CAST(strftime('%m', $1) AS INTEGER)");
   s = s.replace(/\bILIKE\b/gi, 'LIKE');
+  s = s.replace(/TO_CHAR\s*\(\s*(.*?)\s*,\s*'YYYY-MM-DD'\s*\)/gi, "strftime('%Y-%m-%d', $1)");
   
   // 1d. Convert Postgres boolean literals to SQLite integers (true -> 1, false -> 0)
   s = s.replace(/\bTRUE\b/gi, '1');

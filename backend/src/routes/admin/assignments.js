@@ -304,7 +304,10 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
         asg.agent_id,
         ag.name as agent_name,
         r.status_code,
-        r.reading_value
+        r.reading_value,
+        CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
+        CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
+        CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
@@ -432,19 +435,21 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
         latest_r.submitted_at,
         latest_r.reading_value,
         latest_r.status_code,
-        latest_r.note
+        latest_r.note,
+        CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
+        CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
+        CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
-      LEFT JOIN LATERAL (
-        SELECT r.status_code, r.reading_value, r.submitted_at, r.note
-        FROM readings r
-        JOIN assignments asg ON r.assignment_id = asg.id
-        WHERE asg.property_id = p.id
-          AND asg.cycle_id = $3
-        ORDER BY r.submitted_at DESC
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
+      LEFT JOIN readings latest_r ON latest_r.id = (
+        SELECT id
+        FROM readings
+        WHERE assignment_id = asg.id
+        ORDER BY submitted_at DESC
         LIMIT 1
-      ) latest_r ON true
+      )
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
     `;
