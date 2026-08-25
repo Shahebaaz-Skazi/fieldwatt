@@ -15,21 +15,23 @@ const getActiveCycleId = async () => {
 };
 
 // Safe dynamic cycle resolution helper
+// ponytail: normalized month/year lookup with LOWER() to avoid case mismatch
 const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
   let targetCycleId = cycleId;
   if (!targetCycleId) {
-    let targetMonth = month;
-    let targetYear = year;
-    
+    // Normalize inputs
+    let targetMonth = month ? String(month).trim() : null;
+    let targetYear  = year  ? Number(year)         : null;
+
     if (!targetMonth || !targetYear) {
       const billingMonthStr = await fallbackQueryFunc();
       if (billingMonthStr) {
         const parts = billingMonthStr.split(' ');
-        targetMonth = parts[0];
-        targetYear = parseInt(parts[1]);
+        targetMonth = targetMonth || parts[0];
+        targetYear  = targetYear  || parseInt(parts[1]);
       }
     }
-    
+
     if (!targetMonth || !targetYear) {
       const now = new Date();
       const monthNames = [
@@ -37,26 +39,26 @@ const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
         'July', 'August', 'September', 'October', 'November', 'December'
       ];
       targetMonth = targetMonth || monthNames[now.getMonth()];
-      targetYear = targetYear || now.getFullYear();
+      targetYear  = targetYear  || now.getFullYear();
     }
-    
-    // Query cycles for an existing record
+
+    // Use LOWER() to avoid case-sensitivity mismatch, CAST year to INTEGER
     const cycleCheck = await db.query(
-      'SELECT id FROM cycles WHERE month = $1 AND year = $2 LIMIT 1',
-      [targetMonth, targetYear]
+      `SELECT id FROM cycles WHERE LOWER(month) = LOWER($1) AND CAST(year AS INTEGER) = $2 LIMIT 1`,
+      [targetMonth, Number(targetYear)]
     );
-    
+
     if (cycleCheck.rows.length > 0) {
       targetCycleId = cycleCheck.rows[0].id;
     } else {
-      const newUuid = `cycle_${targetMonth.toLowerCase()}_${targetYear}_${Date.now()}`;
-      const cycleName = `${targetMonth} ${targetYear} Billing Cycle`;
+      const cycleName  = `${targetMonth} ${targetYear} Billing Cycle`;
+      const newCycleId = `cycle_${targetMonth.toLowerCase()}_${targetYear}`;
       await db.query(
         `INSERT INTO cycles (id, name, month, year, status, label, is_active, start_date, end_date, created_at)
          VALUES ($1, $2, $3, $4, 'active', $5, 1, date('now'), date('now', '+30 days'), datetime('now'))`,
-        [newUuid, cycleName, targetMonth, Number(targetYear), cycleName]
+        [newCycleId, cycleName, targetMonth, Number(targetYear), cycleName]
       );
-      targetCycleId = newUuid;
+      targetCycleId = newCycleId;
       console.log(`[assignments] Created dynamic cycle: "${cycleName}" (${targetCycleId})`);
     }
   } else {
@@ -143,13 +145,13 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
       chunk.forEach(propId => {
         chunkStatements.push({
           sql: `
-            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
-            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'))
             ON CONFLICT (property_id, cycle_id) 
-            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0
             RETURNING id
           `,
-          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId]
         });
       });
 
@@ -227,13 +229,13 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
       chunk.forEach(propId => {
         chunkStatements.push({
           sql: `
-            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
-            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'))
             ON CONFLICT (property_id, cycle_id) 
-            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0
             RETURNING id
           `,
-          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId]
         });
       });
 
@@ -312,13 +314,13 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       chunk.forEach(propId => {
         chunkStatements.push({
           sql: `
-            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
-            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'))
             ON CONFLICT (property_id, cycle_id) 
-            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0
             RETURNING id
           `,
-          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId]
         });
       });
 
