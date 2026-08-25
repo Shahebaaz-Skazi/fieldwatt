@@ -14,6 +14,37 @@ const getActiveCycleId = async () => {
   return result.rows[0].id;
 };
 
+// Safe dynamic cycle resolution helper
+const resolveCycleHelper = async (cycleId, queryFunc) => {
+  let targetCycleId = cycleId;
+  if (!targetCycleId) {
+    const billingMonth = await queryFunc();
+    if (billingMonth) {
+      const cycleCheck = await db.query('SELECT id FROM cycles WHERE label = $1 LIMIT 1', [billingMonth]);
+      if (cycleCheck.rows.length > 0) {
+        targetCycleId = cycleCheck.rows[0].id;
+      } else {
+        const newUuid = require('crypto').randomUUID();
+        await db.query(
+          `INSERT INTO cycles (id, label, is_active, start_date, end_date)
+           VALUES ($1, $2, 1, date('now'), date('now', '+30 days'))`,
+          [newUuid, billingMonth]
+        );
+        targetCycleId = newUuid;
+        console.log(`[assignments] Created dynamic cycle: "${billingMonth}" (${targetCycleId})`);
+      }
+    } else {
+      targetCycleId = await getActiveCycleId();
+    }
+  } else {
+    const cycleCheck = await db.query('SELECT id FROM cycles WHERE id = $1 LIMIT 1', [targetCycleId]);
+    if (cycleCheck.rows.length === 0) {
+      targetCycleId = await getActiveCycleId();
+    }
+  }
+  return targetCycleId;
+};
+
 const assignAreaSchema = z.object({
   area_id: z.string().uuid(),
   agent_id: z.string().uuid(),
@@ -37,11 +68,27 @@ const assignBulkSchema = z.object({
 router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { area_id, agent_id, cycle_id } = assignAreaSchema.parse(req.body);
-    const targetCycleId = cycle_id || await getActiveCycleId();
     const adminId = req.user.id;
 
-    // Insert assignments for all properties in the specified area
-    // ON CONFLICT update agent_id in case it is already assigned to someone else
+    // 1. Verify agent exists
+    const agentCheck = await db.query('SELECT id FROM agents WHERE id = $1 LIMIT 1', [agent_id]);
+    if (agentCheck.rows.length === 0) {
+      return res.status(400).json({ error: `Agent with ID ${agent_id} does not exist.` });
+    }
+
+    // 2. Resolve or dynamically create cycle
+    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+      const propImportRes = await db.query(
+        `SELECT i.billing_month 
+         FROM properties p
+         INNER JOIN imports i ON p.import_id = i.id
+         WHERE p.area_id = $1 LIMIT 1`,
+        [area_id]
+      );
+      return propImportRes.rows[0]?.billing_month;
+    });
+
+    // 3. Insert assignments
     const queryText = `
       INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
       SELECT $1, id, $2, $3 
@@ -66,19 +113,36 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
 router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { agent_id, start_serial, end_serial, cycle_id } = assignRangeSchema.parse(req.body);
-    const targetCycleId = cycle_id || await getActiveCycleId();
     const adminId = req.user.id;
 
     if (start_serial > end_serial) {
       return res.status(400).json({ error: 'Start serial must be less than or equal to end serial.' });
     }
 
-    // Insert assignments matching integer-based range comparison of serial_no
+    // 1. Verify agent exists
+    const agentCheck = await db.query('SELECT id FROM agents WHERE id = $1 LIMIT 1', [agent_id]);
+    if (agentCheck.rows.length === 0) {
+      return res.status(400).json({ error: `Agent with ID ${agent_id} does not exist.` });
+    }
+
+    // 2. Resolve or dynamically create cycle
+    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+      const propImportRes = await db.query(
+        `SELECT i.billing_month 
+         FROM properties p
+         INNER JOIN imports i ON p.import_id = i.id
+         WHERE p.serial_no NOT GLOB '*[^0-9]*' AND CAST(p.serial_no AS INTEGER) BETWEEN $1 AND $2 LIMIT 1`,
+        [start_serial, end_serial]
+      );
+      return propImportRes.rows[0]?.billing_month;
+    });
+
+    // 3. Insert assignments
     const queryText = `
       INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
       SELECT $1, id, $2, $3 
       FROM properties 
-      WHERE serial_no ~ '^[0-9]+$' AND serial_no::integer BETWEEN $4 AND $5
+      WHERE serial_no NOT GLOB '*[^0-9]*' AND CAST(serial_no AS INTEGER) BETWEEN $4 AND $5
       ON CONFLICT (property_id, cycle_id) 
       DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
       RETURNING id
@@ -98,15 +162,44 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
 router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { agent_id, property_ids, cycle_id } = assignBulkSchema.parse(req.body);
-    const targetCycleId = cycle_id || await getActiveCycleId();
     const adminId = req.user.id;
 
     if (property_ids.length === 0) {
       return res.status(400).json({ error: 'property_ids array must not be empty.' });
     }
 
-    // We do bulk insert using Cloudflare D1 batching for high performance
-    const statements = property_ids.map(propId => ({
+    // 1. Verify agent exists
+    const agentCheck = await db.query('SELECT id FROM agents WHERE id = $1 LIMIT 1', [agent_id]);
+    if (agentCheck.rows.length === 0) {
+      return res.status(400).json({ error: `Agent with ID ${agent_id} does not exist.` });
+    }
+
+    // 2. Filter properties that actually exist in the database
+    const placeholders = property_ids.map((_, idx) => `$${idx + 1}`).join(', ');
+    const existingPropsRes = await db.query(
+      `SELECT id FROM properties WHERE id IN (${placeholders})`,
+      property_ids
+    );
+    const existingPropIds = existingPropsRes.rows.map(r => r.id);
+
+    if (existingPropIds.length === 0) {
+      return res.status(400).json({ error: 'None of the provided property_ids exist in the database.' });
+    }
+
+    // 3. Resolve or dynamically create cycle
+    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+      const propImportRes = await db.query(
+        `SELECT i.billing_month 
+         FROM properties p
+         INNER JOIN imports i ON p.import_id = i.id
+         WHERE p.id = $1 LIMIT 1`,
+        [existingPropIds[0]]
+      );
+      return propImportRes.rows[0]?.billing_month;
+    });
+
+    // 4. Build batch statement for SQLite upsert
+    const statements = existingPropIds.map(propId => ({
       sql: `
         INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
         VALUES ($1, $2, $3, $4)
