@@ -157,6 +157,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
           }
         );
 
+        let wamid = null;
         if (!metaRes.ok) {
           const errorText = await metaRes.text();
           console.error('META API EXACT ERROR:', errorText);
@@ -167,13 +168,21 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
           } catch {}
           status = 'failed';
           apiError = errData.error ? errData.error.message : 'Meta WhatsApp API error';
+        } else {
+          const successText = await metaRes.text();
+          try {
+            const successData = JSON.parse(successText);
+            if (successData.messages && successData.messages[0]) {
+              wamid = successData.messages[0].id;
+            }
+          } catch {}
         }
 
         // Insert into whatsapp_logs
         await db.query(
-          `INSERT INTO whatsapp_logs (property_id, phone_number, consumer_name, token, status, cycle_id)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [propertyId, formattedPhone, property.consumer_name, token, status, cycleId || null]
+          `INSERT INTO whatsapp_logs (property_id, phone_number, consumer_name, token, status, cycle_id, wamid, error_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [propertyId, formattedPhone, property.consumer_name, token, status, cycleId || null, wamid, apiError]
         );
 
         if (status === 'sent') {

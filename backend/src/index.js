@@ -48,6 +48,7 @@ const { router: agentSyncRouter } = require('./routes/agent/sync');
 const adminWhatsappRouter = require('./routes/admin/whatsapp');
 const agentPerformanceRouter = require('./routes/admin/agentPerformance');
 const publicSelfReadingRouter = require('./routes/public/selfReading');
+const whatsappWebhookRouter = require('./routes/webhook');
 
 // Mount routes
 app.use('/auth', authRouter);
@@ -62,6 +63,7 @@ app.use('/sync', agentSyncRouter); // Mount at /sync to serve /sync/batch
 app.use('/admin/whatsapp', authMiddleware, adminWhatsappRouter);
 app.use('/public/self-reading', publicSelfReadingRouter);
 app.use('/admin/agent-performance', agentPerformanceRouter);
+app.use('/whatsapp-webhook', whatsappWebhookRouter);
 
 // POST /agent/upload-url mapping directly if needed
 // Let's also support POST /agent/upload-url route directly for consistency
