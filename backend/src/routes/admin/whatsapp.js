@@ -121,7 +121,7 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
                   {
                     type: 'body',
                     parameters: [
-                      { type: 'text', text: property.consumer_name }
+                      { type: 'text', parameter_name: 'customer_name', text: property.consumer_name }
                     ]
                   },
                   {
