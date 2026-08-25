@@ -49,12 +49,12 @@ const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
     if (cycleCheck.rows.length > 0) {
       targetCycleId = cycleCheck.rows[0].id;
     } else {
-      const newUuid = require('crypto').randomUUID();
-      const cycleName = `${targetMonth} ${targetYear} Billing`;
+      const newUuid = `cycle_${targetMonth.toLowerCase()}_${targetYear}_${Date.now()}`;
+      const cycleName = `${targetMonth} ${targetYear} Billing Cycle`;
       await db.query(
         `INSERT INTO cycles (id, name, month, year, status, label, is_active, start_date, end_date, created_at)
          VALUES ($1, $2, $3, $4, 'active', $5, 1, date('now'), date('now', '+30 days'), datetime('now'))`,
-        [newUuid, cycleName, targetMonth, targetYear, cycleName]
+        [newUuid, cycleName, targetMonth, Number(targetYear), cycleName]
       );
       targetCycleId = newUuid;
       console.log(`[assignments] Created dynamic cycle: "${cycleName}" (${targetCycleId})`);
@@ -68,7 +68,7 @@ const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
   return targetCycleId;
 };
 
-const chunkArray = (array, size = 60) => {
+const chunkArray = (array, size = 50) => {
   const chunks = [];
   for (let i = 0; i < array.length; i += size) {
     chunks.push(array.slice(i, i + size));
@@ -133,8 +133,8 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
       return res.json({ message: 'No properties found in this area.', count: 0 });
     }
 
-    // 4. Batch insert/upsert and update properties in chunks of 60
-    const chunks = chunkArray(propertyIds, 60);
+    // 4. Batch insert/upsert and update properties in chunks of 50
+    const chunks = chunkArray(propertyIds, 50);
     let totalCount = 0;
 
     for (const chunk of chunks) {
@@ -217,8 +217,8 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
       return res.json({ message: 'No properties found within this serial range.', count: 0 });
     }
 
-    // 4. Batch insert/upsert and update properties in chunks of 60
-    const chunks = chunkArray(propertyIds, 60);
+    // 4. Batch insert/upsert and update properties in chunks of 50
+    const chunks = chunkArray(propertyIds, 50);
     let totalCount = 0;
 
     for (const chunk of chunks) {
@@ -278,7 +278,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     // 2. Filter properties that actually exist in the database (chunked to avoid D1 limits)
-    const propertyChunks = chunkArray(property_ids, 60);
+    const propertyChunks = chunkArray(property_ids, 50);
     const propertyQueries = propertyChunks.map(chunk => {
       const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(', ');
       return db.query(`SELECT id FROM properties WHERE id IN (${placeholders})`, chunk);
@@ -302,8 +302,8 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       return propImportRes.rows[0]?.billing_month;
     });
 
-    // 4. Batch insert/upsert and update properties in chunks of 60
-    const chunks = chunkArray(existingPropIds, 60);
+    // 4. Batch insert/upsert and update properties in chunks of 50
+    const chunks = chunkArray(existingPropIds, 50);
     let totalCount = 0;
 
     for (const chunk of chunks) {
