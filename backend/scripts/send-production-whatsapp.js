@@ -47,7 +47,7 @@ async function run() {
       body: JSON.stringify({
         propertyIds: [propertyId],
         phoneNumbers: {
-          [propertyId]: '9689741625'
+          [propertyId]: process.argv[2] || '9922421208'
         }
       })
     });
