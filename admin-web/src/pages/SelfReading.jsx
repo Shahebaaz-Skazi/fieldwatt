@@ -67,6 +67,42 @@ const SelfReading = () => {
   const [propertyDetails, setPropertyDetails] = useState(null);
 
   const [readingValue, setReadingValue] = useState('');
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '']);
+
+  useEffect(() => {
+    setReadingValue(otpDigits.join(''));
+  }, [otpDigits]);
+
+  const handleOtpChange = (value, index) => {
+    const cleanVal = value.replace(/[^0-9]/g, '');
+    const newDigits = [...otpDigits];
+    newDigits[index] = cleanVal.slice(-1);
+    setOtpDigits(newDigits);
+
+    if (cleanVal && index < 4) {
+      const nextInput = document.getElementById(`otp-input-${index + 1}`);
+      if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === 'Backspace') {
+      if (!otpDigits[index] && index > 0) {
+        const prevInput = document.getElementById(`otp-input-${index - 1}`);
+        if (prevInput) {
+          prevInput.focus();
+          const newDigits = [...otpDigits];
+          newDigits[index - 1] = '';
+          setOtpDigits(newDigits);
+        }
+      } else if (otpDigits[index]) {
+        const newDigits = [...otpDigits];
+        newDigits[index] = '';
+        setOtpDigits(newDigits);
+      }
+    }
+  };
+
   const [photoBlob, setPhotoBlob] = useState(null); // stores the base64 watermarked URL
   const [photoPreview, setPhotoPreview] = useState(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
@@ -300,42 +336,65 @@ const SelfReading = () => {
                   Current Meter Reading
                 </label>
 
-                {/* Visual Gas Meter Reading Guide */}
+                {/* Visual Gas Meter Reading Guide (Interactive OTP-like Blocks) */}
                 <div style={{ marginBottom: '12px' }}>
                   {/* Digit boxes container */}
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center', margin: '8px 0' }}>
-                    {/* Black digits (Whole units) */}
-                    {['0', '1', '3', '2', '5'].map((digit, idx) => (
-                      <span key={`black-${idx}`} style={{
-                        backgroundColor: '#000000',
-                        color: '#FFFFFF',
-                        fontFamily: 'monospace',
-                        fontWeight: 'bold',
-                        fontSize: '15px',
-                        padding: '4px 8px',
-                        borderRadius: '3px',
-                        border: '1px solid #27272A',
-                        boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.1)'
-                      }}>
-                        {digit}
-                      </span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', margin: '12px 0 20px' }}>
+                    {/* Black Boxes (OTP Inputs) */}
+                    {otpDigits.map((digit, idx) => (
+                      <input
+                        key={`otp-black-${idx}`}
+                        id={`otp-input-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpChange(e.target.value, idx)}
+                        onKeyDown={(e) => handleOtpKeyDown(e, idx)}
+                        required
+                        style={{
+                          width: '42px',
+                          height: '50px',
+                          backgroundColor: '#000000',
+                          color: '#FFFFFF',
+                          fontFamily: 'monospace',
+                          fontWeight: 'bold',
+                          fontSize: '20px',
+                          textAlign: 'center',
+                          borderRadius: '6px',
+                          border: '1px solid #27272A',
+                          outline: 'none',
+                          boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.1)',
+                          transition: 'border-color 0.2s'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#A1A1AA'}
+                        onBlur={(e) => e.target.style.borderColor = '#27272A'}
+                      />
                     ))}
                     
-                    {/* Red digits (Decimals) */}
-                    {['8', '3', '1'].map((digit, idx) => (
-                      <span key={`red-${idx}`} style={{
-                        backgroundColor: '#DC2626',
-                        color: '#FFFFFF',
-                        fontFamily: 'monospace',
-                        fontWeight: 'bold',
-                        fontSize: '15px',
-                        padding: '4px 8px',
-                        borderRadius: '3px',
-                        border: '1px solid #B91C1C',
-                        boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.2)'
-                      }}>
-                        {digit}
-                      </span>
+                    {/* Red Boxes (Disabled, display *) */}
+                    {[0, 1, 2].map((idx) => (
+                      <div
+                        key={`otp-red-${idx}`}
+                        style={{
+                          width: '42px',
+                          height: '50px',
+                          backgroundColor: '#DC2626',
+                          color: '#FFFFFF',
+                          fontFamily: 'monospace',
+                          fontWeight: 'bold',
+                          fontSize: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '6px',
+                          border: '1px solid #B91C1C',
+                          boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.2)'
+                        }}
+                      >
+                        *
+                      </div>
                     ))}
 
                     {/* Unit badge */}
@@ -363,30 +422,6 @@ const SelfReading = () => {
                     <span>Please enter only the digits shown on the black background (ignore the red digits).</span>
                   </div>
                 </div>
-
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Enter numerical value"
-                  value={readingValue}
-                  onChange={(e) => setReadingValue(e.target.value)}
-                  onFocus={() => setInputFocused(true)}
-                  onBlur={() => setInputFocused(false)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '14px 16px',
-                    backgroundColor: '#FFFFFF',
-                    border: inputFocused ? '1px solid #18181B' : '1px solid #D4D4D8',
-                    borderRadius: '10px',
-                    color: '#09090B',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxShadow: inputFocused ? '0 0 0 2px rgba(24, 24, 27, 0.1)' : 'none',
-                    boxSizing: 'border-box',
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                />
               </div>
 
               <div>
