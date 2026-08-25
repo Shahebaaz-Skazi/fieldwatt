@@ -15,26 +15,49 @@ const getActiveCycleId = async () => {
 };
 
 // Safe dynamic cycle resolution helper
-const resolveCycleHelper = async (cycleId, queryFunc) => {
+const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
   let targetCycleId = cycleId;
   if (!targetCycleId) {
-    const billingMonth = await queryFunc();
-    if (billingMonth) {
-      const cycleCheck = await db.query('SELECT id FROM cycles WHERE label = $1 LIMIT 1', [billingMonth]);
-      if (cycleCheck.rows.length > 0) {
-        targetCycleId = cycleCheck.rows[0].id;
-      } else {
-        const newUuid = require('crypto').randomUUID();
-        await db.query(
-          `INSERT INTO cycles (id, label, is_active, start_date, end_date)
-           VALUES ($1, $2, 1, date('now'), date('now', '+30 days'))`,
-          [newUuid, billingMonth]
-        );
-        targetCycleId = newUuid;
-        console.log(`[assignments] Created dynamic cycle: "${billingMonth}" (${targetCycleId})`);
+    let targetMonth = month;
+    let targetYear = year;
+    
+    if (!targetMonth || !targetYear) {
+      const billingMonthStr = await fallbackQueryFunc();
+      if (billingMonthStr) {
+        const parts = billingMonthStr.split(' ');
+        targetMonth = parts[0];
+        targetYear = parseInt(parts[1]);
       }
+    }
+    
+    if (!targetMonth || !targetYear) {
+      const now = new Date();
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      targetMonth = targetMonth || monthNames[now.getMonth()];
+      targetYear = targetYear || now.getFullYear();
+    }
+    
+    // Query cycles for an existing record
+    const cycleCheck = await db.query(
+      'SELECT id FROM cycles WHERE month = $1 AND year = $2 LIMIT 1',
+      [targetMonth, targetYear]
+    );
+    
+    if (cycleCheck.rows.length > 0) {
+      targetCycleId = cycleCheck.rows[0].id;
     } else {
-      targetCycleId = await getActiveCycleId();
+      const newUuid = require('crypto').randomUUID();
+      const cycleName = `${targetMonth} ${targetYear} Billing`;
+      await db.query(
+        `INSERT INTO cycles (id, name, month, year, status, label, is_active, start_date, end_date, created_at)
+         VALUES ($1, $2, $3, $4, 'active', $5, 1, date('now'), date('now', '+30 days'), datetime('now'))`,
+        [newUuid, cycleName, targetMonth, targetYear, cycleName]
+      );
+      targetCycleId = newUuid;
+      console.log(`[assignments] Created dynamic cycle: "${cycleName}" (${targetCycleId})`);
     }
   } else {
     const cycleCheck = await db.query('SELECT id FROM cycles WHERE id = $1 LIMIT 1', [targetCycleId]);
@@ -45,7 +68,7 @@ const resolveCycleHelper = async (cycleId, queryFunc) => {
   return targetCycleId;
 };
 
-const chunkArray = (array, size = 80) => {
+const chunkArray = (array, size = 60) => {
   const chunks = [];
   for (let i = 0; i < array.length; i += size) {
     chunks.push(array.slice(i, i + size));
@@ -57,6 +80,8 @@ const assignAreaSchema = z.object({
   area_id: z.string().uuid(),
   agent_id: z.string().uuid(),
   cycle_id: z.string().uuid().optional(),
+  month: z.string().optional(),
+  year: z.number().int().optional(),
 });
 
 const assignRangeSchema = z.object({
@@ -64,18 +89,22 @@ const assignRangeSchema = z.object({
   start_serial: z.number().int().nonnegative(),
   end_serial: z.number().int().nonnegative(),
   cycle_id: z.string().uuid().optional(),
+  month: z.string().optional(),
+  year: z.number().int().optional(),
 });
 
 const assignBulkSchema = z.object({
   agent_id: z.string().uuid(),
   property_ids: z.array(z.string().uuid()),
   cycle_id: z.string().uuid().optional(),
+  month: z.string().optional(),
+  year: z.number().int().optional(),
 });
 
 // POST /admin/assignments/area - Assign all properties in an area to an agent
 router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { area_id, agent_id, cycle_id } = assignAreaSchema.parse(req.body);
+    const { area_id, agent_id, cycle_id, month, year } = assignAreaSchema.parse(req.body);
     const adminId = req.user.id;
 
     // 1. Verify agent exists
@@ -85,7 +114,7 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     // 2. Resolve or dynamically create cycle
-    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+    const targetCycleId = await resolveCycleHelper(cycle_id, month, year, async () => {
       const propImportRes = await db.query(
         `SELECT i.billing_month 
          FROM properties p
@@ -96,21 +125,52 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
       return propImportRes.rows[0]?.billing_month;
     });
 
-    // 3. Insert assignments
-    const queryText = `
-      INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
-      SELECT $1, id, $2, $3 
-      FROM properties 
-      WHERE area_id = $4
-      ON CONFLICT (property_id, cycle_id) 
-      DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
-      RETURNING id
-    `;
-    const result = await db.query(queryText, [agent_id, targetCycleId, adminId, area_id]);
+    // 3. Get all property IDs in this area to update them in properties table
+    const propsInAreaRes = await db.query('SELECT id FROM properties WHERE area_id = $1', [area_id]);
+    const propertyIds = propsInAreaRes.rows.map(r => r.id);
+
+    if (propertyIds.length === 0) {
+      return res.json({ message: 'No properties found in this area.', count: 0 });
+    }
+
+    // 4. Batch insert/upsert and update properties in chunks of 60
+    const chunks = chunkArray(propertyIds, 60);
+    let totalCount = 0;
+
+    for (const chunk of chunks) {
+      const chunkStatements = [];
+
+      chunk.forEach(propId => {
+        chunkStatements.push({
+          sql: `
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            ON CONFLICT (property_id, cycle_id) 
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            RETURNING id
+          `,
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+        });
+      });
+
+      const placeholders = chunk.map((_, idx) => `$${idx + 2}`).join(', ');
+      chunkStatements.push({
+        sql: `
+          UPDATE properties 
+          SET is_assigned = 1, assigned_agent_id = $1 
+          WHERE id IN (${placeholders})
+        `,
+        params: [agent_id, ...chunk]
+      });
+
+      const batchRes = await db.batch(chunkStatements);
+      const insertResults = batchRes.slice(0, chunk.length);
+      totalCount += insertResults.reduce((sum, r) => sum + r.rowCount, 0);
+    }
 
     res.json({ 
       message: `Assigned all properties in area to agent successfully.`,
-      count: result.rowCount 
+      count: totalCount 
     });
   } catch (error) {
     next(error);
@@ -120,7 +180,7 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
 // POST /admin/assignments/range - Assign properties by serial range to an agent
 router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { agent_id, start_serial, end_serial, cycle_id } = assignRangeSchema.parse(req.body);
+    const { agent_id, start_serial, end_serial, cycle_id, month, year } = assignRangeSchema.parse(req.body);
     const adminId = req.user.id;
 
     if (start_serial > end_serial) {
@@ -134,7 +194,7 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     // 2. Resolve or dynamically create cycle
-    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+    const targetCycleId = await resolveCycleHelper(cycle_id, month, year, async () => {
       const propImportRes = await db.query(
         `SELECT i.billing_month 
          FROM properties p
@@ -145,21 +205,56 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
       return propImportRes.rows[0]?.billing_month;
     });
 
-    // 3. Insert assignments
-    const queryText = `
-      INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
-      SELECT $1, id, $2, $3 
-      FROM properties 
-      WHERE serial_no NOT GLOB '*[^0-9]*' AND CAST(serial_no AS INTEGER) BETWEEN $4 AND $5
-      ON CONFLICT (property_id, cycle_id) 
-      DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
-      RETURNING id
-    `;
-    const result = await db.query(queryText, [agent_id, targetCycleId, adminId, start_serial, end_serial]);
+    // 3. Find property IDs within this range
+    const propsInRangeRes = await db.query(
+      `SELECT id FROM properties 
+       WHERE serial_no NOT GLOB '*[^0-9]*' AND CAST(serial_no AS INTEGER) BETWEEN $1 AND $2`,
+      [start_serial, end_serial]
+    );
+    const propertyIds = propsInRangeRes.rows.map(r => r.id);
+
+    if (propertyIds.length === 0) {
+      return res.json({ message: 'No properties found within this serial range.', count: 0 });
+    }
+
+    // 4. Batch insert/upsert and update properties in chunks of 60
+    const chunks = chunkArray(propertyIds, 60);
+    let totalCount = 0;
+
+    for (const chunk of chunks) {
+      const chunkStatements = [];
+
+      chunk.forEach(propId => {
+        chunkStatements.push({
+          sql: `
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            ON CONFLICT (property_id, cycle_id) 
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            RETURNING id
+          `,
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+        });
+      });
+
+      const placeholders = chunk.map((_, idx) => `$${idx + 2}`).join(', ');
+      chunkStatements.push({
+        sql: `
+          UPDATE properties 
+          SET is_assigned = 1, assigned_agent_id = $1 
+          WHERE id IN (${placeholders})
+        `,
+        params: [agent_id, ...chunk]
+      });
+
+      const batchRes = await db.batch(chunkStatements);
+      const insertResults = batchRes.slice(0, chunk.length);
+      totalCount += insertResults.reduce((sum, r) => sum + r.rowCount, 0);
+    }
 
     res.json({
       message: `Assigned properties within serial range ${start_serial}-${end_serial} successfully.`,
-      count: result.rowCount
+      count: totalCount
     });
   } catch (error) {
     next(error);
@@ -169,7 +264,7 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
 // POST /admin/assignments/bulk - Assign specific array of properties to an agent
 router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { agent_id, property_ids, cycle_id } = assignBulkSchema.parse(req.body);
+    const { agent_id, property_ids, cycle_id, month, year } = assignBulkSchema.parse(req.body);
     const adminId = req.user.id;
 
     if (property_ids.length === 0) {
@@ -183,7 +278,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     // 2. Filter properties that actually exist in the database (chunked to avoid D1 limits)
-    const propertyChunks = chunkArray(property_ids, 80);
+    const propertyChunks = chunkArray(property_ids, 60);
     const propertyQueries = propertyChunks.map(chunk => {
       const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(', ');
       return db.query(`SELECT id FROM properties WHERE id IN (${placeholders})`, chunk);
@@ -196,7 +291,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
     }
 
     // 3. Resolve or dynamically create cycle
-    const targetCycleId = await resolveCycleHelper(cycle_id, async () => {
+    const targetCycleId = await resolveCycleHelper(cycle_id, month, year, async () => {
       const propImportRes = await db.query(
         `SELECT i.billing_month 
          FROM properties p
@@ -207,24 +302,39 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       return propImportRes.rows[0]?.billing_month;
     });
 
-    // 4. Build batch statement for SQLite upsert
-    const statements = existingPropIds.map(propId => ({
-      sql: `
-        INSERT INTO assignments (agent_id, property_id, cycle_id, assigned_by)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (property_id, cycle_id) 
-        DO UPDATE SET agent_id = EXCLUDED.agent_id, assigned_by = EXCLUDED.assigned_by
-        RETURNING id
-      `,
-      params: [agent_id, propId, targetCycleId, adminId]
-    }));
-
-    // Chunk the D1 batch statements to avoid total parameter/statement limits in batch transactions
-    const statementChunks = chunkArray(statements, 80);
+    // 4. Batch insert/upsert and update properties in chunks of 60
+    const chunks = chunkArray(existingPropIds, 60);
     let totalCount = 0;
-    for (const chunk of statementChunks) {
-      const batchRes = await db.batch(chunk);
-      totalCount += batchRes.reduce((sum, res) => sum + res.rowCount, 0);
+
+    for (const chunk of chunks) {
+      const chunkStatements = [];
+
+      chunk.forEach(propId => {
+        chunkStatements.push({
+          sql: `
+            INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at, assigned_by)
+            VALUES ($1, $2, $3, $4, 0, datetime('now'), $5)
+            ON CONFLICT (property_id, cycle_id) 
+            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0, assigned_by = EXCLUDED.assigned_by
+            RETURNING id
+          `,
+          params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId, adminId]
+        });
+      });
+
+      const placeholders = chunk.map((_, idx) => `$${idx + 2}`).join(', ');
+      chunkStatements.push({
+        sql: `
+          UPDATE properties 
+          SET is_assigned = 1, assigned_agent_id = $1 
+          WHERE id IN (${placeholders})
+        `,
+        params: [agent_id, ...chunk]
+      });
+
+      const batchRes = await db.batch(chunkStatements);
+      const insertResults = batchRes.slice(0, chunk.length);
+      totalCount += insertResults.reduce((sum, r) => sum + r.rowCount, 0);
     }
 
     res.json({
