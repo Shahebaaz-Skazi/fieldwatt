@@ -16,7 +16,7 @@ async function run() {
 
   // Load environment variables
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '1346469295207654';
-  const token = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSQf7sTaDtZBZCEZCp6lY2K1BxSyNMwutvZAo4FWX2YdkhtBDwVZB75ZCV3RCYCwFzV01GEEelQwbqynVKz3UMseQp1PWkzL5wuB5mZBPGi8vMun7cPXcBoEJcZAfQZC2DhvJDYH3B9Hodfw1ZCcqlup0OZCXtZAWgQPFr50w70aMCwcp2S4aPX7gtBZBVjgZDZD';
+  const token = process.env.WHATSAPP_ACCESS_TOKEN || 'EAAlJzQmfZAjIBSTipKyZCyb4rrSDBZBgUb2Wvl0YIuwds7IH3VvY9WZCFvpY7JsR4enHUU8AxikZBXgRtqnjM3EY4AZBZCH22ruN11LGE8t6d1YNomitc0nrq8qcU1QrzggUZBZCiS5wttnuQXqX14NZACw3oeUH1vNcWKjhYR4bfrf9uXq11S6KCe1ZCiJTPZBhJZBfePgZDZD';
   const templateName = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
   const langCode = process.env.WHATSAPP_TEMPLATE_LANG || 'en';
   const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
