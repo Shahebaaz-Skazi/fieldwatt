@@ -45,6 +45,14 @@ const resolveCycleHelper = async (cycleId, queryFunc) => {
   return targetCycleId;
 };
 
+const chunkArray = (array, size = 80) => {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+};
+
 const assignAreaSchema = z.object({
   area_id: z.string().uuid(),
   agent_id: z.string().uuid(),
@@ -174,13 +182,14 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: `Agent with ID ${agent_id} does not exist.` });
     }
 
-    // 2. Filter properties that actually exist in the database
-    const placeholders = property_ids.map((_, idx) => `$${idx + 1}`).join(', ');
-    const existingPropsRes = await db.query(
-      `SELECT id FROM properties WHERE id IN (${placeholders})`,
-      property_ids
-    );
-    const existingPropIds = existingPropsRes.rows.map(r => r.id);
+    // 2. Filter properties that actually exist in the database (chunked to avoid D1 limits)
+    const propertyChunks = chunkArray(property_ids, 80);
+    const propertyQueries = propertyChunks.map(chunk => {
+      const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(', ');
+      return db.query(`SELECT id FROM properties WHERE id IN (${placeholders})`, chunk);
+    });
+    const propertyQueryResults = await Promise.all(propertyQueries);
+    const existingPropIds = propertyQueryResults.flatMap(r => r.rows.map(row => row.id));
 
     if (existingPropIds.length === 0) {
       return res.status(400).json({ error: 'None of the provided property_ids exist in the database.' });
@@ -210,8 +219,13 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       params: [agent_id, propId, targetCycleId, adminId]
     }));
 
-    const batchRes = await db.batch(statements);
-    const totalCount = batchRes.reduce((sum, res) => sum + res.rowCount, 0);
+    // Chunk the D1 batch statements to avoid total parameter/statement limits in batch transactions
+    const statementChunks = chunkArray(statements, 80);
+    let totalCount = 0;
+    for (const chunk of statementChunks) {
+      const batchRes = await db.batch(chunk);
+      totalCount += batchRes.reduce((sum, res) => sum + res.rowCount, 0);
+    }
 
     res.json({
       message: `Assigned ${totalCount} properties to agent successfully.`,
