@@ -23,17 +23,19 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
     
     // Meta API configuration
     const phoneIdVal = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    if (!phoneIdVal) {
-      console.error('ERROR: WHATSAPP_PHONE_NUMBER_ID environment variable is missing at runtime. Defaulting to test ID 1155780700962650.');
-    }
     const finalPhoneId = phoneIdVal || '1155780700962650';
 
     const tokenVal = process.env.WHATSAPP_ACCESS_TOKEN;
     const templateVal = process.env.WHATSAPP_TEMPLATE_NAME || 'meter_reading_request';
-    const langCode = process.env.WHATSAPP_TEMPLATE_LANG || 'en_US';
+    const langCode = process.env.WHATSAPP_TEMPLATE_LANG || 'en';
 
-    console.log('Sending message via Phone ID:', finalPhoneId);
-    console.log('Using Token prefix:', (process.env.WHATSAPP_ACCESS_TOKEN || '').substring(0, 15) + '...');
+    console.log('--- WHATSAPP SEND OUTBOUND TRIGGERED ---');
+    console.log(`Incoming request body - propertyIds count: ${propertyIds.length}, cycleId: ${cycleId}`);
+    console.log(`JWT_SECRET configured: ${!!process.env.JWT_SECRET}`);
+    console.log(`WHATSAPP_ACCESS_TOKEN configured (length): ${(process.env.WHATSAPP_ACCESS_TOKEN || '').length}`);
+    console.log(`WHATSAPP_PHONE_NUMBER_ID configured: ${!!process.env.WHATSAPP_PHONE_NUMBER_ID} (value: ${finalPhoneId})`);
+    console.log(`WHATSAPP_TEMPLATE_NAME: ${templateVal}`);
+    console.log(`WHATSAPP_TEMPLATE_LANG: ${langCode}`);
 
     const results = [];
     let sentCount = 0;
@@ -68,17 +70,34 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
             property.raw_sap_data['Contact No']
           ) : null
         );
-        if (!rawPhone) {
+
+        if (!rawPhone || !rawPhone.toString().trim()) {
+          console.warn(`[whatsapp] Skip propertyId ${propertyId}: No phone number available`);
           results.push({ propertyId, status: 'failed', error: 'No phone number available' });
           failedCount++;
           continue;
         }
 
-        // Format phone number (digits only, e.g. 919876543210)
-        let formattedPhone = rawPhone.toString().replace(/\D/g, '');
-        if (formattedPhone.length === 10) {
-          formattedPhone = '91' + formattedPhone;
+        // Format phone number strictly to 91XXXXXXXXXX
+        let cleanPhone = rawPhone.toString().replace(/\D/g, '');
+        // If it starts with 0, strip it
+        if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
+          cleanPhone = cleanPhone.substring(1);
         }
+        // If it's a 10-digit number, prepend 91 (India country code)
+        if (cleanPhone.length === 10) {
+          cleanPhone = '91' + cleanPhone;
+        }
+
+        // Validate final format: must be at least 10 digits and at most 15 digits
+        if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+          console.warn(`[whatsapp] Skip propertyId ${propertyId}: Invalid formatted phone number: ${cleanPhone} (raw: ${rawPhone})`);
+          results.push({ propertyId, status: 'failed', error: `Invalid phone format: ${cleanPhone}` });
+          failedCount++;
+          continue;
+        }
+
+        const formattedPhone = cleanPhone;
 
         // If phone number was updated via prompt, save it back to properties table
         if (phoneNumbers[propertyId] && phoneNumbers[propertyId] !== property.phone_number) {
@@ -167,13 +186,15 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res, next) => {
 
       } catch (err) {
         failedCount++;
+        console.error(`[whatsapp] Exception occurred while sending to propertyId ${propertyId}:`, err.message, err.stack);
         results.push({ propertyId, status: 'failed', error: err.message });
       }
     }
 
     res.json({ sent: sentCount, failed: failedCount, results });
   } catch (error) {
-    next(error);
+    console.error('CRITICAL WHATSAPP SERVICE ERROR:', error.message, error.stack);
+    res.status(500).json({ error: error.message, detail: error.stack });
   }
 });
 
