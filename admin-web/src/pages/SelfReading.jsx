@@ -197,12 +197,14 @@ const SelfReading = () => {
       boxSizing: 'border-box'
     }}>
       {/* Header Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '32px' }}>
-        <div style={{ background: '#09090B', padding: '8px', borderRadius: '10px', display: 'flex' }}>
-          <Zap size={22} color="#ffffff" />
-        </div>
-        <span style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '-0.5px', color: '#09090B' }}>
-          Field<span>Watt</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+        <img 
+          src="/mngl-logo.png" 
+          alt="MNGL Logo" 
+          style={{ width: '48px', height: '48px', objectFit: 'contain' }} 
+        />
+        <span style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px', color: '#09090B' }}>
+          MNGL
         </span>
       </div>
 
