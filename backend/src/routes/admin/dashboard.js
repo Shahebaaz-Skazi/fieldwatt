@@ -385,7 +385,10 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         SELECT id
         FROM assignments
         WHERE property_id = p.id
-        ORDER BY assigned_at DESC, id DESC
+        ORDER BY 
+          CASE WHEN cycle_id = (SELECT id FROM cycles WHERE is_active = 1 LIMIT 1) THEN 1 ELSE 2 END,
+          assigned_at DESC, 
+          id DESC
         LIMIT 1
       )
       LEFT JOIN agents ag ON asg.agent_id = ag.id
@@ -406,7 +409,19 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
       LIMIT 100
     `;
     const result = await db.query(queryText, [searchTerm]);
-    res.json(result.rows);
+
+    const formattedRows = result.rows.map(row => {
+      if (row.raw_sap_data && typeof row.raw_sap_data === 'string') {
+        try {
+          row.raw_sap_data = JSON.parse(row.raw_sap_data);
+        } catch (e) {
+          console.error('Failed to parse raw_sap_data in global search:', e);
+        }
+      }
+      return row;
+    });
+
+    res.json(formattedRows);
   } catch (error) {
     next(error);
   }
