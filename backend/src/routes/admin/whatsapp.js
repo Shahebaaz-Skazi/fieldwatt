@@ -175,8 +175,8 @@ async function processBulkInBackground({ propertyIds, cycleId, phoneNumbers, sec
     });
   }
 
-  // ── Step 3: Fire Meta API in concurrent chunks of 20 ────────────────────
-  const metaChunks = chunkArray(dispatches, 20);
+  // ── Step 3: Fire Meta API in concurrent chunks of 3 (Safe pacing) ────────
+  const metaChunks = chunkArray(dispatches, 3);
 
   for (const chunk of metaChunks) {
     const results = await Promise.allSettled(
@@ -201,8 +201,8 @@ async function processBulkInBackground({ propertyIds, cycleId, phoneNumbers, sec
       ).catch(() => {}); // never block on log write
     });
 
-    // 80ms pace between chunks → ~250 chunks/sec max, well under Meta limits
-    await sleep(80);
+    // 150ms pace between chunks of 3 → ~20 messages/sec. Highly safe for WABA messaging tiers.
+    await sleep(150);
   }
 
   const elapsed = ((Date.now() - startMs) / 1000).toFixed(2);
