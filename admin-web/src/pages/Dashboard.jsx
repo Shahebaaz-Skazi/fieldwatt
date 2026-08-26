@@ -35,6 +35,9 @@ const Dashboard = ({ viewerMode = false }) => {
   // Photo viewer zoom
   const [zoomPhoto, setZoomPhoto] = useState(null);
 
+  // Campaign progress (WhatsApp self-reading funnel)
+  const [campaign, setCampaign] = useState({ total: 0, dispatched: 0, readings_submitted: 0, pending: 0 });
+
   // Photo edit states
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [editPhotoWatermarkApplied, setEditPhotoWatermarkApplied] = useState(false);
@@ -217,8 +220,12 @@ const Dashboard = ({ viewerMode = false }) => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await api.get('/admin/dashboard', { noCache: true });
+      const [response, progress] = await Promise.all([
+        api.get('/admin/dashboard', { noCache: true }),
+        api.get('/admin/dashboard/campaign-progress?area_id=2d39305e-d9f5-4a65-bb61-9d8b7d92f17a'),
+      ]);
       setData(response);
+      setCampaign(progress);
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data.');
     } finally {
@@ -844,6 +851,65 @@ const Dashboard = ({ viewerMode = false }) => {
               <span className="widget-value">{completionRate}%</span>
             </div>
           </div>
+
+          {/* WhatsApp Self-Reading Campaign Progress — KOT009_E */}
+          {!viewerMode && (
+            <div style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '24px',
+              boxShadow: 'var(--shadow)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>
+                    📱 KOT009_E — Self-Reading Campaign
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>WhatsApp links dispatched → customer submissions received</p>
+                </div>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Auto-refreshes every 10s</span>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Readings submitted</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>
+                    {campaign.readings_submitted} / {campaign.total}
+                    <span style={{ fontWeight: '400', color: 'var(--muted)', marginLeft: '6px' }}>
+                      ({campaign.total > 0 ? Math.round((campaign.readings_submitted / campaign.total) * 100) : 0}%)
+                    </span>
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${campaign.total > 0 ? (campaign.readings_submitted / campaign.total) * 100 : 0}%`,
+                    height: '100%',
+                    background: 'var(--accent3)',
+                    borderRadius: '5px',
+                    transition: 'width 0.5s ease',
+                  }} />
+                </div>
+              </div>
+
+              {/* 3 stat boxes */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ background: 'rgba(79,156,249,0.08)', border: '1px solid rgba(79,156,249,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: '800', color: '#4f9cf9', fontFamily: 'var(--font-display)' }}>{campaign.dispatched}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>📤 Links Sent</div>
+                </div>
+                <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--accent3)', fontFamily: 'var(--font-display)' }}>{campaign.readings_submitted}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>✅ Readings Received</div>
+                </div>
+                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: '800', color: '#f59e0b', fontFamily: 'var(--font-display)' }}>{campaign.pending}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>⏳ Still Pending</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Live Agent Attendance & Progress Table */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

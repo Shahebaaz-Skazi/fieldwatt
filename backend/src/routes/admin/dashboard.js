@@ -176,6 +176,78 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
   }
 });
 
+// GET /admin/dashboard/campaign-progress?area_id= - WhatsApp campaign funnel for an area
+router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res, next) => {
+  try {
+    const cycleId = await getActiveCycleId();
+    if (!cycleId) return res.json({ dispatched: 0, readings_submitted: 0, total: 0 });
+
+    const areaId = req.query.area_id || null;
+
+    // Total properties in area (or all)
+    const totalRes = areaId
+      ? await db.query('SELECT COUNT(id) as count FROM properties WHERE area_id = $1', [areaId])
+      : await db.query('SELECT COUNT(id) as count FROM properties');
+    const total = Number(totalRes.rows[0]?.count || 0);
+
+    // WhatsApp dispatched (unique phone numbers successfully sent in the last 7 days for this area's properties)
+    const dispatchedRes = areaId
+      ? await db.query(
+          `SELECT COUNT(DISTINCT wl.property_id) as count
+           FROM whatsapp_logs wl
+           INNER JOIN properties p ON wl.property_id = p.id
+           WHERE p.area_id = $1 AND wl.status IN ('sent','delivered','read')`,
+          [areaId]
+        )
+      : await db.query(
+          `SELECT COUNT(DISTINCT property_id) as count FROM whatsapp_logs WHERE status IN ('sent','delivered','read')`
+        );
+    const dispatched = Number(dispatchedRes.rows[0]?.count || 0);
+
+    // Readings submitted (reading_taken) for this cycle
+    const readingsRes = areaId
+      ? await db.query(
+          `SELECT COUNT(r.id) as count
+           FROM readings r
+           INNER JOIN assignments asg ON r.assignment_id = asg.id
+           INNER JOIN properties p ON asg.property_id = p.id
+           WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'`,
+          [areaId, cycleId]
+        )
+      : await db.query(
+          `SELECT COUNT(r.id) as count
+           FROM readings r
+           INNER JOIN assignments asg ON r.assignment_id = asg.id
+           WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'`,
+          [cycleId]
+        );
+    const readings_submitted = Number(readingsRes.rows[0]?.count || 0);
+
+    // Self-reading portal submissions (no assignment — came via customer link)
+    const selfReadRes = areaId
+      ? await db.query(
+          `SELECT COUNT(r.id) as count
+           FROM readings r
+           INNER JOIN properties p ON r.property_id = p.id
+           WHERE p.area_id = $1 AND r.status_code = 'reading_taken' AND r.assignment_id IS NULL`,
+          [areaId]
+        )
+      : await db.query(
+          `SELECT COUNT(id) as count FROM readings WHERE status_code = 'reading_taken' AND assignment_id IS NULL`
+        );
+    const self_readings = Number(selfReadRes.rows[0]?.count || 0);
+
+    res.json({
+      total,
+      dispatched,
+      readings_submitted: readings_submitted + self_readings,
+      pending: total - (readings_submitted + self_readings),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /admin/dashboard/anomalies - List all anomalous readings in the active cycle
 router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
