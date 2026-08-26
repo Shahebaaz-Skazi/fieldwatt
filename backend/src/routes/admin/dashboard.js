@@ -223,25 +223,11 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
         );
     const readings_submitted = Number(readingsRes.rows[0]?.count || 0);
 
-    // Self-reading portal submissions (no assignment — came via customer link)
-    const selfReadRes = areaId
-      ? await db.query(
-          `SELECT COUNT(r.id) as count
-           FROM readings r
-           INNER JOIN properties p ON r.property_id = p.id
-           WHERE p.area_id = $1 AND r.status_code = 'reading_taken' AND r.assignment_id IS NULL`,
-          [areaId]
-        )
-      : await db.query(
-          `SELECT COUNT(id) as count FROM readings WHERE status_code = 'reading_taken' AND assignment_id IS NULL`
-        );
-    const self_readings = Number(selfReadRes.rows[0]?.count || 0);
-
     res.json({
       total,
       dispatched,
-      readings_submitted: readings_submitted + self_readings,
-      pending: total - (readings_submitted + self_readings),
+      readings_submitted,
+      pending: total - readings_submitted,
     });
   } catch (error) {
     next(error);
