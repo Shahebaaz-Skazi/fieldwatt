@@ -235,6 +235,8 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res) => {
     res.status(202).json({
       success: true,
       queued:  propertyIds.length,
+      sent:    propertyIds.length,
+      failed:  0,
       message: `Dispatching ${propertyIds.length} messages in the background. Check /admin/whatsapp/logs for results.`
     });
 
