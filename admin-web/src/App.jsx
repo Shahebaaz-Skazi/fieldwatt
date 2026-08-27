@@ -16,7 +16,7 @@ const WhatsAppPanel = lazy(() => import('./pages/WhatsAppPanel'));
 const WhatsAppDashboard = lazy(() => import('./pages/WhatsAppDashboard'));
 const AgentPerformance = lazy(() => import('./pages/AgentPerformance'));
 
-import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp, RefreshCw } from 'lucide-react';
 
 const App = () => {
   if (window.location.pathname === '/self-reading') {
