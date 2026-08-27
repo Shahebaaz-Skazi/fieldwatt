@@ -1,30 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import useAuthStore from './store/authStore';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Areas from './pages/Areas';
-import Agents from './pages/Agents';
-import Assignment from './pages/Assignment';
-import Import from './pages/Import';
-import MapView from './pages/Map';
-import Alerts from './pages/Alerts';
-import Reports from './pages/Reports';
-import SelfReading from './pages/SelfReading';
-import WhatsAppPanel from './pages/WhatsAppPanel';
-import WhatsAppDashboard from './pages/WhatsAppDashboard';
-import AgentPerformance from './pages/AgentPerformance';
+
+// Lazy load non-landing pages
+const Areas = lazy(() => import('./pages/Areas'));
+const Agents = lazy(() => import('./pages/Agents'));
+const Assignment = lazy(() => import('./pages/Assignment'));
+const Import = lazy(() => import('./pages/Import'));
+const MapView = lazy(() => import('./pages/Map'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Reports = lazy(() => import('./pages/Reports'));
+const SelfReading = lazy(() => import('./pages/SelfReading'));
+const WhatsAppPanel = lazy(() => import('./pages/WhatsAppPanel'));
+const WhatsAppDashboard = lazy(() => import('./pages/WhatsAppDashboard'));
+const AgentPerformance = lazy(() => import('./pages/AgentPerformance'));
+
 import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp } from 'lucide-react';
 
 const App = () => {
   if (window.location.pathname === '/self-reading') {
-    return <SelfReading />;
+    return (
+      <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading self reading portal...</div>}>
+        <SelfReading />
+      </Suspense>
+    );
   }
 
   if (window.location.pathname === '/whatsapp') {
     // <Route element={<WhatsAppDashboard />} path="/whatsapp"/>
     const token = useAuthStore.getState().token;
     if (!token) return <Login />;
-    return <WhatsAppDashboard />;
+    return (
+      <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading outreach dashboard...</div>}>
+        <WhatsAppDashboard />
+      </Suspense>
+    );
   }
 
   const token = useAuthStore((state) => state.token);
@@ -226,7 +237,22 @@ const App = () => {
 
       {/* Main Panel Content Pane */}
       <main className="main-content">
-        {renderActivePage()}
+        <Suspense fallback={
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            color: 'var(--muted)',
+            gap: '12px'
+          }}>
+            <RefreshCw size={24} className="animate-spin" style={{ color: 'var(--accent3)' }} />
+            <span>Loading page...</span>
+          </div>
+        }>
+          {renderActivePage()}
+        </Suspense>
       </main>
     </div>
   );

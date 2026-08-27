@@ -184,43 +184,42 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
 
     const areaId = req.query.area_id || null;
 
-    // Total properties in area (or all)
-    const totalRes = areaId
-      ? await db.query('SELECT COUNT(id) as count FROM properties WHERE area_id = $1', [areaId])
-      : await db.query('SELECT COUNT(id) as count FROM properties');
+    // Run queries in parallel
+    const [totalRes, dispatchedRes, readingsRes] = await Promise.all([
+      areaId
+        ? db.query('SELECT COUNT(id) as count FROM properties WHERE area_id = $1', [areaId])
+        : db.query('SELECT COUNT(id) as count FROM properties'),
+      areaId
+        ? db.query(
+            `SELECT COUNT(DISTINCT wl.property_id) as count
+             FROM whatsapp_logs wl
+             INNER JOIN properties p ON wl.property_id = p.id
+             WHERE p.area_id = $1 AND wl.status IN ('sent','delivered','read')`,
+            [areaId]
+          )
+        : db.query(
+            `SELECT COUNT(DISTINCT property_id) as count FROM whatsapp_logs WHERE status IN ('sent','delivered','read')`
+          ),
+      areaId
+        ? db.query(
+            `SELECT COUNT(r.id) as count
+             FROM readings r
+             INNER JOIN assignments asg ON r.assignment_id = asg.id
+             INNER JOIN properties p ON asg.property_id = p.id
+             WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'`,
+            [areaId, cycleId]
+          )
+        : db.query(
+            `SELECT COUNT(r.id) as count
+             FROM readings r
+             INNER JOIN assignments asg ON r.assignment_id = asg.id
+             WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'`,
+            [cycleId]
+          )
+    ]);
+
     const total = Number(totalRes.rows[0]?.count || 0);
-
-    // WhatsApp dispatched (unique phone numbers successfully sent in the last 7 days for this area's properties)
-    const dispatchedRes = areaId
-      ? await db.query(
-          `SELECT COUNT(DISTINCT wl.property_id) as count
-           FROM whatsapp_logs wl
-           INNER JOIN properties p ON wl.property_id = p.id
-           WHERE p.area_id = $1 AND wl.status IN ('sent','delivered','read')`,
-          [areaId]
-        )
-      : await db.query(
-          `SELECT COUNT(DISTINCT property_id) as count FROM whatsapp_logs WHERE status IN ('sent','delivered','read')`
-        );
     const dispatched = Number(dispatchedRes.rows[0]?.count || 0);
-
-    // Readings submitted (reading_taken) for this cycle
-    const readingsRes = areaId
-      ? await db.query(
-          `SELECT COUNT(r.id) as count
-           FROM readings r
-           INNER JOIN assignments asg ON r.assignment_id = asg.id
-           INNER JOIN properties p ON asg.property_id = p.id
-           WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'`,
-          [areaId, cycleId]
-        )
-      : await db.query(
-          `SELECT COUNT(r.id) as count
-           FROM readings r
-           INNER JOIN assignments asg ON r.assignment_id = asg.id
-           WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'`,
-          [cycleId]
-        );
     const readings_submitted = Number(readingsRes.rows[0]?.count || 0);
 
     res.json({
@@ -514,7 +513,7 @@ router.get('/download-images', authMiddleware, requireViewer, async (req, res) =
     const usedFilenames = new Set();
     const usedFilenamesMutex = { locked: false };
 
-    const BATCH_SIZE = 10;
+    const BATCH_SIZE = 50;
     const rows = result.rows;
 
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
@@ -522,11 +521,10 @@ router.get('/download-images', authMiddleware, requireViewer, async (req, res) =
 
       const batchResults = await Promise.all(batch.map(async (row) => {
         try {
-          const imageRes = await axios.get(row.photo_url, {
-            responseType: 'arraybuffer',
-            timeout: 15000
-          });
-          const buffer = Buffer.from(imageRes.data);
+          const imageRes = await fetch(row.photo_url, { signal: AbortSignal.timeout(15000) });
+          if (!imageRes.ok) throw new Error(`HTTP ${imageRes.status}`);
+          const arrayBuffer = await imageRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
 
           const bpNo = row.sap_bp_no || row.serial_no || '0000000000';
 

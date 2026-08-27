@@ -221,7 +221,7 @@ const Dashboard = ({ viewerMode = false }) => {
   const fetchDashboardData = async () => {
     try {
       const [response, progress] = await Promise.all([
-        api.get('/admin/dashboard', { noCache: true }),
+        api.get('/admin/dashboard'),
         api.get('/admin/dashboard/campaign-progress?area_id=2d39305e-d9f5-4a65-bb61-9d8b7d92f17a'),
       ]);
       setData(response);
@@ -235,7 +235,7 @@ const Dashboard = ({ viewerMode = false }) => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 10000); // refresh every 10 seconds
+    const interval = setInterval(fetchDashboardData, 30000); // refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);
 

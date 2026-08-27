@@ -73,7 +73,7 @@ const WhatsAppPanel = () => {
       setLoadingProperties(true);
       setError('');
       try {
-        const queryUrl = `/admin/areas/${selectedAreaId}/properties?limit=5000${selectedSociety ? `&society=${encodeURIComponent(selectedSociety)}` : ''}`;
+        const queryUrl = `/admin/areas/${selectedAreaId}/properties?limit=1000${selectedSociety ? `&society=${encodeURIComponent(selectedSociety)}` : ''}`;
         const response = await api.get(queryUrl);
         const propList = response.properties || [];
         setProperties(propList);
