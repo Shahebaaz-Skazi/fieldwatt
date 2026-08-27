@@ -861,7 +861,7 @@ const Dashboard = ({ viewerMode = false }) => {
               padding: '24px',
               boxShadow: 'var(--shadow)',
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>
                     📱 KOT009_E — Self-Reading Campaign
@@ -871,41 +871,70 @@ const Dashboard = ({ viewerMode = false }) => {
                 <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Auto-refreshes every 10s</span>
               </div>
 
-              {/* Progress bar */}
-              <div style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Readings submitted</span>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>
-                    {campaign.readings_submitted} / {campaign.total}
-                    <span style={{ fontWeight: '400', color: 'var(--muted)', marginLeft: '6px' }}>
-                      ({campaign.total > 0 ? Math.round((campaign.readings_submitted / campaign.total) * 100) : 0}%)
+              {/* Progress bars Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+                {/* 1. WhatsApp Coverage */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--muted)' }}>WhatsApp Coverage</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>
+                      {campaign.dispatched} / {campaign.total}
+                      <span style={{ fontWeight: '400', color: 'var(--muted)', marginLeft: '6px' }}>
+                        ({campaign.total > 0 ? Math.round((campaign.dispatched / campaign.total) * 100) : 0}%)
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <div style={{ width: '100%', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${campaign.total > 0 ? (campaign.dispatched / campaign.total) * 100 : 0}%`,
+                      height: '100%',
+                      background: '#4f9cf9',
+                      borderRadius: '5px',
+                      transition: 'width 0.5s ease',
+                    }} />
+                  </div>
                 </div>
-                <div style={{ width: '100%', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${campaign.total > 0 ? (campaign.readings_submitted / campaign.total) * 100 : 0}%`,
-                    height: '100%',
-                    background: 'var(--accent3)',
-                    borderRadius: '5px',
-                    transition: 'width 0.5s ease',
-                  }} />
+
+                {/* 2. Readings Submitted */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Readings Submitted</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text)' }}>
+                      {campaign.readings_submitted} / {campaign.total}
+                      <span style={{ fontWeight: '400', color: 'var(--muted)', marginLeft: '6px' }}>
+                        ({campaign.total > 0 ? Math.round((campaign.readings_submitted / campaign.total) * 100) : 0}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', height: '10px', background: 'var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${campaign.total > 0 ? (campaign.readings_submitted / campaign.total) * 100 : 0}%`,
+                      height: '100%',
+                      background: 'var(--accent3)',
+                      borderRadius: '5px',
+                      transition: 'width 0.5s ease',
+                    }} />
+                  </div>
                 </div>
               </div>
 
-              {/* 3 stat boxes */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                <div style={{ background: 'rgba(79,156,249,0.08)', border: '1px solid rgba(79,156,249,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: '#4f9cf9', fontFamily: 'var(--font-display)' }}>{campaign.dispatched}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>📤 Links Sent</div>
+              {/* 4 stat boxes */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                <div style={{ background: 'rgba(243,244,246,0.5)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text)', fontFamily: 'var(--font-display)' }}>{campaign.total}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>🏢 Total Properties</div>
                 </div>
-                <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--accent3)', fontFamily: 'var(--font-display)' }}>{campaign.readings_submitted}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>✅ Readings Received</div>
+                <div style={{ background: 'rgba(79,156,249,0.08)', border: '1px solid rgba(79,156,249,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#4f9cf9', fontFamily: 'var(--font-display)' }}>{campaign.dispatched}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>📤 Links Sent</div>
                 </div>
                 <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: '#f59e0b', fontFamily: 'var(--font-display)' }}>{campaign.pending}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>⏳ Still Pending</div>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: '#f59e0b', fontFamily: 'var(--font-display)' }}>{campaign.total - campaign.dispatched}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>⏳ Pending Send</div>
+                </div>
+                <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent3)', fontFamily: 'var(--font-display)' }}>{campaign.readings_submitted}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>✅ Readings Received</div>
                 </div>
               </div>
             </div>
