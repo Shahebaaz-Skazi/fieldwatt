@@ -568,4 +568,34 @@ router.get('/download-images', authMiddleware, requireViewer, async (req, res) =
   }
 });
 
+// GET /admin/dashboard/self-readings - List all customer-submitted readings in active cycle
+router.get('/self-readings', authMiddleware, requireViewer, async (req, res, next) => {
+  try {
+    const cycleId = await getActiveCycleId();
+    if (!cycleId) return res.json([]);
+
+    const result = await db.query(`
+      SELECT 
+        r.id as reading_id,
+        r.reading_value,
+        r.status_code,
+        r.photo_url,
+        r.note,
+        r.submitted_at,
+        p.consumer_name,
+        p.phone_number,
+        p.meter_no
+      FROM readings r
+      INNER JOIN assignments asg ON r.assignment_id = asg.id
+      INNER JOIN properties p ON asg.property_id = p.id
+      WHERE asg.cycle_id = $1 AND r.submitted_by_type = 'customer'
+      ORDER BY r.submitted_at DESC
+    `, [cycleId]);
+
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

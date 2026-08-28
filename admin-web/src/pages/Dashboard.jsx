@@ -35,6 +35,11 @@ const Dashboard = ({ viewerMode = false }) => {
   // Photo viewer zoom
   const [zoomPhoto, setZoomPhoto] = useState(null);
 
+  // Customer self readings modal state
+  const [viewingSelfReadings, setViewingSelfReadings] = useState(false);
+  const [selfReadings, setSelfReadings] = useState([]);
+  const [loadingSelfReadings, setLoadingSelfReadings] = useState(false);
+
   // Campaign progress (WhatsApp self-reading funnel)
   const [campaign, setCampaign] = useState({ total: 0, dispatched: 0, readings_submitted: 0, pending: 0 });
 
@@ -215,6 +220,19 @@ const Dashboard = ({ viewerMode = false }) => {
       alert('Download failed: ' + err.message);
     } finally {
       setDownloadImagesLoading(false);
+    }
+  };
+
+  const openSelfReadingsModal = async () => {
+    try {
+      setViewingSelfReadings(true);
+      setLoadingSelfReadings(true);
+      const res = await api.get('/admin/dashboard/self-readings');
+      setSelfReadings(res || []);
+    } catch (err) {
+      alert('Failed to fetch self-readings: ' + err.message);
+    } finally {
+      setLoadingSelfReadings(false);
     }
   };
 
@@ -932,9 +950,30 @@ const Dashboard = ({ viewerMode = false }) => {
                   <div style={{ fontSize: '24px', fontWeight: '800', color: '#f59e0b', fontFamily: 'var(--font-display)' }}>{campaign.total - campaign.dispatched}</div>
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>⏳ Pending Send</div>
                 </div>
-                <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
+                <div 
+                  onClick={openSelfReadingsModal}
+                  style={{ 
+                    background: 'rgba(16,185,129,0.08)', 
+                    border: '1px solid rgba(16,185,129,0.2)', 
+                    borderRadius: '10px', 
+                    padding: '16px', 
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.02)';
+                    e.currentTarget.style.background = 'rgba(16,185,129,0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.background = 'rgba(16,185,129,0.08)';
+                  }}
+                >
                   <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--accent3)', fontFamily: 'var(--font-display)' }}>{campaign.readings_submitted}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>✅ Readings Received</div>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                    ✅ Readings Received <Eye size={12} style={{ color: 'var(--accent3)' }} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1120,6 +1159,78 @@ const Dashboard = ({ viewerMode = false }) => {
                               <span style={{ color: 'var(--accent3)', fontSize: '11px' }}>Clear</span>
                             )}
                           </td>
+                          <td style={{ fontSize: '12px' }}>
+                            {new Date(reading.submitted_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Self-Readings Modal */}
+      {viewingSelfReadings && (
+        <div className="modal-overlay" onClick={() => setViewingSelfReadings(false)}>
+          <div className="modal-content" style={{ maxWidth: '900px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+              <div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', color: 'var(--text)' }}>📱 Customer Self-Readings</h2>
+                <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '2px' }}>List of all meter readings submitted directly by customers on WhatsApp</p>
+              </div>
+              <button onClick={() => setViewingSelfReadings(false)} className="btn btn-secondary" style={{ padding: '4px', cursor: 'pointer' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {loadingSelfReadings ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Fetching self-readings...</div>
+            ) : (
+              <div className="table-container" style={{ maxHeight: '450px', overflowY: 'auto', marginTop: '16px' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Consumer Name</th>
+                      <th>Phone Number</th>
+                      <th>Meter No</th>
+                      <th>Reading Value</th>
+                      <th>Meter Image</th>
+                      <th>Note</th>
+                      <th>Submitted At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selfReadings.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No customer self-readings submitted yet in this cycle.</td>
+                      </tr>
+                    ) : (
+                      selfReadings.map((reading, idx) => (
+                        <tr key={reading.reading_id || idx}>
+                          <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reading.consumer_name}</td>
+                          <td>{reading.phone_number}</td>
+                          <td><code>{reading.meter_no}</code></td>
+                          <td style={{ fontWeight: '700', color: 'var(--accent3)' }}>
+                            {reading.reading_value !== null ? reading.reading_value : '-'}
+                          </td>
+                          <td>
+                            {reading.photo_url ? (
+                              <button 
+                                onClick={() => setZoomPhoto(reading.photo_url)} 
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent)', cursor: 'pointer', background: 'none', border: 'none' }}
+                              >
+                                <ZoomIn size={14} />
+                                <span style={{ fontSize: '12px', textDecoration: 'underline' }}>View Photo</span>
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--muted)', fontSize: '11px' }}>No Photo</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{reading.note || '-'}</td>
                           <td style={{ fontSize: '12px' }}>
                             {new Date(reading.submitted_at).toLocaleString()}
                           </td>
