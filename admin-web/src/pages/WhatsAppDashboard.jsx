@@ -5,6 +5,7 @@ import { MessageSquare, Send, CheckCircle2, AlertCircle, RefreshCw, CheckSquare,
 const WhatsAppDashboard = () => {
   const [usage, setUsage] = useState({ sentThisMonth: 0, count: 0, limit: 1000 });
   const [logs, setLogs] = useState([]);
+  const [replies, setReplies] = useState([]);
   const [areas, setAreas] = useState([]);
   const [selectedAreaId, setSelectedAreaId] = useState('');
   const [properties, setProperties] = useState([]);
@@ -23,12 +24,14 @@ const WhatsAppDashboard = () => {
   const fetchUsageAndLogs = async () => {
     try {
       setLoadingUsage(true);
-      const [uData, lData] = await Promise.all([
+      const [uData, lData, rData] = await Promise.all([
         api.get('/admin/whatsapp/status'),
-        api.get('/admin/whatsapp/logs')
+        api.get('/admin/whatsapp/logs'),
+        api.get('/admin/whatsapp/replies').catch(() => [])
       ]);
       setUsage(uData);
       setLogs(lData);
+      setReplies(rData || []);
     } catch (err) {
       console.error('Failed to fetch usage/logs:', err);
     } finally {
@@ -403,6 +406,51 @@ const WhatsAppDashboard = () => {
                       </span>
                     </td>
                     <td>{new Date(log.sent_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Section 4: Customer Replies Log Table */}
+      <div style={{
+        backgroundColor: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '24px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text)' }}>💬 Incoming Customer Replies (Direct Text Messages)</h2>
+        <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '-8px' }}>
+          Text replies sent back directly by customers on WhatsApp (these are not the meter reading forms).
+        </p>
+
+        <div className="table-container">
+          {replies.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px', color: 'var(--muted)' }}>
+              No direct customer replies logged yet.
+            </div>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Sender Profile</th>
+                  <th>Phone Number</th>
+                  <th>Message Reply</th>
+                  <th>Received At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {replies.map(reply => (
+                  <tr key={reply.id}>
+                    <td style={{ fontWeight: '600', color: 'var(--text)' }}>{reply.profile_name || 'Anonymous Customer'}</td>
+                    <td>{reply.phone_number}</td>
+                    <td style={{ color: 'var(--text)', fontStyle: 'italic', fontWeight: '500' }}>"{reply.message_body}"</td>
+                    <td>{new Date(reply.received_at).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

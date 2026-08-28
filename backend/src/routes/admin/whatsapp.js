@@ -313,4 +313,20 @@ router.get('/generate-token', async (req, res, next) => {
   }
 });
 
+// ─── Route: GET /admin/whatsapp/replies ──────────────────────────────────────
+
+router.get('/replies', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await db.query(`
+      SELECT id, phone_number, profile_name, message_body, received_at
+      FROM whatsapp_replies
+      ORDER BY received_at DESC
+      LIMIT 100
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;

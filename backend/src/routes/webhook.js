@@ -27,7 +27,7 @@ router.get('/', (req, res) => {
   return res.sendStatus(400);
 });
 
-// POST /whatsapp-webhook - Receive status updates
+// POST /whatsapp-webhook - Receive status updates and incoming messages
 router.post('/', async (req, res) => {
   try {
     console.log('--- WHATSAPP WEBHOOK RECEIVED ---');
@@ -36,8 +36,26 @@ router.post('/', async (req, res) => {
     const entry = req.body.entry;
     if (Array.isArray(entry) && entry[0].changes && entry[0].changes[0].value) {
       const value = entry[0].changes[0].value;
+
+      // 1. Look for incoming messages (customer replies)
+      if (Array.isArray(value.messages) && value.messages.length > 0) {
+        for (const msgObj of value.messages) {
+          const from = msgObj.from;
+          const messageBody = msgObj.text?.body || '';
+          const contactName = value.contacts?.[0]?.profile?.name || null;
+
+          if (messageBody) {
+            await db.query(
+              `INSERT INTO whatsapp_replies (phone_number, profile_name, message_body)
+               VALUES ($1, $2, $3)`,
+              [from, contactName, messageBody]
+            ).catch(e => console.error('[webhook] Error saving reply:', e));
+            console.log(`[webhook] Logged incoming reply from ${from}: ${messageBody}`);
+          }
+        }
+      }
       
-      // Look for status updates
+      // 2. Look for status updates
       if (Array.isArray(value.statuses) && value.statuses.length > 0) {
         for (const statusObj of value.statuses) {
           const wamid = statusObj.id;
