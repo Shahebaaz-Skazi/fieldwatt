@@ -258,10 +258,12 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res) => {
 
 router.get(['/usage', '/status'], requireAdmin, async (req, res, next) => {
   try {
+    // Count ALL successfully dispatched messages (sent + delivered + read)
+    // "sent" transitions to "delivered"/"read" via webhook — counting only "sent" misses those.
     const result = await db.query(`
       SELECT COUNT(*) as total_sent
       FROM whatsapp_logs
-      WHERE status = 'sent'
+      WHERE status IN ('sent', 'delivered', 'read')
         AND sent_at >= strftime('%Y-%m-01', 'now')
     `);
     const sentThisMonth = parseInt(result.rows[0]?.total_sent || 0, 10);
