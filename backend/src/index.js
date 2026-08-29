@@ -81,7 +81,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date(),
-    version: '1.0.6',
+    version: '1.0.7',
     diagnostics: {
       account_id: mask(process.env.CLOUDFLARE_ACCOUNT_ID),
       database_id: mask(process.env.CLOUDFLARE_D1_DATABASE_ID),

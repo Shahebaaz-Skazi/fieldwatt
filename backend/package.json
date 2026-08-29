@@ -1,6 +1,6 @@
 {
   "name": "fieldwatt-backend",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "FieldWatt Electricity Meter Reading Backend API",
   "main": "src/index.js",
   "scripts": {
