@@ -60,6 +60,9 @@ router.post('/submit', async (req, res, next) => {
     if (!token || !readingValue) {
       return res.status(400).json({ error: 'Token and readingValue are required.' });
     }
+    if (!photoBase64) {
+      return res.status(400).json({ error: 'A meter photo is required.' });
+    }
 
     const secret = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
     let decoded;

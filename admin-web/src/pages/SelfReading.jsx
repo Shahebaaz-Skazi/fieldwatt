@@ -184,6 +184,10 @@ const SelfReading = () => {
       setSubmitError('Please enter a valid numeric meter reading.');
       return;
     }
+    if (!photoBlob) {
+      setSubmitError('A meter photo is required. Please capture or upload a photo of your meter.');
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError('');
@@ -426,7 +430,7 @@ const SelfReading = () => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
-                  Meter Verification Photo
+                  Meter Verification Photo <span style={{ color: '#ef4444' }}>*</span>
                 </label>
 
                 <div style={{
