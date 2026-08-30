@@ -49,6 +49,7 @@ const adminWhatsappRouter = require('./routes/admin/whatsapp');
 const agentPerformanceRouter = require('./routes/admin/agentPerformance');
 const publicSelfReadingRouter = require('./routes/public/selfReading');
 const whatsappWebhookRouter = require('./routes/webhook');
+const twilioWebhookRouter = require('./routes/twilioWebhook');
 
 // Mount routes
 app.use('/auth', authRouter);
@@ -64,6 +65,7 @@ app.use('/admin/whatsapp', authMiddleware, adminWhatsappRouter);
 app.use('/public/self-reading', publicSelfReadingRouter);
 app.use('/admin/agent-performance', agentPerformanceRouter);
 app.use('/whatsapp-webhook', whatsappWebhookRouter);
+app.use('/twilio-webhook', twilioWebhookRouter);
 
 // POST /agent/upload-url mapping directly if needed
 // Let's also support POST /agent/upload-url route directly for consistency

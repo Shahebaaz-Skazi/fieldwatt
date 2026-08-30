@@ -25,6 +25,52 @@ function normalizePhone(raw) {
 
 /** Send one WhatsApp template message. Returns { ok, wamid, error }. */
 async function sendOneMessage({ phoneId, accessToken, templateName, langCode, phone, name, token }) {
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioFrom = process.env.TWILIO_WHATSAPP_FROM;
+  const twilioContentSid = process.env.TWILIO_CONTENT_SID;
+
+  if (twilioSid && twilioAuthToken && twilioFrom && twilioContentSid) {
+    // ─── Twilio WhatsApp API Dispatch ───
+    const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+    const authHeader = 'Basic ' + Buffer.from(`${twilioSid}:${twilioAuthToken}`).toString('base64');
+    
+    // Twilio expects recipient phone in E.164 format: +91XXXXXXXXXX
+    const formattedPhone = phone.startsWith('+') ? phone : '+' + phone;
+    // Twilio expects sender phone in format: whatsapp:+14155238886
+    const formattedFrom = twilioFrom.startsWith('whatsapp:') ? twilioFrom : `whatsapp:${twilioFrom.startsWith('+') ? twilioFrom : '+' + twilioFrom}`;
+
+    const bodyParams = new URLSearchParams({
+      To: `whatsapp:${formattedPhone}`,
+      From: formattedFrom,
+      ContentSid: twilioContentSid,
+      ContentVariables: JSON.stringify({
+        "1": name || 'Customer',
+        "2": token
+      })
+    });
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    const body = await res.text();
+    if (!res.ok) {
+      let msg = 'Twilio API error';
+      try { msg = JSON.parse(body)?.message || msg; } catch {}
+      return { ok: false, error: msg };
+    }
+    let wamid = null;
+    try { wamid = JSON.parse(body)?.sid || null; } catch {}
+    return { ok: true, wamid };
+  }
+
+  // ─── Direct Meta Cloud API Dispatch (Fallback) ───
   const res = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
     method:  'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -258,13 +304,12 @@ router.post(['/send', '/send-bulk'], requireAdmin, async (req, res) => {
 
 router.get(['/usage', '/status'], requireAdmin, async (req, res, next) => {
   try {
-    // Count ALL successfully dispatched messages (sent + delivered + read)
-    // "sent" transitions to "delivered"/"read" via webhook — counting only "sent" misses those.
+    // COUNT(DISTINCT property_id) matches what campaign-progress uses for "Links Sent"
+    // so both the WhatsApp page and Dashboard show the same number.
     const result = await db.query(`
-      SELECT COUNT(*) as total_sent
+      SELECT COUNT(DISTINCT property_id) as total_sent
       FROM whatsapp_logs
       WHERE status IN ('sent', 'delivered', 'read')
-        AND sent_at >= strftime('%Y-%m-01', 'now')
     `);
     const sentThisMonth = parseInt(result.rows[0]?.total_sent || 0, 10);
     res.json({ sentThisMonth, count: sentThisMonth, limit: 1000 });
