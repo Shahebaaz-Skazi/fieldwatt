@@ -5,38 +5,30 @@ const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
 
-// Helper to get active cycle id with 60s in-memory cache
+// Helper to get latest active cycle id (60s in-memory cache)
 let cachedCycleId = null;
 let cachedCycleExpiry = 0;
 
 const getActiveCycleId = async () => {
   const now = Date.now();
-  if (cachedCycleId && now < cachedCycleExpiry) {
-    return cachedCycleId;
-  }
-  const result = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
-  if (result.rows.length === 0) {
-    return null;
-  }
+  if (cachedCycleId && now < cachedCycleExpiry) return cachedCycleId;
+  // ORDER BY start_date DESC so newest active cycle is always the default
+  const result = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
+  if (result.rows.length === 0) return null;
   cachedCycleId = result.rows[0].id;
-  cachedCycleExpiry = now + 60000; // Cache cycle ID for 60 seconds
+  cachedCycleExpiry = now + 60000;
   return cachedCycleId;
 };
 
-// In-memory cache for dashboard summary (30s cache)
-let dashboardCache = { data: null, expiry: 0 };
+// In-memory cache for dashboard summary per cycle (30s TTL)
+// Map: cycleId → { data, expiry }
+const dashboardCacheMap = new Map();
 
 // GET /admin/dashboard - General summary and agent statuses
 router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
   try {
-    const now = Date.now();
-    if (dashboardCache.data && now < dashboardCache.expiry) {
-      return res.json(dashboardCache.data);
-    }
+    const cycleId = req.query.cycle_id || await getActiveCycleId();
 
-    const cycleId = await getActiveCycleId();
-
-    
     if (!cycleId) {
       return res.json({
         active_cycle: null,
@@ -44,6 +36,10 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         summary: { total_agents: 0, present_agents: 0, leave_agents: 0 }
       });
     }
+
+    const now = Date.now();
+    const cached = dashboardCacheMap.get(cycleId);
+    if (cached && now < cached.expiry) return res.json(cached.data);
 
     // Query status count per agent for today + cycle progress
     const queryText = `
@@ -92,10 +88,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       }
     };
 
-    dashboardCache = {
-      data: responseData,
-      expiry: Date.now() + 30000 // cache for 30s
-    };
+    dashboardCacheMap.set(cycleId, { data: responseData, expiry: Date.now() + 30000 });
 
     res.json(responseData);
   } catch (error) {
@@ -204,7 +197,7 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
 // GET /admin/dashboard/campaign-progress?area_id= - WhatsApp campaign funnel for an area
 router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res, next) => {
   try {
-    const cycleId = await getActiveCycleId();
+    const cycleId = req.query.cycle_id || await getActiveCycleId();
     if (!cycleId) return res.json({ dispatched: 0, readings_submitted: 0, total: 0 });
 
     const areaId = req.query.area_id || null;

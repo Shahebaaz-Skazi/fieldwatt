@@ -5,9 +5,9 @@ const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
 
-// Helper to get active cycle id
+// Helper to get active cycle id (newest active cycle is default)
 const getActiveCycleId = async () => {
-  const result = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+  const result = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
   if (result.rows.length === 0) {
     throw new Error('No active billing cycle found. Please create one first.');
   }

@@ -11,7 +11,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
 
     let targetCycleId = cycle_id;
     if (!targetCycleId) {
-      const activeCycleRes = await db.query(`SELECT id FROM cycles WHERE is_active = true LIMIT 1`);
+      const activeCycleRes = await db.query(`SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1`);
       if (activeCycleRes.rows.length > 0) {
         targetCycleId = activeCycleRes.rows[0].id;
       } else {

@@ -14,6 +14,10 @@ const Dashboard = ({ viewerMode = false }) => {
   const [success, setSuccess] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Cycle selector state
+  const [cycles, setCycles] = useState([]);
+  const [selectedCycleId, setSelectedCycleId] = useState(() => localStorage.getItem('fw_selected_cycle_id') || '');
+
   // Global search states
   const [globalQuery, setGlobalQuery] = useState('');
   const [globalResults, setGlobalResults] = useState([]);
@@ -236,11 +240,13 @@ const Dashboard = ({ viewerMode = false }) => {
     }
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (cycleId) => {
     try {
+      const cid = cycleId || selectedCycleId;
+      const cycleParam = cid ? `?cycle_id=${cid}` : '';
       const [response, progress] = await Promise.all([
-        api.get('/admin/dashboard'),
-        api.get('/admin/dashboard/campaign-progress?area_id=2d39305e-d9f5-4a65-bb61-9d8b7d92f17a'),
+        api.get(`/admin/dashboard${cycleParam}`),
+        api.get(`/admin/dashboard/campaign-progress${cycleParam}&area_id=2d39305e-d9f5-4a65-bb61-9d8b7d92f17a`),
       ]);
       setData(response);
       setCampaign(progress);
@@ -251,11 +257,25 @@ const Dashboard = ({ viewerMode = false }) => {
     }
   };
 
+  // Fetch all cycles once on mount
   useEffect(() => {
-    fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 120000); // refresh every 2 minutes
-    return () => clearInterval(interval);
+    api.get('/admin/assignments/cycles')
+      .then(list => {
+        setCycles(list || []);
+        // If no cycle stored yet, default to the first (newest) one
+        if (!localStorage.getItem('fw_selected_cycle_id') && list && list.length > 0) {
+          setSelectedCycleId(list[0].id);
+          localStorage.setItem('fw_selected_cycle_id', list[0].id);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchDashboardData(selectedCycleId);
+    const interval = setInterval(() => fetchDashboardData(selectedCycleId), 120000); // refresh every 2 minutes
+    return () => clearInterval(interval);
+  }, [selectedCycleId]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -451,6 +471,27 @@ const Dashboard = ({ viewerMode = false }) => {
             {viewerMode ? "Search properties and download meter reading verification photos" : "Real-time overview of current cycle activities and agent status"}
           </p>
         </div>
+        {!viewerMode && cycles.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CalendarDays size={16} style={{ color: 'var(--muted)' }} />
+            <select
+              className="form-input"
+              value={selectedCycleId}
+              onChange={e => {
+                const id = e.target.value;
+                setSelectedCycleId(id);
+                localStorage.setItem('fw_selected_cycle_id', id);
+              }}
+              style={{ fontSize: '13px', padding: '6px 12px', height: '36px', minWidth: '180px', cursor: 'pointer' }}
+            >
+              {cycles.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.label}{c.is_active ? ' ✓' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {viewerMode && (

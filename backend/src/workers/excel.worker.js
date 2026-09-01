@@ -256,8 +256,7 @@ const processExcel = async () => {
     if (existingCycle.rows.length > 0) {
       cycleId = existingCycle.rows[0].id;
     } else {
-      // Create new cycle and set it as active (and others inactive)
-      await dbClient.query('UPDATE cycles SET is_active = false');
+      // Create new cycle — leave existing cycles untouched so both can run in parallel
       const start_date = new Date(schedDate.getFullYear(), schedDate.getMonth(), 1);
       const end_date = new Date(schedDate.getFullYear(), schedDate.getMonth() + 1, 0);
       const newCycle = await dbClient.query(

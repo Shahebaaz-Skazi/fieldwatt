@@ -355,8 +355,13 @@ router.get('/:id/seats', authMiddleware, requireAdmin, async (req, res, next) =>
   try {
     const areaId = req.params.id;
 
-    // Get active cycle
-    const cycleRes = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+    // Get cycle from query param or fall back to newest active cycle
+    const cycleRes = await db.query(
+      req.query.cycle_id
+        ? 'SELECT id FROM cycles WHERE id = $1 LIMIT 1'
+        : 'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1',
+      req.query.cycle_id ? [req.query.cycle_id] : []
+    );
     const cycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].id : null;
 
     const result = await db.query(`
@@ -397,7 +402,12 @@ router.get('/:id/seats', authMiddleware, requireAdmin, async (req, res, next) =>
 // GET /admin/areas/property/:propId — full detail for the slide-in panel
 router.get('/property/:propId', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const cycleRes = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+    const cycleRes = await db.query(
+      req.query.cycle_id
+        ? 'SELECT id FROM cycles WHERE id = $1 LIMIT 1'
+        : 'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1',
+      req.query.cycle_id ? [req.query.cycle_id] : []
+    );
     const cycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].id : null;
 
     const result = await db.query(`
