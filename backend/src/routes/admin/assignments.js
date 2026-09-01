@@ -632,7 +632,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
 
     // Tier 3: Fall back to the active cycle
     if (cycleRes.rows.length === 0) {
-      cycleRes = await db.query(`SELECT id as cycle_id, label FROM cycles WHERE is_active = true LIMIT 1`);
+      cycleRes = await db.query(`SELECT id as cycle_id, label FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1`);
     }
 
     const targetCycleId = cycleRes.rows.length > 0

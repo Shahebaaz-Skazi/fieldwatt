@@ -199,7 +199,7 @@ router.get('/:id/properties', authMiddleware, requireAdmin, async (req, res, nex
     // Get active cycle if cycle_id is not specified
     let cycleId = cycle_id;
     if (!cycleId) {
-      const activeCycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+      const activeCycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
       if (activeCycleResult.rows.length > 0) {
         cycleId = activeCycleResult.rows[0].id;
       }
@@ -483,9 +483,14 @@ router.post('/upload-photo', authMiddleware, requireAdmin, upload.single('photo'
 router.post('/property/:propId/reading', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const propId = req.params.propId;
-    const { status_code, reading_value, note, photo_url } = req.body;
+    const { status_code, reading_value, note, photo_url, cycle_id } = req.body;
 
-    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+    const cycleResult = await db.query(
+      cycle_id
+        ? 'SELECT id FROM cycles WHERE id = $1 LIMIT 1'
+        : 'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1',
+      cycle_id ? [cycle_id] : []
+    );
     if (cycleResult.rows.length === 0) {
       return res.status(400).json({ error: 'No active billing cycle found.' });
     }

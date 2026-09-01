@@ -10,7 +10,7 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
     const agentId = req.user.id;
 
     // Get active cycle
-    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
     if (cycleResult.rows.length === 0) {
       return res.json([]); // Return empty list if no active billing cycle
     }
@@ -137,7 +137,7 @@ router.get('/nearest', authMiddleware, requireAgent, async (req, res, next) => {
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
 
-    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
+    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
     if (cycleResult.rows.length === 0) return res.json(null);
     const cycleId = cycleResult.rows[0].id;
 
