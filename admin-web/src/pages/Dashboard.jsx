@@ -253,7 +253,7 @@ const Dashboard = ({ viewerMode = false }) => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 30000); // refresh every 30 seconds
+    const interval = setInterval(fetchDashboardData, 120000); // refresh every 2 minutes
     return () => clearInterval(interval);
   }, []);
 

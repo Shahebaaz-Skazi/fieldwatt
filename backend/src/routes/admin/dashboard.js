@@ -5,19 +5,37 @@ const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
 
-// Helper to get active cycle id
+// Helper to get active cycle id with 60s in-memory cache
+let cachedCycleId = null;
+let cachedCycleExpiry = 0;
+
 const getActiveCycleId = async () => {
+  const now = Date.now();
+  if (cachedCycleId && now < cachedCycleExpiry) {
+    return cachedCycleId;
+  }
   const result = await db.query('SELECT id FROM cycles WHERE is_active = true LIMIT 1');
   if (result.rows.length === 0) {
     return null;
   }
-  return result.rows[0].id;
+  cachedCycleId = result.rows[0].id;
+  cachedCycleExpiry = now + 60000; // Cache cycle ID for 60 seconds
+  return cachedCycleId;
 };
+
+// In-memory cache for dashboard summary (30s cache)
+let dashboardCache = { data: null, expiry: 0 };
 
 // GET /admin/dashboard - General summary and agent statuses
 router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
   try {
+    const now = Date.now();
+    if (dashboardCache.data && now < dashboardCache.expiry) {
+      return res.json(dashboardCache.data);
+    }
+
     const cycleId = await getActiveCycleId();
+
     
     if (!cycleId) {
       return res.json({
@@ -64,7 +82,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       }
     });
 
-    res.json({
+    const responseData = {
       active_cycle_id: cycleId,
       agents: result.rows,
       summary: {
@@ -72,7 +90,14 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         present_agents: presentAgents,
         leave_agents: leaveAgents,
       }
-    });
+    };
+
+    dashboardCache = {
+      data: responseData,
+      expiry: Date.now() + 30000 // cache for 30s
+    };
+
+    res.json(responseData);
   } catch (error) {
     next(error);
   }
