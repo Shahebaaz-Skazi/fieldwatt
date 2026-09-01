@@ -31,9 +31,61 @@ function normalizePhone(raw) {
   return d;
 }
 
+function format10DigitPhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0'))  d = d.slice(1);
+  return d;
+}
+
 async function sendOne(phone, name, token) {
   if (DRY_RUN) {
     return { ok: true, wamid: 'DRY_RUN_WAMID' };
+  }
+
+  const fast2smsKey = process.env.FAST2SMS_API_KEY;
+  if (fast2smsKey) {
+    // ─── Fast2SMS API Dispatch (SMS) ───
+    const endpoint = 'https://www.fast2sms.com/dev/bulkV2';
+    const tenDigitPhone = format10DigitPhone(phone);
+    const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
+    const readingUrl = `${origin}/self-reading?token=${token}`;
+    
+    const route = process.env.FAST2SMS_ROUTE || 'q';
+    const messageTemplate = process.env.FAST2SMS_MESSAGE_TEMPLATE;
+    const messageText = messageTemplate
+      ? messageTemplate.replace('{{name}}', name || 'Customer').replace('{{url}}', readingUrl)
+      : `Hello ${name || 'Customer'}, please submit your electricity meter reading using this link: ${readingUrl}`;
+
+    const reqBody = {
+      route: route,
+      message: messageText,
+      numbers: tenDigitPhone
+    };
+
+    if (process.env.FAST2SMS_SENDER_ID) reqBody.sender_id = process.env.FAST2SMS_SENDER_ID;
+    if (process.env.FAST2SMS_TEMPLATE_ID) reqBody.template_id = process.env.FAST2SMS_TEMPLATE_ID;
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'authorization': fast2smsKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reqBody)
+    });
+
+    const body = await res.text();
+    let resJson = {};
+    try { resJson = JSON.parse(body); } catch {}
+
+    if (!res.ok || resJson.return === false) {
+      const errMsg = (Array.isArray(resJson.message) ? resJson.message[0] : resJson.message) || 'Fast2SMS API error';
+      return { ok: false, error: errMsg };
+    }
+
+    const msgId = resJson.request_id || (Array.isArray(resJson.message) ? resJson.message[0] : 'fast2sms_' + Date.now());
+    return { ok: true, wamid: String(msgId) };
   }
 
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
@@ -109,13 +161,15 @@ async function sendOne(phone, name, token) {
 }
 
 async function main() {
-  const isTwilio = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN;
-  if (!isTwilio && !ACCESS_TOKEN) {
-    console.error('ERROR: Either WHATSAPP_ACCESS_TOKEN or TWILIO_ACCOUNT_SID must be set in .env!');
+  const isFast2SMS = !!process.env.FAST2SMS_API_KEY;
+  const isTwilio   = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN;
+  if (!isFast2SMS && !isTwilio && !ACCESS_TOKEN) {
+    console.error('ERROR: Either FAST2SMS_API_KEY, TWILIO_ACCOUNT_SID, or WHATSAPP_ACCESS_TOKEN must be set in .env!');
     process.exit(1);
   }
 
-  console.log(`\n=== FIELDWATT WHATSAPP SEND (${DRY_RUN ? 'DRY RUN' : 'LIVE'}) ===`);
+  const providerName = isFast2SMS ? 'Fast2SMS (SMS)' : isTwilio ? 'Twilio (WhatsApp)' : 'Meta Cloud API (WhatsApp)';
+  console.log(`\n=== FIELDWATT OUTREACH SEND (${DRY_RUN ? 'DRY RUN' : 'LIVE'}) — Provider: ${providerName} ===`);
   console.log(`Phone ID: ${PHONE_ID}`);
   console.log(`Template: ${TEMPLATE_NAME} (${LANG_CODE})`);
   console.log(`Pace: 1 message every ${PACE_MS}ms\n`);

@@ -23,8 +23,60 @@ function normalizePhone(raw) {
   return d;
 }
 
-/** Send one WhatsApp template message. Returns { ok, wamid, error }. */
+function format10DigitPhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+  if (d.length === 11 && d.startsWith('0'))  d = d.slice(1);
+  return d;
+}
+
+/** Send one outreach message (Fast2SMS -> Twilio -> Meta Cloud API). Returns { ok, wamid, error }. */
 async function sendOneMessage({ phoneId, accessToken, templateName, langCode, phone, name, token }) {
+  const fast2smsKey = process.env.FAST2SMS_API_KEY;
+
+  if (fast2smsKey) {
+    // ─── Fast2SMS API Dispatch (SMS) ───
+    const endpoint = 'https://www.fast2sms.com/dev/bulkV2';
+    const tenDigitPhone = format10DigitPhone(phone);
+    const origin = process.env.CUSTOMER_PORTAL_URL || 'https://fieldwatt.vercel.app';
+    const readingUrl = `${origin}/self-reading?token=${token}`;
+    
+    const route = process.env.FAST2SMS_ROUTE || 'q';
+    const messageTemplate = process.env.FAST2SMS_MESSAGE_TEMPLATE;
+    const messageText = messageTemplate
+      ? messageTemplate.replace('{{name}}', name || 'Customer').replace('{{url}}', readingUrl)
+      : `Hello ${name || 'Customer'}, please submit your electricity meter reading using this link: ${readingUrl}`;
+
+    const reqBody = {
+      route: route,
+      message: messageText,
+      numbers: tenDigitPhone
+    };
+
+    if (process.env.FAST2SMS_SENDER_ID) reqBody.sender_id = process.env.FAST2SMS_SENDER_ID;
+    if (process.env.FAST2SMS_TEMPLATE_ID) reqBody.template_id = process.env.FAST2SMS_TEMPLATE_ID;
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'authorization': fast2smsKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reqBody)
+    });
+
+    const body = await res.text();
+    let resJson = {};
+    try { resJson = JSON.parse(body); } catch {}
+
+    if (!res.ok || resJson.return === false) {
+      const errMsg = (Array.isArray(resJson.message) ? resJson.message[0] : resJson.message) || 'Fast2SMS API error';
+      return { ok: false, error: errMsg };
+    }
+
+    const msgId = resJson.request_id || (Array.isArray(resJson.message) ? resJson.message[0] : 'fast2sms_' + Date.now());
+    return { ok: true, wamid: String(msgId) };
+  }
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioFrom = process.env.TWILIO_WHATSAPP_FROM;
