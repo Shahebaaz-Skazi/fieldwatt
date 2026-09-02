@@ -372,12 +372,40 @@ router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => 
     next(error);
   }
 });
-// GET /admin/assignments/mrus - Get list of distinct MRU names (area names from areas table)
+// GET /admin/assignments/mrus - Get list of distinct MRU names filtered by year, month, or cycle_id
 router.get('/mrus', authMiddleware, requireViewer, async (req, res, next) => {
   try {
-    const result = await db.query(
-      "SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' ORDER BY name ASC"
-    );
+    const { year, month, cycle_id } = req.query;
+    let queryText = '';
+    let params = [];
+
+    if (year && month) {
+      queryText = `
+        SELECT DISTINCT a.name
+        FROM areas a
+        INNER JOIN properties p ON p.area_id = a.id
+        INNER JOIN imports i ON p.import_id = i.id
+        WHERE EXTRACT(YEAR FROM i.scheduled_date)::int = $1
+          AND EXTRACT(MONTH FROM i.scheduled_date)::int = $2
+        ORDER BY a.name ASC
+      `;
+      params = [parseInt(year), parseInt(month)];
+    } else if (cycle_id) {
+      queryText = `
+        SELECT DISTINCT a.name
+        FROM areas a
+        INNER JOIN properties p ON p.area_id = a.id
+        INNER JOIN imports i ON p.import_id = i.id
+        INNER JOIN cycles c ON c.label = i.billing_month
+        WHERE c.id = $1
+        ORDER BY a.name ASC
+      `;
+      params = [cycle_id];
+    } else {
+      queryText = "SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' ORDER BY name ASC";
+    }
+
+    const result = await db.query(queryText, params);
     res.json(result.rows.map(r => r.name));
   } catch (error) {
     next(error);

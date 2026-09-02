@@ -74,29 +74,35 @@ const Assignment = () => {
     }
   };
 
-  const fetchMonthsForMru = async (mru) => {
-    if (!mru) {
-      setAvailableMonths([]);
-      setSelectedYear('');
-      setSelectedMonth('');
-      setSocieties([]);
-      setSelectedSocieties([]);
-      return;
-    }
+  const fetchMrusForPeriod = async (year, month) => {
     try {
-      const monthsData = await api.get('/admin/assignments/months', { params: { mru } });
+      const params = (year && month) ? { year, month } : {};
+      const mrusData = await api.get('/admin/assignments/mrus', { params });
+      setMrus(mrusData);
+    } catch (err) {
+      console.error('Failed to load MRUs for period:', err);
+    }
+  };
+
+  const fetchMonthsForMru = async (mru) => {
+    if (!mru) return;
+    try {
+      const monthsData = await api.get('/admin/assignments/months', { params: { mru: mru || 'all' } });
       setAvailableMonths(monthsData);
-      if (monthsData.length > 0) {
+      if (monthsData.length > 0 && !selectedYear) {
         setSelectedYear(monthsData[0].year.toString());
         setSelectedMonth(monthsData[0].month.toString());
-      } else {
-        setSelectedYear('');
-        setSelectedMonth('');
       }
     } catch (err) {
       console.error('Failed to load months:', err);
     }
   };
+
+  useEffect(() => {
+    if (selectedYear && selectedMonth) {
+      fetchMrusForPeriod(selectedYear, selectedMonth);
+    }
+  }, [selectedYear, selectedMonth]);
 
   const fetchSocietiesForImport = async (mru, year, month) => {
     if (!mru || !year || !month) return;
