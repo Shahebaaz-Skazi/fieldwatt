@@ -280,7 +280,7 @@ const Dashboard = ({ viewerMode = false }) => {
 
   useEffect(() => {
     fetchDashboardData(selectedCycleId);
-    const interval = setInterval(() => fetchDashboardData(selectedCycleId), 120000); // refresh every 2 minutes
+    const interval = setInterval(() => fetchDashboardData(selectedCycleId), 600000); // refresh every 10 minutes
     return () => clearInterval(interval);
   }, [selectedCycleId]);
 
@@ -934,7 +934,7 @@ const Dashboard = ({ viewerMode = false }) => {
                   </h3>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>WhatsApp links dispatched → customer submissions received</p>
                 </div>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Auto-refreshes every 10s</span>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Auto-refreshes every 10 min</span>
               </div>
 
               {/* Progress bars Grid */}

@@ -4,6 +4,7 @@ const { z } = require('zod');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
+const cache = require('../../utils/cache');
 
 // Helper to get latest active cycle id (60s in-memory cache)
 let cachedCycleId = null;
@@ -20,10 +21,6 @@ const getActiveCycleId = async () => {
   return cachedCycleId;
 };
 
-// In-memory cache for dashboard summary per cycle (30s TTL)
-// Map: cycleId → { data, expiry }
-const dashboardCacheMap = new Map();
-
 // GET /admin/dashboard - General summary and agent statuses
 router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
   try {
@@ -37,9 +34,8 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       });
     }
 
-    const now = Date.now();
-    const cached = dashboardCacheMap.get(cycleId);
-    if (cached && now < cached.expiry) return res.json(cached.data);
+    const cached = cache.get(`dashboard_${cycleId}`);
+    if (cached) return res.json(cached);
 
     // Query status count per agent for today + cycle progress
     const queryText = `
@@ -88,7 +84,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       }
     };
 
-    dashboardCacheMap.set(cycleId, { data: responseData, expiry: Date.now() + 30000 });
+    cache.set(`dashboard_${cycleId}`, responseData, 300000); // 5 minutes TTL
 
     res.json(responseData);
   } catch (error) {
@@ -194,9 +190,6 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
   }
 });
 
-// In-memory cache for campaign-progress (30s TTL per cycle+area)
-const campaignCacheMap = new Map();
-
 // GET /admin/dashboard/campaign-progress?area_id= - WhatsApp campaign funnel for an area
 router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res, next) => {
   try {
@@ -204,10 +197,9 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
     if (!cycleId) return res.json({ dispatched: 0, readings_submitted: 0, total: 0 });
 
     const areaId = req.query.area_id || null;
-    const cacheKey = `${cycleId}_${areaId || 'all'}`;
-    const now = Date.now();
-    const cached = campaignCacheMap.get(cacheKey);
-    if (cached && now < cached.expiry) return res.json(cached.data);
+    const cacheKey = `campaign_${cycleId}_${areaId || 'all'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
 
     // Run queries in parallel
     const [totalRes, dispatchedRes, readingsRes] = await Promise.all([
@@ -253,7 +245,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
       readings_submitted,
       pending: total - readings_submitted,
     };
-    campaignCacheMap.set(cacheKey, { data: responseData, expiry: now + 30000 });
+    cache.set(cacheKey, responseData, 600000); // 10 minutes TTL (600,000ms)
     res.json(responseData);
   } catch (error) {
     next(error);

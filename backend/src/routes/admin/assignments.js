@@ -4,6 +4,7 @@ const { z } = require('zod');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin, requireViewer } = require('../../middleware/roleGuard');
+const cache = require('../../utils/cache');
 
 // Helper to get active cycle id (newest active cycle is default)
 const getActiveCycleId = async () => {
@@ -170,6 +171,7 @@ router.post('/area', authMiddleware, requireAdmin, async (req, res, next) => {
       totalCount += insertResults.reduce((sum, r) => sum + r.rowCount, 0);
     }
 
+    cache.invalidateAll();
     res.json({ 
       message: `Assigned all properties in area to agent successfully.`,
       count: totalCount 

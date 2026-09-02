@@ -127,6 +127,8 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
   }
 };
 
+const cache = require('../../utils/cache');
+
 // POST /sync/batch - Accept offline readings batch (max 50)
 router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
   try {
@@ -144,6 +146,9 @@ router.post('/batch', authMiddleware, requireAgent, async (req, res, next) => {
 
     // Always process directly — Redis/BullMQ removed (Upstash free tier exhausted)
     const result = await processReadingsDirectly(agentId, readings, req.user.role);
+    if (result.synced && result.synced.length > 0) {
+      cache.invalidateAll();
+    }
     res.status(202).json({
       message: 'Sync processed successfully.',
       synced: result.synced,

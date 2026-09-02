@@ -3,19 +3,16 @@ const router = express.Router();
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleGuard');
-
-// In-memory cache for agent performance (30s TTL)
-const agentPerfCacheMap = new Map();
+const cache = require('../../utils/cache');
 
 // GET /admin/agent-performance?period=daily|weekly|monthly|cycle&cycle_id=UUID
 router.get('/', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const { period = 'monthly', cycle_id } = req.query;
 
-    const cacheKey = `${period}_${cycle_id || 'default'}`;
-    const now = Date.now();
-    const cached = agentPerfCacheMap.get(cacheKey);
-    if (cached && now < cached.expiry) return res.json(cached.data);
+    const cacheKey = `agent_perf_${period}_${cycle_id || 'default'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
 
     let targetCycleId = cycle_id;
     if (!targetCycleId) {
@@ -113,7 +110,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
       period,
       generatedAt: new Date().toISOString()
     };
-    agentPerfCacheMap.set(cacheKey, { data: responseData, expiry: now + 30000 });
+    cache.set(cacheKey, responseData, 300000); // 5 minutes TTL (300,000ms)
     res.json(responseData);
   } catch (err) {
     console.error('Agent performance error:', err);

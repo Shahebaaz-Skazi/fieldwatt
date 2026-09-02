@@ -102,8 +102,8 @@ const AgentPerformance = () => {
 
   useEffect(() => {
     fetchData();
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(fetchData, 120000);
+    // Auto-refresh every 10 minutes
+    const interval = setInterval(fetchData, 600000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
