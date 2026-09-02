@@ -41,9 +41,8 @@ const Reports = () => {
       ]);
       setSelectedCycleId(dbData.active_cycle_id);
 
-      if (mrusData.length > 0) {
-        setSelectedMru(mrusData[0]);
-      }
+      setSelectedMru('all');
+      fetchMonthsForMru('all');
     } catch (err) {
       setError(err.message || 'Failed to retrieve reports.');
     } finally {
