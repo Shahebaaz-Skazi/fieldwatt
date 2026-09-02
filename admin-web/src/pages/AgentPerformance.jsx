@@ -447,7 +447,7 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
                 )}
               </div>
             );
-          })}
+          }))}
         </div>
       )}
     </div>
