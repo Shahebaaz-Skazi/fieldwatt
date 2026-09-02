@@ -89,10 +89,13 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
       ORDER BY total_assigned DESC
     `, [targetCycleId]);
 
-    // Also fetch cycles for the dropdown
+    // Also fetch cycles for the dropdown (only cycles with actual imported data)
     const cyclesResult = await db.query(`
       SELECT id, label, start_date, end_date, is_active 
       FROM cycles 
+      WHERE EXISTS (
+        SELECT 1 FROM imports i WHERE i.billing_month = cycles.label
+      )
       ORDER BY start_date DESC
     `);
 
