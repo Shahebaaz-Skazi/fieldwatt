@@ -79,7 +79,7 @@ const buildAddress = (row) => {
 // ─────────────────────────────────────────────
 const detectFormat = (headers) => {
   const h = headers.map((x) => normalise(x?.toString() || ''));
-  const isSAP = h.some((x) => x === 'MR ORDER ID') || h.some((x) => x === 'MRU NAME');
+  const isSAP = h.some((x) => x.startsWith('MR ORDER') || x === 'MRU NAME');
   return isSAP ? 'SAP' : 'GENERIC';
 };
 
@@ -88,7 +88,7 @@ const detectFormat = (headers) => {
 // ─────────────────────────────────────────────
 const parseSAPRow = (row) => {
   const mruName   = normalise(row['MRU NAME']);       // e.g. KOT006_E — used as area
-  const orderId   = normalise(row['MR ORDER ID']);    // unique serial / order id
+  const orderId   = normalise(row['MR ORDER ID'] || row['MR ORDER I'] || row['MR ORDER'] || row['BP No.'] || row['Installation No.']);    // unique serial / order id
   const bpName    = normalise(row['BPNAME']);         // consumer name
   const deviceNo  = normalise(row['Device Serial No.']); // meter number
   const city      = normalise(row['city']) || 'PUNE';
@@ -331,8 +331,8 @@ const processExcel = async () => {
       return id;
     };
 
-    // ── Process in chunks of 200 ──────────────────────────────────────────────
-    const CHUNK_SIZE = 200;
+    // ── Process in chunks of 8 (keeps params at 8 * 12 = 96 < D1 HTTP 100 limit) ──────
+    const CHUNK_SIZE = 8;
     const rows = format === 'SAP' ? dataObjects : rawRows.slice(1);
 
     // Warm up the area cache to avoid querying the DB for existing areas (ponytail: memory caching avoids roundtrip latency)
