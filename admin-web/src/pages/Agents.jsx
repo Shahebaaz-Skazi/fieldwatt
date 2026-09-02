@@ -39,6 +39,8 @@ const Agents = () => {
   const [resetPwContractor, setResetPwContractor] = useState(null);
   const [resetPasswordVal, setResetPasswordVal] = useState('');
 
+  const isAdmin = !user?.role || user?.role === 'admin';
+
   const fetchAgents = async () => {
     try {
       const data = await api.get('/admin/agents');
@@ -51,7 +53,7 @@ const Agents = () => {
   };
 
   const fetchViewers = async () => {
-    if (user?.role !== 'admin') return;
+    if (!isAdmin) return;
     try {
       const data = await api.get('/auth/admin/viewers');
       setViewers(data);
@@ -61,7 +63,7 @@ const Agents = () => {
   };
 
   const fetchContractors = async () => {
-    if (user?.role !== 'admin') return;
+    if (!isAdmin) return;
     try {
       const data = await api.get('/auth/admin/contractors');
       setContractors(data);
@@ -297,7 +299,7 @@ const Agents = () => {
       </div>
 
       {/* Viewer Accounts Management Section */}
-      {user?.role === 'admin' && (
+      {isAdmin && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
