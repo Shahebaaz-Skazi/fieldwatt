@@ -157,9 +157,16 @@ const parseGenericRow = (row, mapping) => {
 };
 
 const extractCode = (name) => {
-  // ponytail: no \b — KOD can be embedded (e.g. "PMCKOD30"), match anywhere in name
-  const match = name.toUpperCase().match(/(KOD|KOT|KAR)/);
-  return match ? match[1] : 'GEN';
+  const upper = (name || '').toUpperCase();
+  // 1. Match PMC or PCM followed by 3 letters (e.g. PMCKOD -> KOD, PCMCPM -> CPM, PMCCHI -> CHI)
+  const pmcMatch = upper.match(/(?:PMC|PCM)([A-Z]{3})/);
+  if (pmcMatch) return pmcMatch[1];
+
+  // 2. Fallback to known 3-letter division codes anywhere in name
+  const match = upper.match(/(KOD|KOT|KAR|CPM|CHI|KHA|WAR|PIM)/);
+  if (match) return match[1];
+
+  return 'GEN';
 };
 
 const parseScheduledDate = (val) => {
