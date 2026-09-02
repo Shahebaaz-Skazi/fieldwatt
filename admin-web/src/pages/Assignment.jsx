@@ -18,7 +18,7 @@ const Assignment = () => {
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMru, setSelectedMru] = useState('');
+  const [selectedMru, setSelectedMru] = useState('all');
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -65,9 +65,8 @@ const Assignment = () => {
       }
       setAgentStatusMap(statusMap);
       
-      if (mrusData.length > 0) {
-        setSelectedMru(mrusData[0]);
-      }
+      setSelectedMru('all');
+      fetchMonthsForMru('all');
     } catch (err) {
       setMessage({ text: err.message || 'Failed to load filter metadata.', type: 'error' });
     } finally {
