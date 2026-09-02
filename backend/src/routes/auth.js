@@ -98,8 +98,12 @@ router.post('/agent/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
     
-    // Update last login
-    await db.query('UPDATE agents SET last_login = NOW() WHERE id = $1', [agent.id]);
+    // Update last login gracefully (never block login if D1 stats update fails)
+    try {
+      await db.query('UPDATE agents SET last_login = NOW() WHERE id = $1', [agent.id]);
+    } catch (loginUpdateErr) {
+      console.error('[auth] Optional last_login timestamp update skipped:', loginUpdateErr.message);
+    }
     
     const token = jwt.sign(
       { id: agent.id, name: agent.name, phone: agent.phone, role: 'agent' },
