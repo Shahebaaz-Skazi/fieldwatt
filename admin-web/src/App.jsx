@@ -41,6 +41,7 @@ const App = () => {
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
   const isViewer = user?.role === 'viewer';
+  const isPerformanceViewer = user?.role === 'agent_performance_viewer';
   const activePage = useAuthStore((state) => state.activePage);
   const setActivePage = useAuthStore((state) => state.setActivePage);
   const logout = useAuthStore((state) => state.logout);
@@ -73,6 +74,10 @@ const App = () => {
   };
 
   const renderActivePage = () => {
+    if (isPerformanceViewer) {
+      return <AgentPerformance key={pageKeys.performance || 'performance'} performanceViewerMode={true} />;
+    }
+
     if (isViewer) {
       return <Dashboard key={pageKeys.dashboard} viewerMode={true} />;
     }
@@ -116,17 +121,37 @@ const App = () => {
         
         <nav style={{ flex: 1 }}>
           <ul className="nav-links">
-            <li>
-              <button
-                onClick={() => handleNavClick('dashboard')}
-                className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
-              >
-                <LayoutDashboard size={18} />
-                Dashboard
-              </button>
-            </li>
-            {!isViewer && (
+            {isPerformanceViewer ? (
+              <li>
+                <button
+                  onClick={() => handleNavClick('performance')}
+                  className={`nav-link active`}
+                >
+                  <TrendingUp size={18} />
+                  Agent Performance
+                </button>
+              </li>
+            ) : isViewer ? (
+              <li>
+                <button
+                  onClick={() => handleNavClick('dashboard')}
+                  className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
+                >
+                  <LayoutDashboard size={18} />
+                  Dashboard
+                </button>
+              </li>
+            ) : (
               <>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('dashboard')}
+                    className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
+                  >
+                    <LayoutDashboard size={18} />
+                    Dashboard
+                  </button>
+                </li>
                 <li>
                   <button
                     onClick={() => handleNavClick('areas')}

@@ -23,18 +23,29 @@ const agentLoginSchema = z.object({
 // POST /auth/admin/login
 router.post('/admin/login', async (req, res, next) => {
   try {
-    const { email, password } = adminLoginSchema.parse(req.body);
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Please enter username/email and password.' });
+    }
+    const cleanId = email.trim().toLowerCase();
     
-    const result = await db.query('SELECT * FROM admins WHERE email = $1', [email]);
+    const result = await db.query(
+      'SELECT * FROM admins WHERE LOWER(email) = $1 OR LOWER(name) = $1 LIMIT 1',
+      [cleanId]
+    );
     const admin = result.rows[0];
     
     if (!admin) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
     
+    if (admin.status === 'DISABLED') {
+      return res.status(403).json({ error: 'Account is disabled. Contact system administrator.' });
+    }
+
     const isValid = await bcrypt.compare(password, admin.password_hash);
     if (!isValid) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
     
     const token = jwt.sign(
@@ -177,6 +188,166 @@ router.post('/admin/create-viewer', authMiddleware, requireAdmin, async (req, re
       [name, email, passwordHash]
     );
     res.status(201).json({ success: true, viewer: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /auth/admin/contractors — list all Agent Performance Contractor accounts
+router.get('/admin/contractors', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const contractorsRes = await db.query(
+      `SELECT id, name AS username, email, role, COALESCE(status, 'ACTIVE') AS status, created_at
+       FROM admins
+       WHERE role = 'agent_performance_viewer'
+       ORDER BY created_at DESC`
+    );
+
+    const mappingsRes = await db.query(
+      `SELECT apaa.account_id, ag.id AS agent_id, ag.name AS agent_name, ag.username AS agent_username
+       FROM agent_performance_account_agents apaa
+       INNER JOIN agents ag ON apaa.agent_id = ag.id`
+    );
+
+    const mappingMap = {};
+    mappingsRes.rows.forEach(r => {
+      if (!mappingMap[r.account_id]) mappingMap[r.account_id] = [];
+      mappingMap[r.account_id].push({ id: r.agent_id, name: r.agent_name, username: r.agent_username });
+    });
+
+    const result = contractorsRes.rows.map(c => ({
+      ...c,
+      assigned_agents: mappingMap[c.id] || []
+    }));
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /auth/admin/create-contractor — create Agent Performance Contractor account
+router.post('/auth/admin/create-contractor', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { username, password, agent_ids } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+    if (!Array.isArray(agent_ids) || agent_ids.length === 0) {
+      return res.status(400).json({ error: 'At least one agent must be assigned.' });
+    }
+
+    const cleanUser = username.trim();
+    const existing = await db.query(
+      'SELECT id FROM admins WHERE LOWER(name) = LOWER($1) OR LOWER(email) = LOWER($1)',
+      [cleanUser]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'An account with this username already exists.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const emailVal = cleanUser.includes('@') ? cleanUser.toLowerCase() : `${cleanUser.toLowerCase()}@contractor`;
+
+    const adminResult = await db.query(
+      `INSERT INTO admins (name, email, password_hash, role, status)
+       VALUES ($1, $2, $3, 'agent_performance_viewer', 'ACTIVE')
+       RETURNING id, name AS username, email, role, status, created_at`,
+      [cleanUser, emailVal, passwordHash]
+    );
+
+    const newAccount = adminResult.rows[0];
+
+    // Insert agent mappings
+    for (const agentId of agent_ids) {
+      await db.query(
+        `INSERT INTO agent_performance_account_agents (account_id, agent_id)
+         VALUES ($1, $2)
+         ON CONFLICT (account_id, agent_id) DO NOTHING`,
+        [newAccount.id, agentId]
+      );
+    }
+
+    res.status(201).json({ success: true, contractor: newAccount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /auth/admin/contractors/:id/agents — edit assigned agents for contractor
+router.patch('/admin/contractors/:id/agents', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { agent_ids } = req.body;
+
+    if (!Array.isArray(agent_ids) || agent_ids.length === 0) {
+      return res.status(400).json({ error: 'At least one agent must be assigned.' });
+    }
+
+    // Verify account exists
+    const accCheck = await db.query("SELECT id FROM admins WHERE id = $1 AND role = 'agent_performance_viewer'", [id]);
+    if (accCheck.rows.length === 0) {
+      return res.status(44).json({ error: 'Contractor account not found.' });
+    }
+
+    // Delete existing mappings and re-insert
+    await db.query('DELETE FROM agent_performance_account_agents WHERE account_id = $1', [id]);
+    for (const agentId of agent_ids) {
+      await db.query(
+        `INSERT INTO agent_performance_account_agents (account_id, agent_id)
+         VALUES ($1, $2)
+         ON CONFLICT (account_id, agent_id) DO NOTHING`,
+        [id, agentId]
+      );
+    }
+
+    res.json({ success: true, message: 'Assigned agents updated successfully.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /auth/admin/contractors/:id/status — enable/disable contractor account
+router.patch('/admin/contractors/:id/status', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (status !== 'ACTIVE' && status !== 'DISABLED') {
+      return res.status(400).json({ error: 'Status must be ACTIVE or DISABLED.' });
+    }
+
+    await db.query(
+      "UPDATE admins SET status = $1 WHERE id = $2 AND role = 'agent_performance_viewer'",
+      [status, id]
+    );
+
+    res.json({ success: true, status });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /auth/admin/contractors/:id/password — reset contractor password
+router.patch('/admin/contractors/:id/password', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await db.query(
+      "UPDATE admins SET password_hash = $1 WHERE id = $2 AND role = 'agent_performance_viewer'",
+      [passwordHash, id]
+    );
+
+    res.json({ success: true, message: 'Password reset successfully.' });
   } catch (err) {
     next(err);
   }

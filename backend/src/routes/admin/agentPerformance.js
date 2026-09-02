@@ -2,15 +2,41 @@ const express = require('express');
 const router = express.Router();
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
-const { requireAdmin } = require('../../middleware/roleGuard');
+const { requirePerformanceViewer } = require('../../middleware/roleGuard');
 const cache = require('../../utils/cache');
 
-// GET /admin/agent-performance?period=daily|weekly|monthly|cycle&cycle_id=UUID
-router.get('/', authMiddleware, requireAdmin, async (req, res) => {
-  try {
-    const { period = 'monthly', cycle_id } = req.query;
+// Helper to resolve permitted agent IDs for current user
+const getPermittedAgentIds = async (user) => {
+  if (user.role === 'admin') return null; // null means no restriction (admin sees all)
+  if (user.role === 'agent_performance_viewer') {
+    const res = await db.query(
+      'SELECT agent_id FROM agent_performance_account_agents WHERE account_id = $1',
+      [user.id]
+    );
+    return res.rows.map(r => r.agent_id);
+  }
+  return []; // default empty
+};
 
-    const cacheKey = `agent_perf_${period}_${cycle_id || 'default'}`;
+// GET /admin/agent-performance?period=daily|weekly|monthly|cycle&cycle_id=UUID&agent_id=UUID
+router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
+  try {
+    const { period = 'monthly', cycle_id, agent_id } = req.query;
+
+    const permittedAgentIds = await getPermittedAgentIds(req.user);
+    
+    // If contractor has specific agent permissions
+    if (permittedAgentIds !== null) {
+      if (permittedAgentIds.length === 0) {
+        return res.json({ agents: [], cycles: [], period, generatedAt: new Date().toISOString() });
+      }
+      // Security Check: If specific agent_id requested, it MUST be in permitted list
+      if (agent_id && !permittedAgentIds.includes(agent_id)) {
+        return res.status(403).json({ error: 'Access forbidden. You do not have permission to view this agent.' });
+      }
+    }
+
+    const cacheKey = `agent_perf_${req.user.id}_${period}_${cycle_id || 'default'}_${agent_id || 'all'}`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
@@ -34,6 +60,22 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
       dateFilter = `AND DATE_TRUNC('month', r.submitted_at) = DATE_TRUNC('month', NOW())`;
     } else if (period === 'cycle' && targetCycleId) {
       dateFilter = `AND asg.cycle_id = '${targetCycleId}'`;
+    }
+
+    // Build agent WHERE filter
+    let agentFilterSql = 'WHERE ag.is_active = true';
+    let queryParams = [targetCycleId];
+
+    if (permittedAgentIds !== null) {
+      // Contractor role: strictly limit to permitted IDs
+      const targetIds = agent_id ? [agent_id] : permittedAgentIds;
+      const placeholders = targetIds.map((_, i) => `$${i + 2}`).join(', ');
+      agentFilterSql += ` AND ag.id IN (${placeholders})`;
+      queryParams.push(...targetIds);
+    } else if (agent_id) {
+      // Admin optional single agent filter
+      agentFilterSql += ` AND ag.id = $2`;
+      queryParams.push(agent_id);
     }
 
     const result = await db.query(`
@@ -86,13 +128,13 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
         WHERE asg.cycle_id = $1
         GROUP BY asg.agent_id
       ) period_counts ON period_counts.agent_id = ag.id
-      WHERE ag.is_active = true
+      ${agentFilterSql}
       GROUP BY ag.id, ag.name, ag.last_login, alltime.total_submitted_alltime,
         period_counts.total_submitted, period_counts.reading_taken, period_counts.door_locked,
         period_counts.not_reachable, period_counts.access_denied, period_counts.meter_not_found,
         period_counts.meter_damaged, period_counts.vacant_property, period_counts.revisit_needed
       ORDER BY total_assigned DESC
-    `, [targetCycleId]);
+    `, queryParams);
 
     // Also fetch cycles for the dropdown (only cycles with actual imported data)
     const cyclesResult = await db.query(`
@@ -119,10 +161,15 @@ router.get('/', authMiddleware, requireAdmin, async (req, res) => {
 });
 
 // GET /admin/agent-performance/:agentId/calendar?month=YYYY-MM
-router.get('/:agentId/calendar', authMiddleware, requireAdmin, async (req, res) => {
+router.get('/:agentId/calendar', authMiddleware, requirePerformanceViewer, async (req, res) => {
   try {
     const { agentId } = req.params;
     const { month } = req.query; // e.g. "2026-08"
+
+    const permittedAgentIds = await getPermittedAgentIds(req.user);
+    if (permittedAgentIds !== null && !permittedAgentIds.includes(agentId)) {
+      return res.status(403).json({ error: 'Access forbidden. You do not have permission to view this agent.' });
+    }
 
     let yearVal, monthVal;
     if (month && /^\d{4}-\d{2}$/.test(month)) {

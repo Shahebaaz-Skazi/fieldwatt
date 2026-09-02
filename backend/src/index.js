@@ -105,8 +105,25 @@ const initDb = async () => {
   try {
     await db.query('SELECT 1');
     console.log('✔ Cloudflare D1 connection verified successfully.');
+
+    // Ensure status column exists on admins table
+    try {
+      await db.query("ALTER TABLE admins ADD COLUMN status TEXT DEFAULT 'ACTIVE'");
+    } catch (_) {}
+
+    // Ensure agent_performance_account_agents table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS agent_performance_account_agents (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))), 2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6)))),
+        account_id TEXT NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+        agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(account_id, agent_id)
+      )
+    `);
+    console.log('✔ Agent Performance Contractor tables verified.');
   } catch (error) {
-    console.error('❌ Cloudflare D1 connection failed:', error.message);
+    console.warn('⚠️ Cloudflare D1 connection warning:', error.message);
   }
 };
 

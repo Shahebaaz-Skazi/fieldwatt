@@ -14,12 +14,13 @@ const STATUS_CONFIG = {
   not_visited:    { label: 'Not Visited Yet', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
 };
 
-const AgentPerformance = () => {
+const AgentPerformance = ({ performanceViewerMode = false }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [period, setPeriod] = useState('monthly');
   const [selectedCycleId, setSelectedCycleId] = useState('');
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState('all');
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [expandedAgent, setExpandedAgent] = useState(null);
   const [expandedTab, setExpandedTab] = useState('metrics');
@@ -107,7 +108,9 @@ const AgentPerformance = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const totalStats = data?.agents?.reduce((acc, a) => ({
+  const displayedAgents = (data?.agents || []).filter(a => selectedAgentFilter === 'all' || a.agent_id === selectedAgentFilter);
+
+  const totalStats = displayedAgents.reduce((acc, a) => ({
     total_assigned: acc.total_assigned + parseInt(a.total_assigned || 0),
     reading_taken:  acc.reading_taken  + parseInt(a.reading_taken  || 0),
     not_visited:    acc.not_visited    + parseInt(a.not_visited     || 0),
@@ -122,7 +125,9 @@ const AgentPerformance = () => {
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.5px', color: 'var(--text)', margin: 0 }}>Agent Performance</h1>
           <p style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '4px' }}>
-            Real-time breakdown of every agent's field activity
+            {performanceViewerMode
+              ? `Showing performance for ${data?.agents?.length || 0} assigned agents`
+              : "Real-time breakdown of every agent's field activity"}
             {lastRefreshed && ` · Refreshed ${lastRefreshed.toLocaleTimeString()}`}
           </p>
         </div>
@@ -132,7 +137,7 @@ const AgentPerformance = () => {
         </button>
       </div>
 
-      {/* Period Filter */}
+      {/* Period & Agent Filters */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'inline-flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
           {[
@@ -160,6 +165,25 @@ const AgentPerformance = () => {
             </button>
           ))}
         </div>
+
+        {/* Agent Selector Dropdown */}
+        {data?.agents && data.agents.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: '600' }}>Agent:</span>
+            <select
+              value={selectedAgentFilter}
+              onChange={e => setSelectedAgentFilter(e.target.value)}
+              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '13px', fontWeight: '600' }}
+            >
+              <option value="all">{performanceViewerMode ? '[ All Assigned Agents ]' : '[ All Agents ]'}</option>
+              {data.agents.map(a => (
+                <option key={a.agent_id} value={a.agent_id}>
+                  {a.agent_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {period === 'cycle' && data?.cycles && (
           <select
@@ -209,7 +233,12 @@ const AgentPerformance = () => {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '60px', color: 'var(--muted)' }}>Loading agent data...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {data?.agents?.map(agent => {
+          {displayedAgents.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              No assigned agents or performance metrics found.
+            </div>
+          ) : (
+            displayedAgents.map(agent => {
             const totalAssigned = parseInt(agent.total_assigned || 0);
             const readingTaken = parseInt(agent.reading_taken || 0);
             const notVisited = parseInt(agent.not_visited || 0);

@@ -19,4 +19,11 @@ const requireViewer = (req, res, next) => {
   next();
 };
 
-module.exports = { requireAdmin, requireAgent, requireViewer };
+const requirePerformanceViewer = (req, res, next) => {
+  if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'agent_performance_viewer')) {
+    return res.status(403).json({ error: 'Access forbidden. Performance Viewer or Admin role required.' });
+  }
+  next();
+};
+
+module.exports = { requireAdmin, requireAgent, requireViewer, requirePerformanceViewer };
