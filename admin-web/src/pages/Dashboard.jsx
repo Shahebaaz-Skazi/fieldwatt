@@ -104,24 +104,31 @@ const Dashboard = ({ viewerMode = false }) => {
   }, [viewerMode]);
 
   useEffect(() => {
-    if (viewerMode && (selectedMru || imageMru)) {
-      const mruToFetch = selectedMru || (imageMru !== 'all' ? imageMru : mrus[0]);
-      if (!mruToFetch) return;
-      api.get('/admin/assignments/months', { params: { mru: mruToFetch } })
+    if (viewerMode && selectedMru) {
+      api.get('/admin/assignments/months', { params: { mru: selectedMru } })
         .then(monthsData => {
           setAvailableMonths(monthsData);
-          if (monthsData.length > 0 && !selectedYear && !imageYear) {
-            const yr = monthsData[0].year.toString();
-            const mo = monthsData[0].month.toString();
-            setSelectedYear(yr);
-            setSelectedMonth(mo);
-            setImageYear(yr);
-            setImageMonth(mo);
+          if (monthsData.length > 0) {
+            setSelectedYear(monthsData[0].year.toString());
+            setSelectedMonth(monthsData[0].month.toString());
           }
         })
-        .catch(err => console.error('Failed to load months:', err));
+        .catch(err => console.error('Failed to load months for selected MRU:', err));
     }
-  }, [viewerMode, selectedMru, imageMru, mrus]);
+  }, [viewerMode, selectedMru]);
+
+  useEffect(() => {
+    if (viewerMode) {
+      api.get('/admin/assignments/months', { params: { mru: imageMru || 'all' } })
+        .then(monthsData => {
+          if (monthsData.length > 0) {
+            setImageYear(monthsData[0].year.toString());
+            setImageMonth(monthsData[0].month.toString());
+          }
+        })
+        .catch(err => console.error('Failed to load image months:', err));
+    }
+  }, [viewerMode, imageMru]);
 
   const handleExport = async () => {
     if (!selectedMru || !selectedYear || !selectedMonth) {

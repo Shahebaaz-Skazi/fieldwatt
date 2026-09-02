@@ -51,6 +51,9 @@ const Reports = () => {
     }
   };
 
+  // Dedicated months for Meter Image Downloader
+  const [imageMonths, setImageMonths] = useState([]);
+
   const fetchMonthsForMru = async (mru) => {
     if (!mru) return;
     try {
@@ -68,8 +71,22 @@ const Reports = () => {
     }
   };
 
+  const fetchImageMonths = async (mru) => {
+    try {
+      const monthsData = await api.get('/admin/assignments/months', { params: { mru: mru || 'all' } });
+      setImageMonths(monthsData);
+      if (monthsData.length > 0) {
+        setImageYear(monthsData[0].year.toString());
+        setImageMonth(monthsData[0].month.toString());
+      }
+    } catch (err) {
+      console.error('Failed to load image months:', err);
+    }
+  };
+
   useEffect(() => {
     fetchReportsData();
+    fetchImageMonths('all');
   }, []);
 
   useEffect(() => {
@@ -79,11 +96,8 @@ const Reports = () => {
   }, [selectedMru]);
 
   useEffect(() => {
-    if (availableMonths.length > 0) {
-      if (!imageYear) setImageYear(availableMonths[0].year.toString());
-      if (!imageMonth) setImageMonth(availableMonths[0].month.toString());
-    }
-  }, [availableMonths]);
+    fetchImageMonths(imageMru);
+  }, [imageMru]);
 
   // Anime.js entrance animations
   useEffect(() => {
@@ -423,7 +437,7 @@ const Reports = () => {
                 style={{ fontSize: '13px', cursor: 'pointer' }}
               >
                 <option value="">-- Select Year --</option>
-                {Array.from(new Set(availableMonths.map(m => m.year))).map(y => (
+                {Array.from(new Set(imageMonths.map(m => m.year))).map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -438,7 +452,7 @@ const Reports = () => {
                 style={{ fontSize: '13px', cursor: 'pointer' }}
               >
                 <option value="">-- Select Month --</option>
-                {availableMonths
+                {imageMonths
                   .filter(m => m.year.toString() === imageYear)
                   .map(m => {
                     const date = new Date(2000, m.month - 1);
