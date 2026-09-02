@@ -414,12 +414,16 @@ router.get('/months', authMiddleware, requireViewer, async (req, res, next) => {
   }
 });
 
-// GET /admin/assignments/cycles - Get list of billing cycles
+// GET /admin/assignments/cycles - Get list of billing cycles that have actual imported data
 router.get('/cycles', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const result = await db.query(
-      "SELECT id, label, is_active FROM cycles ORDER BY start_date DESC"
-    );
+    const result = await db.query(`
+      SELECT id, label, is_active FROM cycles
+      WHERE EXISTS (
+        SELECT 1 FROM imports i WHERE i.billing_month = cycles.label
+      )
+      ORDER BY start_date DESC
+    `);
     res.json(result.rows);
   } catch (error) {
     next(error);
