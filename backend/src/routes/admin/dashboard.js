@@ -194,6 +194,9 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
   }
 });
 
+// In-memory cache for campaign-progress (30s TTL per cycle+area)
+const campaignCacheMap = new Map();
+
 // GET /admin/dashboard/campaign-progress?area_id= - WhatsApp campaign funnel for an area
 router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res, next) => {
   try {
@@ -201,6 +204,10 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
     if (!cycleId) return res.json({ dispatched: 0, readings_submitted: 0, total: 0 });
 
     const areaId = req.query.area_id || null;
+    const cacheKey = `${cycleId}_${areaId || 'all'}`;
+    const now = Date.now();
+    const cached = campaignCacheMap.get(cacheKey);
+    if (cached && now < cached.expiry) return res.json(cached.data);
 
     // Run queries in parallel
     const [totalRes, dispatchedRes, readingsRes] = await Promise.all([
@@ -240,12 +247,14 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
     const dispatched = Number(dispatchedRes.rows[0]?.count || 0);
     const readings_submitted = Number(readingsRes.rows[0]?.count || 0);
 
-    res.json({
+    const responseData = {
       total,
       dispatched,
       readings_submitted,
       pending: total - readings_submitted,
-    });
+    };
+    campaignCacheMap.set(cacheKey, { data: responseData, expiry: now + 30000 });
+    res.json(responseData);
   } catch (error) {
     next(error);
   }
