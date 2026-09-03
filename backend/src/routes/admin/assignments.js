@@ -528,6 +528,11 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       return res.json({ properties: [], cycleId: null });
     }
 
+    // Cache key includes ALL filter params — different filter combinations = different cache entries
+    const cacheKey = `sp_${mru}_${year}_${month}_${status||''}_${societies||''}_${agent_filter_id||''}_${(q||'').toLowerCase().trim()}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     // Resolve target cycle ID from any import in this period
     const cycleRes = await db.query(
       `SELECT c.id as cycle_id
@@ -620,10 +625,12 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
     queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`;
     
     const result = await db.query(queryText, params);
-    res.json({
+    const responseData = {
       properties: result.rows,
       cycleId: targetCycleId
-    });
+    };
+    cache.set(cacheKey, responseData, 120000); // 2 min TTL — short because assignment changes should be visible quickly
+    res.json(responseData);
   } catch (error) {
     next(error);
   }
