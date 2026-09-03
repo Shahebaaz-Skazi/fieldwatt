@@ -8,16 +8,41 @@ const { requireAgent } = require('../../middleware/roleGuard');
 router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
   try {
     const agentId = req.user.id;
+    const safeAgentId = agentId.replace(/'/g, "''");
 
-    // Get active cycle
-    const cycleResult = await db.query('SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1');
-    if (cycleResult.rows.length === 0) {
+    // Smart active cycle resolution:
+    // 1. For field agents: prefer active cycle where this agent HAS assignments
+    // 2. Fallback to latest active cycle
+    let cycleId = null;
+
+    if (req.user.role !== 'admin') {
+      const agentCycleRes = await db.query(
+        `SELECT asg.cycle_id 
+         FROM assignments asg 
+         INNER JOIN cycles c ON asg.cycle_id = c.id 
+         WHERE asg.agent_id = '${safeAgentId}' AND c.is_active = true 
+         ORDER BY c.start_date DESC LIMIT 1`
+      );
+      if (agentCycleRes.rows.length > 0) {
+        cycleId = agentCycleRes.rows[0].cycle_id;
+      }
+    }
+
+    if (!cycleId) {
+      const defaultCycleRes = await db.query(
+        'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1'
+      );
+      if (defaultCycleRes.rows.length > 0) {
+        cycleId = defaultCycleRes.rows[0].id;
+      }
+    }
+
+    if (!cycleId) {
       return res.json([]); // Return empty list if no active billing cycle
     }
-    const cycleId = cycleResult.rows[0].id;
 
+    const safeCycleId = cycleId.replace(/'/g, "''");
     let queryText = '';
-    let params = [];
 
     if (req.user.role === 'admin') {
       // Admins see all properties and assignments (capped at 5000 for performance stability)
@@ -35,7 +60,6 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           p.society,
           p.sub_society,
           p.wing_code as building_code,
-          p.raw_sap_data->>'BP No.' as bp_no,
           ar.name as area_name,
           r.id as reading_id,
           r.reading_value,
@@ -45,12 +69,11 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           r.submitted_at as reading_submitted_at
         FROM properties p
         LEFT JOIN areas ar ON ar.id = p.area_id
-        LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
+        LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = '${safeCycleId}'
         LEFT JOIN readings r ON r.assignment_id = asg.id
         ORDER BY p.serial_no ASC
         LIMIT 5000
       `;
-      params = [cycleId];
     } else {
       // Standard agents see only their own assignments
       queryText = `
@@ -67,7 +90,6 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           p.society,
           p.sub_society,
           p.wing_code as building_code,
-          p.raw_sap_data->>'BP No.' as bp_no,
           ar.name as area_name,
           r.id as reading_id,
           r.reading_value,
@@ -79,22 +101,23 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
         INNER JOIN properties p ON asg.property_id = p.id
         LEFT JOIN areas ar ON ar.id = p.area_id
         LEFT JOIN readings r ON r.assignment_id = asg.id
-        WHERE asg.agent_id = $1 AND asg.cycle_id = $2
+        WHERE asg.agent_id = '${safeAgentId}' AND asg.cycle_id = '${safeCycleId}'
         ORDER BY p.serial_no ASC
       `;
-      params = [agentId, cycleId];
     }
 
-    const result = await db.query(queryText, params);
+    const result = await db.query(queryText);
     
     if (req.user.role !== 'admin') {
       // Track attendance check-in for the day (agents only)
-      await db.query(`
-        INSERT INTO attendance (agent_id, date, login_time, last_active)
-        VALUES ($1, CURRENT_DATE, NOW(), NOW())
-        ON CONFLICT (agent_id, date)
-        DO UPDATE SET last_active = NOW()
-      `, [agentId]);
+      try {
+        await db.query(`
+          INSERT INTO attendance (agent_id, date, login_time, last_active)
+          VALUES ('${safeAgentId}', CURRENT_DATE, NOW(), NOW())
+          ON CONFLICT (agent_id, date)
+          DO UPDATE SET last_active = NOW()
+        `);
+      } catch (_) {}
     }
 
     res.json(result.rows);
