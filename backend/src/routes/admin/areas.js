@@ -4,10 +4,14 @@ const { z } = require('zod');
 const db = require('../../db');
 const authMiddleware = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleGuard');
+const cache = require('../../utils/cache');
 
 // GET /admin/areas/files - Level 1: Get file codes summary
 router.get('/files', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
+    const cached = cache.get('areas_files');
+    if (cached) return res.json(cached);
+
     const result = await db.query(`
       SELECT 
         file_code,
@@ -18,6 +22,7 @@ router.get('/files', authMiddleware, requireAdmin, async (req, res, next) => {
       GROUP BY file_code
       ORDER BY file_code ASC
     `);
+    cache.set('areas_files', result.rows, 600000); // 10 min TTL
     res.json(result.rows);
   } catch (err) {
     next(err);
@@ -82,6 +87,11 @@ router.get('/imports/:importId/areas', authMiddleware, requireAdmin, async (req,
 router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { importId, areaId } = req.params;
+
+    const cacheKey = `seats_import_${importId}_${areaId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     // Single query: resolve cycle via CTE, eliminating 2 sequential round-trips
     const result = await db.query(`
       WITH cyc AS (
@@ -120,10 +130,12 @@ router.get('/imports/:importId/areas/:areaId/seats', authMiddleware, requireAdmi
       LIMIT 5000
     `, [importId, areaId]);
 
-    res.json({
+    const responseData = {
       properties: result.rows,
       cycleId: result.rows[0]?.cycle_id || null
-    });
+    };
+    cache.set(cacheKey, responseData, 300000); // 5 min TTL
+    res.json(responseData);
   } catch (err) {
     next(err);
   }
@@ -165,6 +177,9 @@ router.get('/:id/societies', authMiddleware, requireAdmin, async (req, res, next
 // GET /admin/areas - List all areas with total properties and by property type
 router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
+    const cached = cache.get('areas_list');
+    if (cached) return res.json(cached);
+
     const queryText = `
       SELECT 
         a.id, 
@@ -180,6 +195,7 @@ router.get('/', authMiddleware, requireAdmin, async (req, res, next) => {
       ORDER BY a.name ASC
     `;
     const result = await db.query(queryText);
+    cache.set('areas_list', result.rows, 600000); // 10 min TTL
     res.json(result.rows);
   } catch (error) {
     next(error);
@@ -364,6 +380,10 @@ router.get('/:id/seats', authMiddleware, requireAdmin, async (req, res, next) =>
     );
     const cycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].id : null;
 
+    const cacheKey = `seats_area_${areaId}_${cycleId || 'null'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const result = await db.query(`
       SELECT
         p.id,
@@ -393,6 +413,7 @@ router.get('/:id/seats', authMiddleware, requireAdmin, async (req, res, next) =>
       LIMIT 5000
     `, [areaId, cycleId]);
 
+    cache.set(cacheKey, result.rows, 300000); // 5 min TTL
     res.json(result.rows);
   } catch (error) {
     next(error);

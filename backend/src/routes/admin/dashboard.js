@@ -102,6 +102,10 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
       return res.status(400).json({ error: 'No active cycle found or specified.' });
     }
 
+    const cacheKey = `agent_readings_${agentId}_${cycleId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const queryText = `
       SELECT 
         r.id as reading_id,
@@ -135,6 +139,7 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
       ORDER BY r.submitted_at DESC
     `;
     const result = await db.query(queryText, [agentId, cycleId]);
+    cache.set(cacheKey, result.rows, 300000); // 5 min TTL
     res.json(result.rows);
   } catch (error) {
     next(error);
@@ -260,6 +265,10 @@ router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) =>
       return res.json([]);
     }
 
+    const cacheKey = `anomalies_${cycleId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const queryText = `
       SELECT 
         r.id as reading_id,
@@ -287,6 +296,7 @@ router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) =>
       ORDER BY r.submitted_at DESC
     `;
     const result = await db.query(queryText, [cycleId]);
+    cache.set(cacheKey, result.rows, 120000); // 2 min TTL
     res.json(result.rows);
   } catch (error) {
     next(error);

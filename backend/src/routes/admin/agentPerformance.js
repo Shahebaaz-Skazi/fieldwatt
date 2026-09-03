@@ -180,6 +180,10 @@ router.get('/:agentId/calendar', authMiddleware, requirePerformanceViewer, async
       monthVal = now.getMonth() + 1;
     }
 
+    const cacheKey = `agent_cal_${agentId}_${yearVal}_${monthVal}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const queryText = `
       SELECT 
         TO_CHAR(timezone('Asia/Kolkata', r.submitted_at), 'YYYY-MM-DD') as date,
@@ -206,12 +210,14 @@ router.get('/:agentId/calendar', authMiddleware, requirePerformanceViewer, async
       };
     });
 
-    res.json({
+    const responseData = {
       agent_id: agentId,
       year: yearVal,
       month: monthVal,
       stats: dailyStats
-    });
+    };
+    cache.set(cacheKey, responseData, 300000); // 5 min TTL
+    res.json(responseData);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
