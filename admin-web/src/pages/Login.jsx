@@ -137,7 +137,7 @@ const Login = () => {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="form-group">
             <label className="form-label" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Administrator Email
+              Username or Email
             </label>
             <div style={{ position: 'relative', marginTop: '6px' }}>
               <Mail size={16} style={{
@@ -148,11 +148,11 @@ const Login = () => {
                 color: 'var(--muted)'
               }} />
               <input
-                type="email"
+                type="text"
                 required
                 autoFocus
                 className="form-input"
-                placeholder="admin@fieldwatt.com"
+                placeholder="Username or email address..."
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 style={{
