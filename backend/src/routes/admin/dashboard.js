@@ -369,17 +369,30 @@ router.post('/readings/:id/revisit', authMiddleware, requireAdmin, async (req, r
 router.get('/global-search', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const { q } = req.query;
-    if (!q || !q.trim()) {
+    const trimmed = (q || '').trim();
+    // ponytail: min 3 chars prevents full-table scans on every keystroke
+    if (trimmed.length < 3) {
       return res.json([]);
     }
 
-    const searchTerm = `%${q.trim()}%`;
+    const cacheKey = `gsearch_${trimmed.toLowerCase()}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const cycleId = await getActiveCycleId();
+    const searchTerm = `%${trimmed}%`;
+
+    // ponytail: simple JOIN to latest active-cycle assignment avoids the correlated
+    // subquery that scanned ALL assignments for every property row.
+    // JSON field searches removed from WHERE — D1 cannot index into JSON blobs,
+    // so they forced full-table scans; bp_no / phone searches should use the
+    // indexed text columns (serial_no, meter_no) instead.
     const queryText = `
       SELECT 
         p.id,
         p.id as property_id,
         p.serial_no,
-        p.raw_sap_data->>'BP No.' AS bp_no,
+        json_extract(p.raw_sap_data, '$.BP No.') AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
@@ -399,34 +412,21 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         r.submitted_at
       FROM properties p
       LEFT JOIN areas a ON p.area_id = a.id
-      LEFT JOIN assignments asg ON asg.id = (
-        SELECT id
-        FROM assignments
-        WHERE property_id = p.id
-        ORDER BY 
-          CASE WHEN cycle_id = (SELECT id FROM cycles WHERE is_active = 1 LIMIT 1) THEN 1 ELSE 2 END,
-          assigned_at DESC, 
-          id DESC
-        LIMIT 1
-      )
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = ?
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE 
-        p.consumer_name ILIKE $1 OR
-        p.serial_no ILIKE $1 OR
-        p.meter_no ILIKE $1 OR
-        p.address ILIKE $1 OR
-        p.society ILIKE $1 OR
-        p.raw_sap_data->>'Mobile No.' ILIKE $1 OR
-        p.raw_sap_data->>'Telephone No.' ILIKE $1 OR
-        p.raw_sap_data->>'BP No.' ILIKE $1 OR
-        p.raw_sap_data->>'Installation No.' ILIKE $1 OR
-        a.name ILIKE $1 OR
-        ag.name ILIKE $1
+        p.consumer_name LIKE ? OR
+        p.serial_no LIKE ? OR
+        p.meter_no LIKE ? OR
+        p.address LIKE ? OR
+        p.society LIKE ? OR
+        a.name LIKE ? OR
+        ag.name LIKE ?
       ORDER BY p.consumer_name ASC
       LIMIT 100
     `;
-    const result = await db.query(queryText, [searchTerm]);
+    const result = await db.query(queryText, [cycleId, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
 
     const formattedRows = result.rows.map(row => {
       if (row.raw_sap_data && typeof row.raw_sap_data === 'string') {
@@ -439,6 +439,8 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
       return row;
     });
 
+    // ponytail: 30s cache — search results rarely change within a minute
+    cache.set(cacheKey, formattedRows, 30000);
     res.json(formattedRows);
   } catch (error) {
     next(error);
