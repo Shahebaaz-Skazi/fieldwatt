@@ -174,7 +174,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
            sub_society = excluded.sub_society,
            building_code = excluded.building_code,
            bp_no = excluded.bp_no,
-           reading_status = CASE WHEN ? = 1 AND properties.assignment_id = excluded.assignment_id THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
+           reading_status = COALESCE(excluded.reading_status, properties.reading_status)`,
         [
           prop.property_id,
           prop.assignment_id,
@@ -190,8 +190,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
           prop.sub_society || null,
           prop.building_code || null,
           prop.bp_no || null,
-          prop.reading_status || null,
-          preserveStatus ? 1 : 0
+          prop.reading_status || null
         ]
       );
     }
@@ -241,7 +240,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
                sub_society = excluded.sub_society,
                building_code = excluded.building_code,
                bp_no = excluded.bp_no,
-               reading_status = CASE WHEN ? = 1 AND properties.assignment_id = excluded.assignment_id THEN COALESCE(properties.reading_status, excluded.reading_status) ELSE excluded.reading_status END`,
+               reading_status = COALESCE(excluded.reading_status, properties.reading_status)`,
             [
               prop.property_id,
               prop.assignment_id,
@@ -257,8 +256,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
               prop.sub_society || null,
               prop.building_code || null,
               prop.bp_no || null,
-              prop.reading_status || null,
-              preserveStatus ? 1 : 0
+              prop.reading_status || null
             ]
           );
         }

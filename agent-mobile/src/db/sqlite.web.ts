@@ -27,7 +27,7 @@ export const saveProperties = async (properties: any[]) => {
     const matched = existing.find((item: any) => (item.property_id || item.id) === pId);
     return {
       ...p,
-      reading_status: matched ? matched.reading_status : null
+      reading_status: p.reading_status || (matched ? matched.reading_status : null)
     };
   });
   
