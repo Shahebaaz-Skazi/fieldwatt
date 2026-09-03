@@ -227,7 +227,7 @@ router.get('/admin/contractors', authMiddleware, requireAdmin, async (req, res, 
 });
 
 // POST /auth/admin/create-contractor — create Agent Performance Contractor account
-router.post('/auth/admin/create-contractor', authMiddleware, requireAdmin, async (req, res, next) => {
+router.post('/admin/create-contractor', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { username, password, agent_ids } = req.body;
     if (!username || !password) {
