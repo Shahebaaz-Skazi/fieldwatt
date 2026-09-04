@@ -690,12 +690,18 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
         p.society,
         p.sub_society,
         p.wing_code,
+        p.phone_number,
         p.raw_sap_data,
         a.name as area_name,
+        a.city as city,
+        ag.name as agent_name,
         latest_r.submitted_at,
         latest_r.reading_value,
         latest_r.status_code,
         latest_r.note,
+        latest_r.photo_url,
+        latest_r.gps_lat,
+        latest_r.gps_lng,
         CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
         CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
         CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
@@ -703,6 +709,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings latest_r ON latest_r.id = (
         SELECT id
         FROM readings
@@ -724,7 +731,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
     const result = await db.query(queryText, params);
     console.log(`[export] rows returned: ${result.rows.length}, with readings: ${result.rows.filter(r => r.submitted_at).length}`);
 
-    // Exact 30 SAP columns in order
+    // Standard 30 SAP columns in order
     const sapHeaders = [
       'MR ORDER ID',
       'MRU NAME',
@@ -758,8 +765,35 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       'Mobile No.'
     ];
 
+    const appHeaders = [
+      'Agent Name',
+      'Meter Photo URL',
+      'Latitude',
+      'Longitude'
+    ];
+
+    // Collect any extra custom columns present in raw_sap_data across rows
+    const extraSapKeys = new Set();
+
     const exportRows = result.rows.map(r => {
-      const sap = r.raw_sap_data || {};
+      let sap = {};
+      if (r.raw_sap_data) {
+        if (typeof r.raw_sap_data === 'string') {
+          try {
+            sap = JSON.parse(r.raw_sap_data);
+          } catch (e) {
+            sap = {};
+          }
+        } else if (typeof r.raw_sap_data === 'object') {
+          sap = r.raw_sap_data;
+        }
+      }
+
+      Object.keys(sap).forEach(k => {
+        if (!sapHeaders.includes(k) && !appHeaders.includes(k)) {
+          extraSapKeys.add(k);
+        }
+      });
 
       let readingDate = '';
       if (r.submitted_at) {
@@ -770,11 +804,9 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
         readingDate = `${day}.${monthStr}.${yearStr}`;
       }
 
-      // MR Note: use the agent's sub-remark note directly.
-      // It already contains the exact remark selected (e.g. "Actual Meter Reading", "Address Not Found").
+      // MR Note: use sub-remark or mapped status_code
       let computedMrNote = '';
       if (r.note && r.note.trim()) {
-        // Extract sub-remark (before the | separator if optional note was added)
         const subRemark = r.note.trim().split(' | ')[0];
         if (subRemark.toLowerCase() === 'door locked') {
           computedMrNote = 'DOOR LOCK';
@@ -785,21 +817,45 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
         computedMrNote = 'ACTUAL METER READING';
       } else if (r.status_code === 'door_locked') {
         computedMrNote = 'DOOR LOCK';
+      } else if (r.status_code === 'not_reachable') {
+        computedMrNote = 'NOT REACHABLE';
+      } else if (r.status_code === 'access_denied') {
+        computedMrNote = 'ACCESS DENIED';
+      } else if (r.status_code === 'meter_not_found') {
+        computedMrNote = 'METER NOT FOUND';
+      } else if (r.status_code === 'meter_damaged') {
+        computedMrNote = 'METER DAMAGED';
+      } else if (r.status_code === 'vacant_property') {
+        computedMrNote = 'VACANT PROPERTY';
+      } else if (r.status_code === 'revisit_needed') {
+        computedMrNote = 'REVISIT NEEDED';
       }
 
       const rowObj = {};
-      sapHeaders.forEach(h => {
+      
+      // 1. Fill all raw SAP keys
+      Object.keys(sap).forEach(h => {
         rowObj[h] = sap[h] !== undefined && sap[h] !== null ? sap[h] : '';
       });
 
-      // Override / map structured values cleanly
-      rowObj['MR ORDER ID'] = r.serial_no || rowObj['MR ORDER ID'];
-      rowObj['MRU NAME'] = (mru !== 'all' ? mru : (r.area_name || rowObj['MRU NAME']));
-      rowObj['BPNAME'] = r.consumer_name || rowObj['BPNAME'];
-      rowObj['Device Serial No.'] = r.meter_no || rowObj['Device Serial No.'];
-      rowObj['Building (Number or Code)'] = r.wing_code || rowObj['Building (Number or Code)'];
-      rowObj['Street 3'] = r.sub_society || rowObj['Street 3'];
-      rowObj['Street'] = r.society || rowObj['Street'];
+      // 2. Map & override standard 30 SAP columns
+      sapHeaders.forEach(h => {
+        if (rowObj[h] === undefined || rowObj[h] === null) {
+          rowObj[h] = '';
+        }
+      });
+
+      rowObj['MR ORDER ID'] = r.serial_no || sap['MR ORDER ID'] || rowObj['MR ORDER ID'] || '';
+      rowObj['MRU NAME'] = (mru !== 'all' ? mru : (r.area_name || sap['MRU NAME'] || rowObj['MRU NAME'] || ''));
+      rowObj['BP No.'] = sap['BP No.'] !== undefined && sap['BP No.'] !== null ? sap['BP No.'] : (rowObj['BP No.'] || '');
+      rowObj['Installation No.'] = sap['Installation No.'] !== undefined && sap['Installation No.'] !== null ? sap['Installation No.'] : (rowObj['Installation No.'] || '');
+      rowObj['BPNAME'] = r.consumer_name || sap['BPNAME'] || rowObj['BPNAME'] || '';
+      rowObj['Device Serial No.'] = r.meter_no || sap['Device Serial No.'] || rowObj['Device Serial No.'] || '';
+      rowObj['Building (Number or Code)'] = r.wing_code || sap['Building (Number or Code)'] || rowObj['Building (Number or Code)'] || '';
+      rowObj['Street 3'] = r.sub_society || sap['Street 3'] || rowObj['Street 3'] || '';
+      rowObj['Street'] = r.society || sap['Street'] || rowObj['Street'] || '';
+      rowObj['city'] = r.city || sap['city'] || rowObj['city'] || '';
+      rowObj['Mobile No.'] = sap['Mobile No.'] || sap['Mobile'] || r.phone_number || rowObj['Mobile No.'] || '';
 
       // Filled reading values
       rowObj['Current meter reading date'] = readingDate;
@@ -809,11 +865,19 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       rowObj['MR Note'] = computedMrNote;
       rowObj['Comment'] = r.note || '';
 
+      // App specific extra fields
+      rowObj['Agent Name'] = r.agent_name || '';
+      rowObj['Meter Photo URL'] = r.photo_url || '';
+      rowObj['Latitude'] = r.gps_lat ? String(r.gps_lat) : '';
+      rowObj['Longitude'] = r.gps_lng ? String(r.gps_lng) : '';
+
       return rowObj;
     });
 
+    const finalHeaderOrder = [...sapHeaders, ...Array.from(extraSapKeys), ...appHeaders];
+
     const XLSX = require('xlsx');
-    const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: sapHeaders });
+    const worksheet = XLSX.utils.json_to_sheet(exportRows, { header: finalHeaderOrder });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
 
