@@ -51,9 +51,15 @@ router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
     const { name, phone, email, username, password } = createAgentSchema.parse(req.body);
     
     // Ensure agent username is unique
-    const duplicate = await db.query('SELECT id FROM agents WHERE UPPER(username) = $1', [username.toUpperCase().trim()]);
-    if (duplicate.rows.length > 0) {
+    const dupUser = await db.query('SELECT id FROM agents WHERE UPPER(username) = $1', [username.toUpperCase().trim()]);
+    if (dupUser.rows.length > 0) {
       return res.status(400).json({ error: 'An agent with this username already exists.' });
+    }
+
+    // Ensure agent phone is unique
+    const dupPhone = await db.query('SELECT id FROM agents WHERE phone = $1', [phone.trim()]);
+    if (dupPhone.rows.length > 0) {
+      return res.status(400).json({ error: 'An agent with this phone number already exists.' });
     }
 
     // Hash password
@@ -64,7 +70,7 @@ router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
       `INSERT INTO agents (name, phone, email, username, password_hash) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING id, name, phone, email, username, is_active, created_at`,
-      [name, phone, email || null, username.toLowerCase().trim(), passwordHash]
+      [name, phone.trim(), email || null, username.toLowerCase().trim(), passwordHash]
     );
     
     res.status(201).json(result.rows[0]);
