@@ -178,7 +178,14 @@ const Agents = () => {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/admin/agents', formData);
+      const payload = {
+        name: formData.name.trim(),
+        username: formData.username.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim() || undefined,
+        password: formData.password
+      };
+      await api.post('/admin/agents', payload);
       setShowAddModal(false);
       setFormData({ name: '', phone: '', email: '', username: '', password: '' });
       fetchAgents();
@@ -192,10 +199,10 @@ const Agents = () => {
     setError('');
     try {
       await api.patch(`/admin/agents/${editingAgent.id}`, {
-        name: editingAgent.name,
-        phone: editingAgent.phone,
-        email: editingAgent.email,
-        username: editingAgent.username,
+        name: editingAgent.name?.trim(),
+        phone: editingAgent.phone?.trim(),
+        email: editingAgent.email?.trim() || null,
+        username: editingAgent.username?.trim().toLowerCase(),
         is_active: editingAgent.is_active,
       });
       setShowEditModal(false);

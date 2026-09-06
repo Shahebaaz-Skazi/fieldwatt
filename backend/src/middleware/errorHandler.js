@@ -4,8 +4,9 @@ module.exports = (err, req, res, next) => {
   console.error('Unhandled Error:', err);
 
   if (err instanceof ZodError) {
+    const detailsList = err.errors.map(e => `${e.path.join('.') || 'field'}: ${e.message}`);
     return res.status(400).json({
-      error: 'Validation failed',
+      error: `Validation failed: ${detailsList.join(', ')}`,
       details: err.errors.map(e => ({
         path: e.path.join('.'),
         message: e.message

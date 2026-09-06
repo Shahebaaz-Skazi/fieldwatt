@@ -7,18 +7,18 @@ const authMiddleware = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/roleGuard');
 
 const createAgentSchema = z.object({
-  name: z.string().min(2),
-  phone: z.string().min(5),
-  email: z.string().email().optional().nullable(),
-  username: z.string().min(3),
-  password: z.string().min(6),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  phone: z.string().min(5, 'Phone number must be at least 5 digits'),
+  email: z.preprocess((val) => (val === '' || val === undefined ? null : val), z.string().email('Invalid email address').optional().nullable()),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  password: z.string().min(4, 'Password must be at least 4 characters'),
 });
 
 const updateAgentSchema = z.object({
-  name: z.string().min(2).optional(),
-  phone: z.string().min(5).optional(),
-  email: z.string().email().optional().nullable(),
-  username: z.string().min(3).optional(),
+  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+  phone: z.string().min(5, 'Phone number must be at least 5 digits').optional(),
+  email: z.preprocess((val) => (val === '' || val === undefined ? null : val), z.string().email('Invalid email address').optional().nullable()),
+  username: z.string().min(3, 'Username must be at least 3 characters').optional(),
   is_active: z.boolean().optional(),
 });
 
