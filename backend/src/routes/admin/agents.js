@@ -50,8 +50,8 @@ router.post('/', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { name, phone, email, username, password } = createAgentSchema.parse(req.body);
     
-    // Ensure agent username is unique
-    const dupUser = await db.query('SELECT id FROM agents WHERE UPPER(username) = $1', [username.toUpperCase().trim()]);
+    // Ensure agent username is unique (case-insensitive)
+    const dupUser = await db.query('SELECT id FROM agents WHERE LOWER(username) = LOWER($1)', [username.trim()]);
     if (dupUser.rows.length > 0) {
       return res.status(400).json({ error: 'An agent with this username already exists.' });
     }

@@ -14,9 +14,16 @@ module.exports = (err, req, res, next) => {
     });
   }
 
-  // Handle postgres unique constraint errors
-  if (err.code === '23505') {
-    return res.status(400).json({ error: 'Duplicate key value violates unique constraint.' });
+  // Handle unique constraint errors (Postgres & SQLite/D1)
+  if (err.code === '23505' || (err.message && err.message.includes('UNIQUE constraint failed'))) {
+    const msg = err.message || '';
+    if (msg.includes('agents.username')) {
+      return res.status(400).json({ error: 'An agent with this username already exists.' });
+    }
+    if (msg.includes('agents.phone')) {
+      return res.status(400).json({ error: 'An agent with this phone number already exists.' });
+    }
+    return res.status(400).json({ error: 'A record with this username, phone number, or email already exists.' });
   }
 
   const statusCode = err.status || 500;
