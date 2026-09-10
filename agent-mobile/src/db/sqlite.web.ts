@@ -56,6 +56,7 @@ export const getCachedProperties = async () => {
       sub_society: p.sub_society || null,
       building_code: p.building_code || null,
       bp_no: p.bp_no || null,
+      phone_number: p.phone_number || null,
       reading_value: q ? q.reading_value : null,
       reading_status: q ? q.status_code : p.reading_status || null,
       photo_url: q ? q.photo_url : null,

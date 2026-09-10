@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image, SafeAreaView, Platform, Dimensions, useWindowDimensions, Linking } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { getPropertyById, queueReading, updatePropertyStatus } from '../../db/sqlite';
 import { syncOfflineReadings } from '../../services/syncService';
@@ -599,6 +599,17 @@ export default function PropertyDetailScreen() {
           <Text style={styles.address}>{property.address}</Text>
           <Text style={styles.detailText}>Meter number: <Text style={{ color: '#111827', fontWeight: '600' }}>{property.meter_no || 'N/A'}</Text></Text>
           <Text style={styles.detailText}>Type: <Text style={{ color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{(property.property_type || '').replace('_', ' ')}</Text></Text>
+          {property.phone_number ? (
+            <TouchableOpacity 
+              onPress={() => Linking.openURL(`tel:${property.phone_number}`)}
+              style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: '#eff6ff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignSelf: 'flex-start' }}
+            >
+              <Text style={{ fontSize: 14, marginRight: 6 }}>📞</Text>
+              <Text style={{ color: '#1d4ed8', fontWeight: '600', fontSize: 14 }}>
+                Call: {property.phone_number}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Previous Reading History */}

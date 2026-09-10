@@ -26,8 +26,10 @@ export const initDb = async () => {
       sub_society TEXT,
       building_code TEXT,
       bp_no TEXT,
+      phone_number TEXT,
       reading_status TEXT
     );
+    try { await db.execAsync('ALTER TABLE properties ADD COLUMN phone_number TEXT;'); } catch (_) {}
 
     CREATE TABLE IF NOT EXISTS readings_queue (
       id TEXT PRIMARY KEY,
@@ -158,8 +160,8 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
     for (const prop of properties) {
       await database.runAsync(
         `INSERT INTO properties 
-         (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, reading_status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, phone_number, reading_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            assignment_id = excluded.assignment_id,
            serial_no = excluded.serial_no,
@@ -174,6 +176,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
            sub_society = excluded.sub_society,
            building_code = excluded.building_code,
            bp_no = excluded.bp_no,
+           phone_number = excluded.phone_number,
            reading_status = COALESCE(excluded.reading_status, properties.reading_status)`,
         [
           prop.property_id,
@@ -190,6 +193,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
           prop.sub_society || null,
           prop.building_code || null,
           prop.bp_no || null,
+          prop.phone_number || null,
           prop.reading_status || null
         ]
       );
@@ -217,6 +221,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
             sub_society TEXT,
             building_code TEXT,
             bp_no TEXT,
+            phone_number TEXT,
             reading_status TEXT
           )
         `);
@@ -224,8 +229,8 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
         for (const prop of properties) {
           await database2.runAsync(
             `INSERT INTO properties 
-             (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, reading_status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             (id, assignment_id, serial_no, consumer_name, address, meter_no, property_type, lat, lng, area_name, society, sub_society, building_code, bp_no, phone_number, reading_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET
                assignment_id = excluded.assignment_id,
                serial_no = excluded.serial_no,
@@ -240,6 +245,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
                sub_society = excluded.sub_society,
                building_code = excluded.building_code,
                bp_no = excluded.bp_no,
+               phone_number = excluded.phone_number,
                reading_status = COALESCE(excluded.reading_status, properties.reading_status)`,
             [
               prop.property_id,
@@ -256,6 +262,7 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
               prop.sub_society || null,
               prop.building_code || null,
               prop.bp_no || null,
+              prop.phone_number || null,
               prop.reading_status || null
             ]
           );
