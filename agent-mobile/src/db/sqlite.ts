@@ -29,7 +29,6 @@ export const initDb = async () => {
       phone_number TEXT,
       reading_status TEXT
     );
-    try { await db.execAsync('ALTER TABLE properties ADD COLUMN phone_number TEXT;'); } catch (_) {}
 
     CREATE TABLE IF NOT EXISTS readings_queue (
       id TEXT PRIMARY KEY,
@@ -85,6 +84,12 @@ export const initDb = async () => {
 
   try {
     await db.execAsync('ALTER TABLE properties ADD COLUMN reading_status TEXT;');
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  try {
+    await db.execAsync('ALTER TABLE properties ADD COLUMN phone_number TEXT;');
   } catch (err) {
     // Column already exists, safe to ignore
   }
