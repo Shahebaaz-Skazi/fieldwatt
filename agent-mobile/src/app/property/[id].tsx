@@ -123,12 +123,9 @@ export default function PropertyDetailScreen() {
 
   const fetchPropertyData = async () => {
     try {
-      // Only hit SQLite database if memory store was empty or mismatched
-      if (!property) {
-        const prop = await getPropertyById(id as string);
-        if (prop) {
-          setProperty(prop);
-        }
+      const prop = await getPropertyById(id as string);
+      if (prop) {
+        setProperty((prev: any) => ({ ...(prev || {}), ...prop }));
       }
       
       // Fetch reading history for property (last 3 months)
