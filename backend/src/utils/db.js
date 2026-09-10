@@ -43,7 +43,7 @@ function convertPg(sql) {
   // 0. Convert PostgreSQL JSON extract operator ->>'field' to SQLite json_extract()
   //    Handles both `col->>'key'` and `col ->> 'key'` forms (with spaces)
   //    Quotes key as '$."key"' so keys containing dots (e.g. 'BP No.') extract correctly in SQLite
-  s = s.replace(/(\b\w+(?:\.\w+)?)\s*->>\s*'([^']+)'/g, 'json_extract($1, \'$.\ "$2"\')'.replace(' ', ''));
+  s = s.replace(/(\b\w+(?:\.\w+)?)\s*->>\s*'([^']+)'/g, (match, p1, p2) => `json_extract(${p1}, '$."${p2}"')`);
 
   // 1. Remove all PostgreSQL type casts (e.g. ::int, ::text, ::jsonb, ::uuid[], etc.)
   s = s.replace(/::[a-zA-Z_0-9]+(?:\[\])?/gi, '');
