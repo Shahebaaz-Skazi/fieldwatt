@@ -402,7 +402,7 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         p.id,
         p.id as property_id,
         p.serial_no,
-        json_extract(p.raw_sap_data, '$.BP No.') AS bp_no,
+        json_extract(p.raw_sap_data, '$."BP No."') AS bp_no,
         p.consumer_name,
         p.address,
         p.meter_no,
