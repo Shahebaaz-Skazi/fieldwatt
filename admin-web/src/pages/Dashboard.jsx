@@ -918,7 +918,7 @@ const Dashboard = ({ viewerMode = false }) => {
             </div>
           </div>
 
-          {/* WhatsApp Self-Reading Campaign Progress — KOT009_E */}
+          {/* WhatsApp Self-Reading Campaign Progress */}
           {!viewerMode && (
             <div style={{
               background: 'var(--surface)',
@@ -930,7 +930,7 @@ const Dashboard = ({ viewerMode = false }) => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '700', color: 'var(--text)' }}>
-                    📱 KOT009_E — Self-Reading Campaign
+                    📱 Global WhatsApp Self-Reading
                   </h3>
                   <p style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>WhatsApp links dispatched → customer submissions received</p>
                 </div>

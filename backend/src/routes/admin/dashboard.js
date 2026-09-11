@@ -220,7 +220,12 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
             [areaId]
           )
         : db.query(
-            `SELECT COUNT(DISTINCT property_id) as count FROM whatsapp_logs WHERE status IN ('sent','delivered','read')`
+            `SELECT COUNT(DISTINCT property_id) as count FROM (
+               SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')
+               UNION
+               SELECT asg.property_id FROM readings r INNER JOIN assignments asg ON r.assignment_id = asg.id WHERE asg.cycle_id = $1 AND r.note ILIKE '%whatsapp%'
+             ) as w`,
+            [cycleId]
           ),
       areaId
         ? db.query(
@@ -228,14 +233,16 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              INNER JOIN properties p ON asg.property_id = p.id
-             WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'`,
+             WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'
+             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
             [areaId, cycleId]
           )
         : db.query(
             `SELECT COUNT(r.id) as count
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
-             WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'`,
+             WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'
+             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
             [cycleId]
           )
     ]);
