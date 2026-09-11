@@ -110,9 +110,7 @@ const Login = () => {
             }}>
               Field<span style={{ color: '#6b7280' }}>Watt</span>
             </h2>
-            <p style={{ color: 'var(--muted)', fontSize: '13px', fontWeight: '500' }}>
-              Electricity Operations Management
-            </p>
+
           </div>
         </div>
 
@@ -221,25 +219,6 @@ const Login = () => {
             {loading ? 'Initializing Console...' : 'Log In to Console'}
           </button>
         </form>
-
-        {/* Demo Credentials Box */}
-        <div style={{
-          backgroundColor: '#f9fafb',
-          border: '1px solid #e5e7eb',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          fontSize: '12px',
-          color: 'var(--muted)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px'
-        }}>
-          <span style={{ color: '#111827', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <CheckCircle2 size={12} /> Live Demo Login Details:
-          </span>
-          <p>Email: <strong style={{ color: '#111827' }}>admin@fieldwatt.com</strong></p>
-          <p>Password: <strong style={{ color: '#111827' }}>password123</strong></p>
-        </div>
       </div>
     </div>
   );
