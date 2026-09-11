@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Ultra-fast Kothrud meter images importer using Pillow & ThreadPoolExecutor.
 Can run locally or in GitHub Actions.
@@ -277,9 +277,11 @@ def process_single_row(row_tuple):
     return {'status': 'done', 'bp': stripped_bp, 'consumer': prop.get('consumer_name'), 'photo_url': photo_url}
 
 def main():
-    excel_file = sys.argv[1] if len(sys.argv) > 1 else 'f:/fieldwatt/meter_images/kothrud images.xlsx'
+    excel_file = sys.argv[1] if (len(sys.argv) > 1 and sys.argv[1].strip()) else 'meter_images/kothrud images.xlsx'
     if not os.path.exists(excel_file):
         excel_file = 'meter_images/kothrud images.xlsx'
+    if not os.path.exists(excel_file):
+        excel_file = 'f:/fieldwatt/meter_images/kothrud images.xlsx'
 
     print(f"Loading Excel file: {excel_file} ...")
     wb = openpyxl.load_workbook(excel_file, read_only=True)

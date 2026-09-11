@@ -42,5 +42,9 @@ jobs:
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
         run: |
-          EXCEL_FILE="${{ github.event.inputs.excel_file || 'meter_images/kothrud images.xlsx' }}"
+          EXCEL_FILE="${{ github.event.inputs.excel_file }}"
+          if [ -z "$EXCEL_FILE" ]; then
+            EXCEL_FILE="meter_images/kothrud images.xlsx"
+          fi
+          echo "Processing file: $EXCEL_FILE"
           python backend/scripts/fast_import_kothrud.py "$EXCEL_FILE"
