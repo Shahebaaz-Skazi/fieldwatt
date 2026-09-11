@@ -468,7 +468,7 @@ const Areas = () => {
                 </div>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)', marginBottom: '2px' }}>
-                    PMC {file.file_code}
+                    {file.file_code}
                   </h3>
                   <p style={{ color: 'var(--muted)', fontSize: '12px' }}>
                     Zone Area Division Code
@@ -496,7 +496,7 @@ const Areas = () => {
             <ArrowLeft size={16} /> Back
           </button>
           <div>
-            <h1 className="page-title">PMC {selectedFileCode} Monthly Runs</h1>
+            <h1 className="page-title">{selectedFileCode} Monthly Runs</h1>
             <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Select month card to view divisions</p>
           </div>
         </div>
@@ -551,7 +551,7 @@ const Areas = () => {
             <ArrowLeft size={16} /> Back
           </button>
           <div>
-            <h1 className="page-title">PMC {selectedFileCode} · {selectedImport?.billing_month} Areas</h1>
+            <h1 className="page-title">{selectedFileCode} — {selectedImport?.billing_month} Areas</h1>
             <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Select an area card to view meter network and assign tasks</p>
           </div>
         </div>
@@ -633,7 +633,7 @@ const Areas = () => {
               <MapPin size={22} style={{ color: 'var(--accent2)' }} /> {selectedArea?.name}
             </h1>
             <p style={{ color: 'var(--muted)', fontSize: '13px' }}>
-              PMC {selectedFileCode} · {selectedImport?.billing_month} Run
+              {selectedFileCode} — {selectedImport?.billing_month} Run
             </p>
           </div>
         </div>
