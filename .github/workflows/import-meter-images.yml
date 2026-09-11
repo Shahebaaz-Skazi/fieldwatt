@@ -35,10 +35,11 @@ jobs:
 
       - name: Run Ultra-Fast Import
         run: |
-          set -e
-          EXCEL_FILE="${{ github.event.inputs.excel_file }}"
-          if [ -z "$EXCEL_FILE" ]; then
-            EXCEL_FILE="meter_images/kothrud images.xlsx"
-          fi
-          echo "Processing file: $EXCEL_FILE"
-          python -u backend/scripts/fast_import_kothrud.py "$EXCEL_FILE"
+          python -u backend/scripts/fast_import_kothrud.py "meter_images/kothrud images.xlsx" 2>&1 | tee import.log
+
+      - name: Upload Import Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-logs
+          path: import.log

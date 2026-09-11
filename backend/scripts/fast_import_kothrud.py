@@ -89,14 +89,18 @@ AGENTS = [
     {'id': 'b4d7a69f-a698-4b6c-8b67-92d71a47054a', 'name': 'shahebaaz kazi'}
 ]
 
-# R2 client
+# R2 client with path-style addressing (required for Cloudflare R2 SSL wildcard cert)
 s3_client = boto3.client(
     's3',
     endpoint_url=R2_ENDPOINT,
     aws_access_key_id=R2_KEY,
     aws_secret_access_key=R2_SECRET,
     region_name='auto',
-    config=Config(retries={'max_attempts': 3, 'mode': 'standard'})
+    config=Config(
+        s3={'addressing_style': 'path'},
+        signature_version='s3v4',
+        retries={'max_attempts': 3, 'mode': 'standard'}
+    )
 )
 
 session = requests.Session()
