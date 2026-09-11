@@ -253,7 +253,7 @@ const Dashboard = ({ viewerMode = false }) => {
       const cycleParam = cid ? `?cycle_id=${cid}` : '';
       const [response, progress] = await Promise.all([
         api.get(`/admin/dashboard${cycleParam}`),
-        api.get(`/admin/dashboard/campaign-progress${cycleParam}&area_id=2d39305e-d9f5-4a65-bb61-9d8b7d92f17a`),
+        api.get(`/admin/dashboard/campaign-progress${cycleParam}`),
       ]);
       setData(response);
       setCampaign(progress);
