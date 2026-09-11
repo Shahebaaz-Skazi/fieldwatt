@@ -1,4 +1,4 @@
-﻿name: Fast Import Meter Images
+name: Fast Import Meter Images
 
 on:
   workflow_dispatch:
@@ -35,6 +35,7 @@ jobs:
 
       - name: Run Ultra-Fast Import
         run: |
+          set -euo pipefail
           python -u backend/scripts/fast_import_kothrud.py "meter_images/kothrud images.xlsx" 2>&1 | tee import.log
 
       - name: Upload Import Log
