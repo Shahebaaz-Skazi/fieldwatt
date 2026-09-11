@@ -378,25 +378,22 @@ router.post('/readings/:id/revisit', authMiddleware, requireAdmin, async (req, r
 // GET /admin/dashboard/global-search - Global property search across multiple fields
 router.get('/global-search', authMiddleware, requireViewer, async (req, res, next) => {
   try {
-    const { q } = req.query;
+    const { q, cycle_id } = req.query;
     const trimmed = (q || '').trim();
     // ponytail: min 3 chars prevents full-table scans on every keystroke
     if (trimmed.length < 3) {
       return res.json([]);
     }
 
-    const cacheKey = `gsearch_${trimmed.toLowerCase()}`;
+    const cycleId = cycle_id || await getActiveCycleId();
+    const cacheKey = `gsearch_${trimmed.toLowerCase()}_${cycleId || 'default'}`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const cycleId = await getActiveCycleId();
     const searchTerm = `%${trimmed}%`;
 
     // ponytail: simple JOIN to latest active-cycle assignment avoids the correlated
     // subquery that scanned ALL assignments for every property row.
-    // JSON field searches removed from WHERE — D1 cannot index into JSON blobs,
-    // so they forced full-table scans; bp_no / phone searches should use the
-    // indexed text columns (serial_no, meter_no) instead.
     const queryText = `
       SELECT 
         p.id,
@@ -432,11 +429,12 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         p.address LIKE ? OR
         p.society LIKE ? OR
         a.name LIKE ? OR
-        ag.name LIKE ?
+        ag.name LIKE ? OR
+        json_extract(p.raw_sap_data, '$."BP No."') LIKE ?
       ORDER BY p.consumer_name ASC
       LIMIT 100
     `;
-    const result = await db.query(queryText, [cycleId, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+    const result = await db.query(queryText, [cycleId, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
 
     const formattedRows = result.rows.map(row => {
       if (row.raw_sap_data && typeof row.raw_sap_data === 'string') {

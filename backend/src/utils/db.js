@@ -4,6 +4,8 @@
  * D1 uses positional ? placeholders instead of $1/$2; this wrapper converts them.
  */
 require('dotenv').config();
+const dns = require('dns');
+try { dns.setDefaultResultOrder('ipv4first'); } catch (_) {}
 
 // Strip wrapping quotes from env var values (defends against copy-paste artifacts in dashboards)
 const cleanEnvVal = (val) => (val || '').trim().replace(/^["']|["']$/g, '');
@@ -105,17 +107,39 @@ async function query(sql, params = []) {
   // Translate placeholders and duplicate reused parameters for positional SQLite binding
   const translated = translateParams(sql, params ?? []);
 
+  const axios = require('axios');
+  const https = require('https');
+  const httpsAgent = new https.Agent({ family: 4, keepAlive: true });
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`;
-  const response = await fetch(endpoint, {
-    method:  'POST',
-    headers: { 'Authorization': 'Bearer ' + apiToken, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ sql: convertPg(translated.sql), params: translated.params }),
-  });
+  
+  let json;
+  let attempts = 0;
+  while (attempts < 3) {
+    attempts++;
+    try {
+      const res = await axios.post(
+        endpoint,
+        { sql: convertPg(translated.sql), params: translated.params },
+        {
+          headers: { 'Authorization': 'Bearer ' + apiToken, 'Content-Type': 'application/json' },
+          httpsAgent,
+          timeout: 20000
+        }
+      );
+      json = res.data;
+      break;
+    } catch (err) {
+      if (err.response && err.response.data) {
+        json = err.response.data;
+        break;
+      }
+      if (attempts >= 3) throw err;
+      await new Promise(r => setTimeout(r, 500 * attempts));
+    }
+  }
 
-  const json = await response.json();
-
-  if (!response.ok || !json.success) {
-    const errors = (json.errors || []).map(e => e.message).join(', ') || response.statusText;
+  if (!json || !json.success) {
+    const errors = (json?.errors || []).map(e => e.message).join(', ') || 'Unknown D1 error';
     console.error('[D1] query failed — endpoint:', endpoint);
     console.error('[D1] accountId:', accountId, '| databaseId:', databaseId);
     console.error('[D1] response body:', JSON.stringify(json));

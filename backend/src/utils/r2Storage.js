@@ -24,6 +24,12 @@ const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const BUCKET_NAME       = process.env.R2_BUCKET_NAME || 'fieldwatt-meter-photos';
 const PUBLIC_BASE_URL   = (process.env.R2_PUBLIC_BASE_URL || 'https://pub-3de6f3ace1d04d558c47c0e7df5f333d.r2.dev').replace(/\/$/, '');
 
+const https = require('https');
+const { NodeHttpHandler } = require('@smithy/node-http-handler');
+try { require('dns').setDefaultResultOrder('ipv4first'); } catch (_) {}
+
+const r2HttpsAgent = new https.Agent({ family: 4, keepAlive: true });
+
 const client = new S3Client({
   region: 'auto',
   endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -31,6 +37,8 @@ const client = new S3Client({
     accessKeyId:     ACCESS_KEY_ID,
     secretAccessKey: SECRET_ACCESS_KEY,
   },
+  // ponytail: force IPv4 DNS on Windows to avoid EAI_AGAIN for *.r2.cloudflarestorage.com
+  requestHandler: new NodeHttpHandler({ httpsAgent: r2HttpsAgent }),
 });
 
 /**

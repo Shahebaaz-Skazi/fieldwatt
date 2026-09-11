@@ -371,7 +371,7 @@ const Dashboard = ({ viewerMode = false }) => {
     setSuccess('');
     try {
       const results = await api.get('/admin/dashboard/global-search', {
-        params: { q: globalQuery.trim() }
+        params: { q: globalQuery.trim(), cycle_id: selectedCycleId }
       });
       setGlobalResults(results);
       setSearchActive(true);
