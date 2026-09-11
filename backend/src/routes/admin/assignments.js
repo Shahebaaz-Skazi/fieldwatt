@@ -383,28 +383,34 @@ router.get('/mrus', authMiddleware, requireViewer, async (req, res, next) => {
 
     if (year && month) {
       queryText = `
-        SELECT DISTINCT a.name
-        FROM areas a
-        INNER JOIN properties p ON p.area_id = a.id
-        INNER JOIN imports i ON p.import_id = i.id
-        WHERE EXTRACT(YEAR FROM i.scheduled_date)::int = $1
-          AND EXTRACT(MONTH FROM i.scheduled_date)::int = $2
-        ORDER BY a.name ASC
+        SELECT name FROM (
+          SELECT DISTINCT a.name FROM areas a
+          INNER JOIN properties p ON p.area_id = a.id
+          INNER JOIN imports i ON p.import_id = i.id
+          WHERE EXTRACT(YEAR FROM i.scheduled_date)::int = $1 AND EXTRACT(MONTH FROM i.scheduled_date)::int = $2
+          UNION
+          SELECT DISTINCT i.file_code as name FROM imports i
+          WHERE EXTRACT(YEAR FROM i.scheduled_date)::int = $1 AND EXTRACT(MONTH FROM i.scheduled_date)::int = $2
+        ) as combined ORDER BY name ASC
       `;
       params = [parseInt(year), parseInt(month)];
     } else if (cycle_id) {
       queryText = `
-        SELECT DISTINCT a.name
-        FROM areas a
-        INNER JOIN properties p ON p.area_id = a.id
-        INNER JOIN imports i ON p.import_id = i.id
-        INNER JOIN cycles c ON c.label = i.billing_month
-        WHERE c.id = $1
-        ORDER BY a.name ASC
+        SELECT name FROM (
+          SELECT DISTINCT a.name FROM areas a
+          INNER JOIN properties p ON p.area_id = a.id
+          INNER JOIN imports i ON p.import_id = i.id
+          INNER JOIN cycles c ON c.label = i.billing_month
+          WHERE c.id = $1
+          UNION
+          SELECT DISTINCT i.file_code as name FROM imports i
+          INNER JOIN cycles c ON c.label = i.billing_month
+          WHERE c.id = $1
+        ) as combined ORDER BY name ASC
       `;
       params = [cycle_id];
     } else {
-      queryText = "SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' ORDER BY name ASC";
+      queryText = "SELECT name FROM (SELECT DISTINCT name FROM areas WHERE name IS NOT NULL AND name <> '' UNION SELECT DISTINCT file_code as name FROM imports WHERE file_code IS NOT NULL) as combined ORDER BY name ASC";
     }
 
     const result = await db.query(queryText, params);
@@ -432,7 +438,7 @@ router.get('/months', authMiddleware, requireViewer, async (req, res, next) => {
     `;
     let params = [];
     if (mru !== 'all') {
-      queryText += ' WHERE a.name = $1';
+      queryText += ' WHERE (a.name = $1 OR i.file_code = $1)';
       params = [mru];
     }
     queryText += ' ORDER BY year DESC, month DESC';
@@ -580,7 +586,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
     let paramCount = 4;
 
     if (mru !== 'all') {
-      queryText += ` AND a.name = $${paramCount}`;
+      queryText += ` AND (a.name = $${paramCount} OR i.file_code = $${paramCount})`;
       params.push(mru);
       paramCount++;
     }
@@ -723,7 +729,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
     const params = [parseInt(year), parseInt(month), targetCycleId];
 
     if (mru !== 'all') {
-      queryText += ' AND a.name = $4';
+      queryText += ' AND (a.name = $4 OR i.file_code = $4)';
       params.push(mru);
     }
 
@@ -884,7 +890,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="FieldWatt_${mru}_${month}_${year}_Export.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${mru}_export.xlsx"`);
     res.send(buffer);
   } catch (error) {
     next(error);
