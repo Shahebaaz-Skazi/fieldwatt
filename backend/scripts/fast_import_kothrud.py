@@ -103,19 +103,18 @@ s3_client = boto3.client(
     )
 )
 
-session = requests.Session()
-session.headers.update({
-    'Authorization': f'Bearer {CF_TOKEN}',
-    'Content-Type': 'application/json'
-})
-
 def query_d1(sql, params=None, max_retries=3):
     if params is None:
         params = []
     url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/d1/database/{CF_DB_ID}/query"
     for attempt in range(max_retries):
         try:
-            r = session.post(url, json={'sql': sql, 'params': params}, timeout=15)
+            r = requests.post(
+                url,
+                headers={'Authorization': f'Bearer {CF_TOKEN}', 'Content-Type': 'application/json'},
+                json={'sql': sql, 'params': params},
+                timeout=20
+            )
             data = r.json()
             if not data.get('success'):
                 raise Exception(f"D1 error: {data.get('errors')}")
@@ -193,92 +192,95 @@ def process_single_row(row_tuple):
     idx, r_dict, prop_cache, asg_cache, read_cache = row_tuple
     raw_bp = str(r_dict.get('bp_number', '')).strip()
     stripped_bp = raw_bp.lstrip('0')
-    reading_val = str(r_dict.get('meter_reading', '')).strip()
-    img_url = r_dict.get('meter_image')
-    created_on = r_dict.get('created_on')
+    try:
+        reading_val = str(r_dict.get('meter_reading', '')).strip()
+        img_url = r_dict.get('meter_image')
+        created_on = r_dict.get('created_on')
 
-    agent = AGENTS[idx % len(AGENTS)]
-    offsets = [0, 0, 0, -2, -2, 2]
-    day_offset = offsets[idx % len(offsets)]
-    hour = 9 + ((idx * 3) % 9)
-    min_val = (idx * 17) % 60
-    db_time, display_time = format_date(created_on, day_offset, hour, min_val)
+        agent = AGENTS[idx % len(AGENTS)]
+        offsets = [0, 0, 0, -2, -2, 2]
+        day_offset = offsets[idx % len(offsets)]
+        hour = 9 + ((idx * 3) % 9)
+        min_val = (idx * 17) % 60
+        db_time, display_time = format_date(created_on, day_offset, hour, min_val)
 
-    # 1. Lookup property
-    prop = prop_cache.get(stripped_bp)
-    if not prop:
-        return {'status': 'failed', 'bp': stripped_bp, 'reason': 'BP not found in properties'}
+        # 1. Lookup property
+        prop = prop_cache.get(stripped_bp)
+        if not prop:
+            return {'status': 'failed', 'bp': stripped_bp, 'reason': 'BP not found in properties'}
 
-    prop_id = prop['id']
-    meter_no = prop.get('meter_no') or 'N/A'
+        prop_id = prop['id']
+        meter_no = prop.get('meter_no') or 'N/A'
 
-    # 2. Lookup assignment
-    asg = asg_cache.get(prop_id)
-    if asg:
-        asg_id = asg['id']
-    else:
-        asg_id = f"asg_koth_{prop_id[:8]}_{int(time.time()*1000)}"
-        query_d1(
-            "INSERT INTO assignments (id, agent_id, property_id, cycle_id, is_completed, created_at) VALUES (?, ?, ?, ?, 0, datetime('now'))",
-            [asg_id, agent['id'], prop_id, CYCLE_ID]
-        )
-        asg_cache[prop_id] = {'id': asg_id}
+        # 2. Lookup assignment
+        asg = asg_cache.get(prop_id)
+        if asg:
+            asg_id = asg['id']
+        else:
+            asg_id = f"asg_koth_{prop_id[:8]}_{int(time.time()*1000)}"
+            query_d1(
+                "INSERT INTO assignments (id, agent_id, property_id, cycle_id, is_completed, created_at) VALUES (?, ?, ?, ?, 0, datetime('now'))",
+                [asg_id, agent['id'], prop_id, CYCLE_ID]
+            )
+            asg_cache[prop_id] = {'id': asg_id}
 
-    # 3. Check existing reading
-    existing_reading = read_cache.get(asg_id)
-    if existing_reading and existing_reading.get('status_code') == 'reading_taken':
-        return {'status': 'skipped', 'bp': stripped_bp, 'reason': 'already reading_taken'}
+        # 3. Check existing reading
+        existing_reading = read_cache.get(asg_id)
+        if existing_reading and existing_reading.get('status_code') == 'reading_taken':
+            return {'status': 'skipped', 'bp': stripped_bp, 'reason': 'already reading_taken'}
 
-    # 4. Download S3 image with retries
-    dl_resp = None
-    for attempt in range(4):
+        # 4. Download S3 image with retries
+        dl_resp = None
+        for attempt in range(4):
+            try:
+                dl_resp = requests.get(img_url, timeout=30)
+                if dl_resp.status_code == 200:
+                    break
+            except Exception:
+                time.sleep(1)
+        if not dl_resp or dl_resp.status_code != 200:
+            return {'status': 'failed', 'bp': stripped_bp, 'reason': 'Failed to download image from S3'}
+
+        # 5. Apply watermark
         try:
-            dl_resp = requests.get(img_url, timeout=30)
-            if dl_resp.status_code == 200:
-                break
-        except Exception:
-            time.sleep(1)
-    if not dl_resp or dl_resp.status_code != 200:
-        return {'status': 'failed', 'bp': stripped_bp, 'reason': 'Failed to download image from S3'}
+            watermarked_bytes = apply_pillow_watermark(dl_resp.content, agent['name'], display_time, meter_no, stripped_bp)
+        except Exception as e:
+            return {'status': 'failed', 'bp': stripped_bp, 'reason': f'Watermark error: {str(e)}'}
 
-    # 5. Apply watermark
-    try:
-        watermarked_bytes = apply_pillow_watermark(dl_resp.content, agent['name'], display_time, meter_no, stripped_bp)
+        # 6. Upload to R2
+        r2_key = f"meter_photos/kothrud_{stripped_bp}_{int(time.time()*1000)}.jpg"
+        try:
+            s3_client.put_object(
+                Bucket=R2_BUCKET,
+                Key=r2_key,
+                Body=watermarked_bytes,
+                ContentType='image/jpeg'
+            )
+        except Exception as e:
+            return {'status': 'failed', 'bp': stripped_bp, 'reason': f'R2 upload error: {str(e)}'}
+
+        photo_url = f"{R2_PUBLIC_BASE}/{r2_key}"
+
+        # 7. Update reading in D1
+        idemp_key = f"idemp_{asg_id}_{int(time.time()*1000)}"
+        if existing_reading:
+            query_d1(
+                "UPDATE readings SET reading_value = ?, status_code = 'reading_taken', photo_url = ?, submitted_at = ?, note = 'Kothrud import: replaced door_locked' WHERE assignment_id = ?",
+                [reading_val, photo_url, db_time, asg_id]
+            )
+        else:
+            rd_id = f"rd_{asg_id}"
+            query_d1(
+                "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'Kothrud meter image import', ?, datetime('now'))",
+                [rd_id, asg_id, idemp_key, reading_val, photo_url, db_time]
+            )
+
+        # 8. Complete assignment and ensure correct agent_id
+        query_d1("UPDATE assignments SET agent_id = ?, is_completed = 1 WHERE id = ?", [agent['id'], asg_id])
+
+        return {'status': 'done', 'bp': stripped_bp, 'consumer': prop.get('consumer_name'), 'photo_url': photo_url}
     except Exception as e:
-        return {'status': 'failed', 'bp': stripped_bp, 'reason': f'Watermark error: {str(e)}'}
-
-    # 6. Upload to R2
-    r2_key = f"meter_photos/kothrud_{stripped_bp}_{int(time.time()*1000)}.jpg"
-    try:
-        s3_client.put_object(
-            Bucket=R2_BUCKET,
-            Key=r2_key,
-            Body=watermarked_bytes,
-            ContentType='image/jpeg'
-        )
-    except Exception as e:
-        return {'status': 'failed', 'bp': stripped_bp, 'reason': f'R2 upload error: {str(e)}'}
-
-    photo_url = f"{R2_PUBLIC_BASE}/{r2_key}"
-
-    # 7. Update reading in D1
-    idemp_key = f"idemp_{asg_id}_{int(time.time()*1000)}"
-    if existing_reading:
-        query_d1(
-            "UPDATE readings SET reading_value = ?, status_code = 'reading_taken', photo_url = ?, submitted_at = ?, note = 'Kothrud import: replaced door_locked' WHERE assignment_id = ?",
-            [reading_val, photo_url, db_time, asg_id]
-        )
-    else:
-        rd_id = f"rd_{asg_id}"
-        query_d1(
-            "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'Kothrud meter image import', ?, datetime('now'))",
-            [rd_id, asg_id, idemp_key, reading_val, photo_url, db_time]
-        )
-
-    # 8. Complete assignment and ensure correct agent_id
-    query_d1("UPDATE assignments SET agent_id = ?, is_completed = 1 WHERE id = ?", [agent['id'], asg_id])
-
-    return {'status': 'done', 'bp': stripped_bp, 'consumer': prop.get('consumer_name'), 'photo_url': photo_url}
+        return {'status': 'failed', 'bp': stripped_bp, 'reason': str(e)}
 
 def main():
     excel_file = sys.argv[1] if (len(sys.argv) > 1 and sys.argv[1].strip()) else 'meter_images/kothrud images.xlsx'
@@ -324,12 +326,16 @@ def main():
     errors = []
 
     work_items = [(i, rows[i], prop_cache, asg_cache, read_cache) for i in range(len(rows))]
-    workers = 16 if sys.platform != 'win32' else 8
+    workers = 10
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_item = {executor.submit(process_single_row, item): item for item in work_items}
         for future in as_completed(future_to_item):
-            res = future.result()
+            try:
+                res = future.result()
+            except Exception as e:
+                res = {'status': 'failed', 'bp': 'error', 'reason': str(e)}
+
             st = res.get('status')
             if st == 'done':
                 stats['done'] += 1
