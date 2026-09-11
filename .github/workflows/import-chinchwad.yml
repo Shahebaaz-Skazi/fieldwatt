@@ -1,0 +1,46 @@
+name: Fast Import Chinchwad Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      excel_file:
+        description: 'Excel file path in repository'
+        required: true
+        default: 'meter_images/Chinchwad images.xlsx'
+  push:
+    paths:
+      - 'meter_images/Chinchwad images.xlsx'
+      - '.github/workflows/import-chinchwad.yml'
+      - 'backend/scripts/fast_import_chinchwad.py'
+
+jobs:
+  import-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install System Fonts & Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install pillow requests openpyxl boto3 python-dotenv
+
+      - name: Run Ultra-Fast Import
+        run: |
+          set -euo pipefail
+          python -u backend/scripts/fast_import_chinchwad.py "meter_images/Chinchwad images.xlsx" 2>&1 | tee import.log
+
+      - name: Upload Import Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-logs
+          path: import.log
