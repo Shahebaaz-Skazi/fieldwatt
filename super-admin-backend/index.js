@@ -30,11 +30,9 @@ app.get("/api/vendors", async (req, res) => {
   try {
     const vendors = await queryD1(MASTER_DB_ID, "SELECT * FROM vendors");
     
-    // Fetch stats for each vendor
     const vendorsWithStats = await Promise.all(
       vendors.map(async (v) => {
         let stats = { properties: 0, agents: 0, readings: 0 };
-        
         try {
           const statsRes = await queryD1(
             v.db_id,
@@ -43,10 +41,7 @@ app.get("/api/vendors", async (req, res) => {
           if (statsRes && statsRes[0]) {
             stats = statsRes[0];
           }
-        } catch (e) {
-          // ignore stat fetch error for a single vendor if it is down
-        }
-        
+        } catch (e) {}
         return { ...v, stats };
       })
     );
@@ -54,6 +49,52 @@ app.get("/api/vendors", async (req, res) => {
     res.json(vendorsWithStats);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch vendors" });
+  }
+});
+
+// Get Billing Settings
+app.get("/api/vendors/:id/billing", async (req, res) => {
+  try {
+    const vendors = await queryD1(MASTER_DB_ID, "SELECT * FROM vendors WHERE id = ?", [req.params.id]);
+    if (!vendors || vendors.length === 0) return res.status(404).json({ error: "Vendor not found" });
+    
+    const settings = await queryD1(vendors[0].db_id, "SELECT * FROM settings");
+    const config = {
+      paywall_enabled: false,
+      paywall_rate: 0,
+      payment_qr: ""
+    };
+    
+    if (settings) {
+      settings.forEach(s => {
+        if (s.key === "PAYWALL_ENABLED") config.paywall_enabled = s.value === "true";
+        if (s.key === "PAYWALL_RATE") config.paywall_rate = parseFloat(s.value);
+        if (s.key === "PAYMENT_QR") config.payment_qr = s.value;
+      });
+    }
+    
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch billing" });
+  }
+});
+
+// Update Billing Settings
+app.post("/api/vendors/:id/billing", async (req, res) => {
+  try {
+    const vendors = await queryD1(MASTER_DB_ID, "SELECT * FROM vendors WHERE id = ?", [req.params.id]);
+    if (!vendors || vendors.length === 0) return res.status(404).json({ error: "Vendor not found" });
+    
+    const { paywall_enabled, paywall_rate, payment_qr } = req.body;
+    const dbId = vendors[0].db_id;
+    
+    await queryD1(dbId, "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ["PAYWALL_ENABLED", paywall_enabled ? "true" : "false"]);
+    await queryD1(dbId, "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ["PAYWALL_RATE", paywall_rate.toString()]);
+    await queryD1(dbId, "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ["PAYMENT_QR", payment_qr || ""]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update billing" });
   }
 });
 
