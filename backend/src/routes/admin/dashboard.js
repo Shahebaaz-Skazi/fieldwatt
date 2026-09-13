@@ -78,7 +78,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     
     // Add data coverage stats
     const totalGlobalRes = await db.query('SELECT COUNT(*) as count FROM properties');
-    const completedGlobalRes = await db.query("SELECT COUNT(*) as count FROM readings");
+    const completedGlobalRes = await db.query("SELECT COUNT(*) as count FROM readings WHERE status_code = 'reading_taken'");
     const totalGlobal = Number(totalGlobalRes.rows[0]?.count || 0);
     const completedGlobal = Number(completedGlobalRes.rows[0]?.count || 0);
     const pendingGlobal = totalGlobal - completedGlobal;
@@ -87,11 +87,15 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     const cycleBreakdownRes = await db.query(`
       SELECT 
         c.label as cycle_name,
-        COUNT(asg.id) as total,
-        SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as completed
+        COUNT(p.id) as total,
+        (SELECT COUNT(r.id) 
+         FROM readings r 
+         INNER JOIN assignments asg ON r.assignment_id = asg.id 
+         WHERE asg.cycle_id = c.id AND r.status_code = 'reading_taken'
+        ) as completed
       FROM cycles c
-      LEFT JOIN assignments asg ON asg.cycle_id = c.id
-      LEFT JOIN readings r ON r.assignment_id = asg.id
+      LEFT JOIN imports i ON c.label = i.billing_month
+      LEFT JOIN properties p ON p.import_id = i.id
       GROUP BY c.id, c.label, c.start_date
       ORDER BY c.start_date ASC
     `);
