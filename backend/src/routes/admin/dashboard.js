@@ -74,6 +74,20 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       }
     });
 
+
+    // Add data coverage stats
+    const totalGlobalRes = await db.query('SELECT COUNT(*) as count FROM properties');
+    const completedGlobalRes = await db.query("SELECT COUNT(*) as count FROM readings");
+    const totalGlobal = Number(totalGlobalRes.rows[0]?.count || 0);
+    const completedGlobal = Number(completedGlobalRes.rows[0]?.count || 0);
+    const pendingGlobal = totalGlobal - completedGlobal;
+    
+    const totalCycleRes = await db.query('SELECT COUNT(*) as count FROM assignments WHERE cycle_id = $1', [cycleId]);
+    const completedCycleRes = await db.query("SELECT COUNT(r.id) as count FROM readings r INNER JOIN assignments a ON r.assignment_id = a.id WHERE a.cycle_id = $1", [cycleId]);
+    const totalCycle = Number(totalCycleRes.rows[0]?.count || 0);
+    const completedCycle = Number(completedCycleRes.rows[0]?.count || 0);
+    const pendingCycle = totalCycle - completedCycle;
+
     const responseData = {
       active_cycle_id: cycleId,
       agents: result.rows,
@@ -81,6 +95,10 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         total_agents: totalAgents,
         present_agents: presentAgents,
         leave_agents: leaveAgents,
+        data_stats: {
+          global: { total: totalGlobal, completed: completedGlobal, pending: pendingGlobal },
+          cycle: { total: totalCycle, completed: completedCycle, pending: pendingCycle }
+        }
       }
     };
 
