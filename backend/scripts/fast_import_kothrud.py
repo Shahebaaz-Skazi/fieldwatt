@@ -265,13 +265,13 @@ def process_single_row(row_tuple):
         idemp_key = f"idemp_{asg_id}_{int(time.time()*1000)}"
         if existing_reading:
             query_d1(
-                "UPDATE readings SET reading_value = ?, status_code = 'reading_taken', photo_url = ?, submitted_at = ?, note = 'Kothrud import: replaced door_locked' WHERE assignment_id = ?",
+                "UPDATE readings SET reading_value = ?, status_code = 'reading_taken', photo_url = ?, submitted_at = ?, note = 'whatsapp readings data' WHERE assignment_id = ?",
                 [reading_val, photo_url, db_time, asg_id]
             )
         else:
             rd_id = f"rd_{asg_id}"
             query_d1(
-                "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'Kothrud meter image import', ?, datetime('now'))",
+                "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'whatsapp readings data', ?, datetime('now'))",
                 [rd_id, asg_id, idemp_key, reading_val, photo_url, db_time]
             )
 

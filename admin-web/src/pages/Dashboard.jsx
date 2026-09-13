@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import PaywallModal from '../components/PaywallModal';
 import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search, FileDown } from 'lucide-react';
 import { applyAdminWatermark } from '../utils/watermark';
 
@@ -69,6 +70,10 @@ const Dashboard = ({ viewerMode = false }) => {
   const [imageSociety, setImageSociety] = useState('');
   const [imageQuery, setImageQuery] = useState('');
   const [downloadImagesLoading, setDownloadImagesLoading] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [feeData, setFeeData] = useState(null);
+  const [paywallPayload, setPaywallPayload] = useState({});
+  const [paywallSuccessCallback, setPaywallSuccessCallback] = useState(() => () => {});
 
   // Editable modal fields
   const [editReadingValue, setEditReadingValue] = useState('');
@@ -131,6 +136,35 @@ const Dashboard = ({ viewerMode = false }) => {
   }, [viewerMode, imageMru]);
 
   const handleExport = async () => {
+    if (!selectedMru || !selectedYear || !selectedMonth) {
+      alert('Please select MRU, Year, and Month first.');
+      return;
+    }
+    
+    setExportMruLoading(true);
+    try {
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+      const feeRes = await fetch(`${api.API_BASE_URL}/admin/assignments/calculate-fee?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const feeJson = await feeRes.json();
+      
+      if (feeJson.paywallEnabled && feeJson.totalAmount > 0) {
+        setFeeData(feeJson);
+        setPaywallPayload({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+        setPaywallSuccessCallback(() => () => executeRealExport());
+        setPaywallOpen(true);
+        setExportMruLoading(false);
+        return;
+      }
+      await executeRealExport();
+    } catch(err) {
+      alert('Failed to check export fee: ' + err.message);
+      setExportMruLoading(false);
+    }
+  };
+  
+  const executeRealExport = async () => {
+  // Paywall bypass logic wrapper applied
     if (!selectedMru || !selectedYear || !selectedMonth) {
       alert('Please select MRU, Year, and Month first.');
       return;

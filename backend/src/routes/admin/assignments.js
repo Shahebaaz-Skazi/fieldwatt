@@ -897,4 +897,179 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
   }
 });
 
+
+// PAYWALL: Calculate Fee
+router.get("/calculate-fee", authMiddleware, requireViewer, async (req, res, next) => {
+  try {
+    const { mru, year, month } = req.query;
+    if (!mru || !year || !month) return res.status(400).json({ error: "mru, year, and month are required." });
+
+    // 1. Check if paywall is enabled
+    const settingsRes = await db.query("SELECT * FROM settings");
+    let paywallEnabled = false;
+    let paywallRate = 0;
+    let paymentQr = "";
+    settingsRes.rows.forEach(r => {
+      if (r.key === "PAYWALL_ENABLED") paywallEnabled = r.value === "true";
+      if (r.key === "PAYWALL_RATE") paywallRate = parseFloat(r.value);
+      if (r.key === "PAYMENT_QR") paymentQr = r.value;
+    });
+
+    if (!paywallEnabled) return res.json({ paywallEnabled: false });
+
+    // 2. Resolve target cycle ID
+    let cycleRes = await db.query(
+      `SELECT c.id as cycle_id FROM cycles c
+       WHERE c.label = (
+         SELECT billing_month FROM imports i
+         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+         LIMIT 1
+       )`,
+      [parseInt(year), parseInt(month)]
+    );
+    if (cycleRes.rows.length === 0) {
+      cycleRes = await db.query(`SELECT id as cycle_id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1`);
+    }
+    const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : "00000000-0000-0000-0000-000000000000";
+
+    // 3. Count unpaid readings
+    let queryText = `
+      SELECT latest_r.id
+      FROM properties p
+      INNER JOIN areas a ON p.area_id = a.id
+      INNER JOIN imports i ON p.import_id = i.id
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
+      LEFT JOIN readings latest_r ON latest_r.id = (
+        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
+      )
+      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
+        AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+        AND latest_r.photo_url IS NOT NULL 
+        AND latest_r.photo_url != ''
+        AND (latest_r.is_paid = false OR latest_r.is_paid IS NULL)
+    `;
+    const params = [parseInt(year), parseInt(month), targetCycleId];
+
+    if (mru !== "all") {
+      queryText += " AND (a.name = $4 OR i.file_code = $4)";
+      params.push(mru);
+    }
+
+    const result = await db.query(queryText, params);
+    const count = result.rows.length;
+    const totalAmount = count * paywallRate;
+
+    res.json({
+      paywallEnabled: true,
+      readingsCount: count,
+      rate: paywallRate,
+      totalAmount,
+      qrUrl: paymentQr
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PAYWALL: Verify Payment
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage() });
+const { GoogleGenAI } = require("@google/genai");
+
+router.post("/verify-payment", authMiddleware, requireViewer, upload.single("receipt"), async (req, res, next) => {
+  try {
+    const { mru, year, month, totalAmount } = req.body;
+    if (!req.file) return res.status(400).json({ error: "Receipt image is required." });
+    if (!totalAmount) return res.status(400).json({ error: "Total amount is required." });
+
+    if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "Gemini API key is not configured." });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
+    // Convert buffer to base64
+    const base64Image = req.file.buffer.toString("base64");
+    
+    console.log("[paywall] Verifying payment receipt for Rs.", totalAmount);
+    const prompt = `This is a payment receipt. Does it show a successful payment of exactly ₹${totalAmount} or Rs. ${totalAmount}? Look very carefully at the amount and status. Respond with only 'YES' or 'NO'.`;
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: base64Image,
+                mimeType: req.file.mimetype
+              }
+            }
+          ]
+        }
+      ]
+    });
+    
+    const answer = response.text().trim().toUpperCase();
+    console.log("[paywall] Gemini Answer:", answer);
+    
+    if (answer.includes("YES")) {
+      // 1. Resolve target cycle ID
+      let cycleRes = await db.query(
+        `SELECT c.id as cycle_id FROM cycles c
+         WHERE c.label = (
+           SELECT billing_month FROM imports i
+           WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+           LIMIT 1
+         )`,
+        [parseInt(year), parseInt(month)]
+      );
+      if (cycleRes.rows.length === 0) {
+        cycleRes = await db.query(`SELECT id as cycle_id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1`);
+      }
+      const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : "00000000-0000-0000-0000-000000000000";
+
+      // 2. Fetch the unpaid reading IDs
+      let queryText = `
+        SELECT latest_r.id
+        FROM properties p
+        INNER JOIN areas a ON p.area_id = a.id
+        INNER JOIN imports i ON p.import_id = i.id
+        LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
+        LEFT JOIN readings latest_r ON latest_r.id = (
+          SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
+        )
+        WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
+          AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+          AND latest_r.photo_url IS NOT NULL 
+          AND latest_r.photo_url != ''
+          AND (latest_r.is_paid = false OR latest_r.is_paid IS NULL)
+      `;
+      const params = [parseInt(year), parseInt(month), targetCycleId];
+
+      if (mru !== "all") {
+        queryText += " AND (a.name = $4 OR i.file_code = $4)";
+        params.push(mru);
+      }
+
+      const result = await db.query(queryText, params);
+      const unpaidReadingIds = result.rows.map(r => r.id).filter(Boolean);
+      
+      if (unpaidReadingIds.length > 0) {
+        // SQLite limits the number of variables, so we do it in chunks if large, but we assume it's fine for now, or just do a subquery.
+        // Doing a subquery is safer.
+        const placeholders = unpaidReadingIds.map((_, i) => `${i+1}`).join(",");
+        await db.query(`UPDATE readings SET is_paid = true WHERE id IN (${placeholders})`, unpaidReadingIds);
+      }
+      
+      await db.query(`INSERT INTO export_transactions (id, amount_paid, readings_count, status) VALUES (gen_random_uuid(), $1, $2, 'approved')`, [parseFloat(totalAmount), unpaidReadingIds.length]);
+
+      return res.json({ success: true });
+    } else {
+      return res.json({ success: false, reason: "Receipt verification failed. Ensure the amount matches exactly and the receipt shows successful payment." });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
