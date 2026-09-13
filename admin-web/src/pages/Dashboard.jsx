@@ -919,26 +919,47 @@ const Dashboard = ({ viewerMode = false }) => {
         <>
           {/* Aggregate Stats Cards */}
           <div className="dashboard-grid">
-            <div className="widget-card" style={{ flex: '1.5', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="widget-title" style={{ color: 'var(--text)', fontWeight: '700', fontSize: '12px', letterSpacing: '0.5px' }}>BILLING CYCLE DATA</span>
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--muted)', fontSize: '11px'}}>Total</span> <strong style={{ fontSize: '16px' }}>{data.summary.data_stats?.cycle?.total || 0}</strong></div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent3)', fontSize: '11px'}}>Done</span> <strong style={{ fontSize: '16px', color: 'var(--accent3)' }}>{data.summary.data_stats?.cycle?.completed || 0}</strong></div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent4)', fontSize: '11px'}}>Pending</span> <strong style={{ fontSize: '16px', color: 'var(--accent4)' }}>{data.summary.data_stats?.cycle?.pending || 0}</strong></div>
-                </div>
-                
-                <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <span style={{color: 'var(--muted)', fontWeight: '600'}}>TOTAL (ALL-TIME)</span>
-                  <span style={{color: 'var(--muted)'}}>
-                    {(data.summary.data_stats?.global?.total || 0).toLocaleString()} Data | {(data.summary.data_stats?.global?.completed || 0).toLocaleString()} Done | {(data.summary.data_stats?.global?.pending || 0).toLocaleString()} Pending
-                  </span>
-                </div>
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(79, 156, 249, 0.1)', color: 'var(--accent2)' }}>
+                <Users size={20} />
               </div>
+              <span className="widget-title">Total Agents</span>
+              <span className="widget-value">{data.summary.total_agents}</span>
+            </div>
+
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--accent3)' }}>
+                <UserCheck size={20} />
+              </div>
+              <span className="widget-title">Present Today</span>
+              <span className="widget-value">{data.summary.present_agents}</span>
+            </div>
+
+            <div className="widget-card">
+              <div className="widget-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--accent4)' }}>
+                <CalendarDays size={20} />
+              </div>
+              <span className="widget-title">On Leave</span>
+              <span className="widget-value">{data.summary.leave_agents}</span>
+            </div>
+
+            <div className="widget-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)', letterSpacing: '0.5px' }}>CYCLE DATA</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--muted)', fontSize: '10px'}}>Total</span> <strong style={{ fontSize: '14px', color: 'var(--text)' }}>{data.summary.data_stats?.cycle?.total || 0}</strong></div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent3)', fontSize: '10px'}}>Done</span> <strong style={{ fontSize: '14px', color: 'var(--accent3)' }}>{data.summary.data_stats?.cycle?.completed || 0}</strong></div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent4)', fontSize: '10px'}}>Pending</span> <strong style={{ fontSize: '14px', color: 'var(--accent4)' }}>{data.summary.data_stats?.cycle?.pending || 0}</strong></div>
+              </div>
+              
+              <div style={{ height: '1px', background: 'var(--border)', margin: '2px 0' }}></div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--muted)' }}>
+                <span style={{ fontWeight: '600' }}>ALL-TIME:</span>
+                <span>{(data.summary.data_stats?.global?.total || 0)} T | {(data.summary.data_stats?.global?.completed || 0)} D | {(data.summary.data_stats?.global?.pending || 0)} P</span>
+              </div>
+            </div>
           </div>
 
           {/* WhatsApp Self-Reading Campaign Progress */}
