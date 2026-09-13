@@ -242,8 +242,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
                SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')
                UNION
                SELECT asg.property_id FROM readings r INNER JOIN assignments asg ON r.assignment_id = asg.id WHERE r.note ILIKE '%whatsapp%'
-             ) as w`,
-            [cycleId]
+             ) as w`
           ),
       areaId
         ? db.query(
@@ -252,16 +251,14 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              INNER JOIN properties p ON asg.property_id = p.id
              WHERE p.area_id = $1 AND r.status_code = 'reading_taken'
-             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
-            [areaId, cycleId]
+             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`, [areaId]
           )
         : db.query(
             `SELECT COUNT(r.id) as count
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              WHERE r.status_code = 'reading_taken'
-             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
-            [cycleId]
+             AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`, 
           )
     ]);
 
@@ -318,9 +315,9 @@ router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) =>
       INNER JOIN properties p ON asg.property_id = p.id
       INNER JOIN agents ag ON asg.agent_id = ag.id
       WHERE r.is_anomalous = true
-      ORDER BY r.submitted_at DESC
-    `;
-    const result = await db.query(queryText, [cycleId]);
+        ORDER BY r.submitted_at DESC
+      `;
+      const result = await db.query(queryText);
     cache.set(cacheKey, result.rows, 120000); // 2 min TTL
     res.json(result.rows);
   } catch (error) {
@@ -643,8 +640,8 @@ router.get('/self-readings', authMiddleware, requireViewer, async (req, res, nex
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
       WHERE r.submitted_by_type = 'customer'
-      ORDER BY r.submitted_at DESC
-    `, [cycleId]);
+        ORDER BY r.submitted_at DESC
+      `);
 
     res.json(result.rows);
   } catch (error) {
