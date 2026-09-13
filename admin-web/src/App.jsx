@@ -8,12 +8,8 @@ const Areas = lazy(() => import('./pages/Areas'));
 const Agents = lazy(() => import('./pages/Agents'));
 const Assignment = lazy(() => import('./pages/Assignment'));
 const Import = lazy(() => import('./pages/Import'));
-const MapView = lazy(() => import('./pages/Map'));
-const Alerts = lazy(() => import('./pages/Alerts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const SelfReading = lazy(() => import('./pages/SelfReading'));
-const WhatsAppPanel = lazy(() => import('./pages/WhatsAppPanel'));
-const WhatsAppDashboard = lazy(() => import('./pages/WhatsAppDashboard'));
 const AgentPerformance = lazy(() => import('./pages/AgentPerformance'));
 
 import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp, RefreshCw } from 'lucide-react';
@@ -93,18 +89,14 @@ const App = () => {
         return <Assignment key={pageKeys.assignment} />;
       case 'import':
         return <Import key={pageKeys.import} />;
-      case 'map':
-        return <MapView key={pageKeys.map} />;
-      case 'alerts':
-        return <Alerts key={pageKeys.alerts} />;
+      
+      
       case 'reports':
         return <Reports key={pageKeys.reports} />;
       case 'performance':
         return <AgentPerformance key={pageKeys.performance || 'performance'} />;
-      case 'whatsapp':
-        return <WhatsAppPanel key={pageKeys.whatsapp} />;
-      case 'whatsapp_outreach':
-        return <WhatsAppDashboard key={pageKeys.whatsapp_outreach} />;
+      
+      
       default:
         return <Dashboard key={pageKeys.dashboard} />;
     }
@@ -189,31 +181,13 @@ const App = () => {
                   </button>
                 </li>
                 <li>
-                  <button
-                    onClick={() => handleNavClick('whatsapp')}
-                    className={`nav-link ${activePage === 'whatsapp' ? 'active' : ''}`}
-                  >
-                    <MessageSquare size={18} />
-                    WhatsApp
-                  </button>
+                  
                 </li>
                 <li>
-                  <button
-                    onClick={() => handleNavClick('map')}
-                    className={`nav-link ${activePage === 'map' ? 'active' : ''}`}
-                  >
-                    <Map size={18} />
-                    MapView
-                  </button>
+                  
                 </li>
                 <li>
-                  <button
-                    onClick={() => handleNavClick('alerts')}
-                    className={`nav-link ${activePage === 'alerts' ? 'active' : ''}`}
-                  >
-                    <ShieldAlert size={18} />
-                    Anomaly Alerts
-                  </button>
+                  
                 </li>
                 <li>
                   <button
@@ -234,13 +208,7 @@ const App = () => {
                   </button>
                 </li>
                 <li>
-                  <button
-                    onClick={() => handleNavClick('whatsapp_outreach')}
-                    className={`nav-link ${activePage === 'whatsapp_outreach' ? 'active' : ''}`}
-                  >
-                    <MessageSquare size={18} />
-                    WhatsApp Outreach
-                  </button>
+                  
                 </li>
               </>
             )}
