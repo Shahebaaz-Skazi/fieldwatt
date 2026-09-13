@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import PaywallModal from '../components/PaywallModal';
-import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search, FileDown } from 'lucide-react';
+import { Users, UserCheck, CalendarDays, CheckCircle2, Clock, AlertTriangle, Eye, ShieldAlert, X, RefreshCw, ZoomIn, Search, FileDown, Database } from 'lucide-react';
 import { applyAdminWatermark } from '../utils/watermark';
 
 const Dashboard = ({ viewerMode = false }) => {
@@ -923,14 +923,36 @@ const Dashboard = ({ viewerMode = false }) => {
               <span className="widget-value">{data.summary.leave_agents}</span>
             </div>
 
-            <div className="widget-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', justifyContent: 'center' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)', letterSpacing: '0.5px' }}>GLOBAL DATA PROGRESS</span>
+            <div className="widget-card" style={{ display: 'flex', flexDirection: 'column', padding: '16px 20px', gap: '12px', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="widget-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent3)', width: '36px', height: '36px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Database size={18} />
+                </div>
+                <span className="widget-title" style={{ fontSize: '12px', fontWeight: '700', color: 'var(--muted)', margin: 0, textTransform: 'uppercase' }}>Data Progress</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '2px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--muted)', fontSize: '10px'}}>Total</span> <strong style={{ fontSize: '16px', color: 'var(--text)' }}>{data.summary.data_stats?.global?.total || 0}</strong></div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent3)', fontSize: '10px'}}>Done</span> <strong style={{ fontSize: '16px', color: 'var(--accent3)' }}>{data.summary.data_stats?.global?.completed || 0}</strong></div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent4)', fontSize: '10px'}}>Pending</span> <strong style={{ fontSize: '16px', color: 'var(--accent4)' }}>{data.summary.data_stats?.global?.pending || 0}</strong></div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                {data.summary.data_stats?.cycle_breakdown?.map(c => (
+                  <div key={c.name} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text)' }}>{c.name}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--muted)' }}>
+                      <span>Tot: <strong style={{color: 'var(--text)'}}>{c.total.toLocaleString()}</strong></span>
+                      <span>Dn: <strong style={{color: 'var(--accent3)'}}>{c.completed.toLocaleString()}</strong></span>
+                      <span>Pd: <strong style={{color: 'var(--accent4)'}}>{c.pending.toLocaleString()}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }}></div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                 <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text)' }}>TOTAL DATA</span>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--muted)' }}>
+                    <span>Tot: <strong style={{color: 'var(--text)'}}>{(data.summary.data_stats?.global?.total || 0).toLocaleString()}</strong></span>
+                    <span>Dn: <strong style={{color: 'var(--accent3)'}}>{(data.summary.data_stats?.global?.completed || 0).toLocaleString()}</strong></span>
+                    <span>Pd: <strong style={{color: 'var(--accent4)'}}>{(data.summary.data_stats?.global?.pending || 0).toLocaleString()}</strong></span>
+                 </div>
               </div>
             </div>
           </div>

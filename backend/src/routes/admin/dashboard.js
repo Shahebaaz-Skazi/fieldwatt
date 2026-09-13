@@ -75,6 +75,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     });
 
 
+    
     // Add data coverage stats
     const totalGlobalRes = await db.query('SELECT COUNT(*) as count FROM properties');
     const completedGlobalRes = await db.query("SELECT COUNT(*) as count FROM readings");
@@ -82,11 +83,25 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     const completedGlobal = Number(completedGlobalRes.rows[0]?.count || 0);
     const pendingGlobal = totalGlobal - completedGlobal;
     
-    const totalCycleRes = await db.query('SELECT COUNT(*) as count FROM assignments WHERE cycle_id = $1', [cycleId]);
-    const completedCycleRes = await db.query("SELECT COUNT(r.id) as count FROM readings r INNER JOIN assignments a ON r.assignment_id = a.id WHERE a.cycle_id = $1", [cycleId]);
-    const totalCycle = Number(totalCycleRes.rows[0]?.count || 0);
-    const completedCycle = Number(completedCycleRes.rows[0]?.count || 0);
-    const pendingCycle = totalCycle - completedCycle;
+    // Cycle breakdown
+    const cycleBreakdownRes = await db.query(`
+      SELECT 
+        c.label as cycle_name,
+        COUNT(asg.id) as total,
+        SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as completed
+      FROM cycles c
+      LEFT JOIN assignments asg ON asg.cycle_id = c.id
+      LEFT JOIN readings r ON r.assignment_id = asg.id
+      GROUP BY c.id, c.label, c.start_date
+      ORDER BY c.start_date ASC
+    `);
+    
+    const cycle_breakdown = cycleBreakdownRes.rows.map(r => ({
+       name: r.cycle_name,
+       total: Number(r.total),
+       completed: Number(r.completed),
+       pending: Number(r.total) - Number(r.completed)
+    }));
 
     const responseData = {
       active_cycle_id: cycleId,
@@ -97,12 +112,11 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         leave_agents: leaveAgents,
         data_stats: {
           global: { total: totalGlobal, completed: completedGlobal, pending: pendingGlobal },
-          cycle: { total: totalCycle, completed: completedCycle, pending: pendingCycle }
+          cycle_breakdown
         }
       }
     };
-
-    cache.set(`dashboard_${cycleId}`, responseData, 300000); // 5 minutes TTL
+cache.set(`dashboard_${cycleId}`, responseData, 300000); // 5 minutes TTL
 
     res.json(responseData);
   } catch (error) {
