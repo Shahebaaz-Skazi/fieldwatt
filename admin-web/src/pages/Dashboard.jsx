@@ -512,27 +512,7 @@ const Dashboard = ({ viewerMode = false }) => {
             {viewerMode ? "Search properties and download meter reading verification photos" : "Real-time overview of current cycle activities and agent status"}
           </p>
         </div>
-        {!viewerMode && cycles.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CalendarDays size={16} style={{ color: 'var(--muted)' }} />
-            <select
-              className="form-input"
-              value={selectedCycleId}
-              onChange={e => {
-                const id = e.target.value;
-                setSelectedCycleId(id);
-                localStorage.setItem('fw_selected_cycle_id', id);
-              }}
-              style={{ fontSize: '13px', padding: '6px 12px', height: '36px', minWidth: '180px', cursor: 'pointer' }}
-            >
-              {cycles.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.label}{c.is_active ? ' ✓' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        
       </div>
 
       {viewerMode && (
@@ -945,19 +925,12 @@ const Dashboard = ({ viewerMode = false }) => {
 
             <div className="widget-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', justifyContent: 'center' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)', letterSpacing: '0.5px' }}>CYCLE DATA</span>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text)', letterSpacing: '0.5px' }}>GLOBAL DATA PROGRESS</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '2px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--muted)', fontSize: '10px'}}>Total</span> <strong style={{ fontSize: '14px', color: 'var(--text)' }}>{data.summary.data_stats?.cycle?.total || 0}</strong></div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent3)', fontSize: '10px'}}>Done</span> <strong style={{ fontSize: '14px', color: 'var(--accent3)' }}>{data.summary.data_stats?.cycle?.completed || 0}</strong></div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent4)', fontSize: '10px'}}>Pending</span> <strong style={{ fontSize: '14px', color: 'var(--accent4)' }}>{data.summary.data_stats?.cycle?.pending || 0}</strong></div>
-              </div>
-              
-              <div style={{ height: '1px', background: 'var(--border)', margin: '2px 0' }}></div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--muted)' }}>
-                <span style={{ fontWeight: '600' }}>ALL-TIME:</span>
-                <span>{(data.summary.data_stats?.global?.total || 0)} T | {(data.summary.data_stats?.global?.completed || 0)} D | {(data.summary.data_stats?.global?.pending || 0)} P</span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--muted)', fontSize: '10px'}}>Total</span> <strong style={{ fontSize: '16px', color: 'var(--text)' }}>{data.summary.data_stats?.global?.total || 0}</strong></div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent3)', fontSize: '10px'}}>Done</span> <strong style={{ fontSize: '16px', color: 'var(--accent3)' }}>{data.summary.data_stats?.global?.completed || 0}</strong></div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{color: 'var(--accent4)', fontSize: '10px'}}>Pending</span> <strong style={{ fontSize: '16px', color: 'var(--accent4)' }}>{data.summary.data_stats?.global?.pending || 0}</strong></div>
               </div>
             </div>
           </div>

@@ -53,13 +53,13 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         SUM(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 ELSE 0 END) as pending_count
       FROM agents a
       LEFT JOIN attendance att ON att.agent_id = a.id AND DATE(att.date) = CURRENT_DATE
-      LEFT JOIN assignments asg ON asg.agent_id = a.id AND asg.cycle_id = $1
+      LEFT JOIN assignments asg ON asg.agent_id = a.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE a.is_active = true
       GROUP BY a.id
       ORDER BY a.name ASC
     `;
-    const result = await db.query(queryText, [cycleId]);
+    const result = await db.query(queryText);
 
     // Calculate daily summary aggregates
     let totalAgents = result.rows.length;
@@ -153,10 +153,10 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
       INNER JOIN properties p ON asg.property_id = p.id
       LEFT JOIN areas a ON p.area_id = a.id
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      WHERE asg.agent_id = $1 AND asg.cycle_id = $2
+      WHERE asg.agent_id = $1
       ORDER BY r.submitted_at DESC
     `;
-    const result = await db.query(queryText, [agentId, cycleId]);
+    const result = await db.query(queryText, [agentId]);
     cache.set(cacheKey, result.rows, 300000); // 5 min TTL
     res.json(result.rows);
   } catch (error) {
@@ -204,7 +204,7 @@ router.get('/agents/:id/pending-properties', authMiddleware, requireAdmin, async
       FROM assignments asg
       INNER JOIN properties p ON asg.property_id = p.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE asg.agent_id = $1 AND asg.cycle_id = $2 AND r.id IS NULL
+      WHERE asg.agent_id = $1 AND r.id IS NULL
     `;
     const result = await db.query(queryText, [agentId, cycleId]);
     res.json(result.rows);
@@ -241,7 +241,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
             `SELECT COUNT(DISTINCT property_id) as count FROM (
                SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')
                UNION
-               SELECT asg.property_id FROM readings r INNER JOIN assignments asg ON r.assignment_id = asg.id WHERE asg.cycle_id = $1 AND r.note ILIKE '%whatsapp%'
+               SELECT asg.property_id FROM readings r INNER JOIN assignments asg ON r.assignment_id = asg.id WHERE r.note ILIKE '%whatsapp%'
              ) as w`,
             [cycleId]
           ),
@@ -251,7 +251,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              INNER JOIN properties p ON asg.property_id = p.id
-             WHERE p.area_id = $1 AND asg.cycle_id = $2 AND r.status_code = 'reading_taken'
+             WHERE p.area_id = $1 AND r.status_code = 'reading_taken'
              AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
             [areaId, cycleId]
           )
@@ -259,7 +259,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
             `SELECT COUNT(r.id) as count
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
-             WHERE asg.cycle_id = $1 AND r.status_code = 'reading_taken'
+             WHERE r.status_code = 'reading_taken'
              AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`,
             [cycleId]
           )
@@ -317,7 +317,7 @@ router.get('/anomalies', authMiddleware, requireAdmin, async (req, res, next) =>
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
       INNER JOIN agents ag ON asg.agent_id = ag.id
-      WHERE asg.cycle_id = $1 AND r.is_anomalous = true
+      WHERE r.is_anomalous = true
       ORDER BY r.submitted_at DESC
     `;
     const result = await db.query(queryText, [cycleId]);
@@ -642,7 +642,7 @@ router.get('/self-readings', authMiddleware, requireViewer, async (req, res, nex
       FROM readings r
       INNER JOIN assignments asg ON r.assignment_id = asg.id
       INNER JOIN properties p ON asg.property_id = p.id
-      WHERE asg.cycle_id = $1 AND r.submitted_by_type = 'customer'
+      WHERE r.submitted_by_type = 'customer'
       ORDER BY r.submitted_at DESC
     `, [cycleId]);
 
