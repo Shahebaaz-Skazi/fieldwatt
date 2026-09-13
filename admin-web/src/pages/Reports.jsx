@@ -305,12 +305,11 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="reports-grid" style={{ display: 'flex', flexDirection: 'column', gap: '32px', alignItems: 'center', maxWidth: '600px', margin: '0 auto' }}>
+      <div className="reports-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px', marginTop: '24px', width: '100%', maxWidth: '1200px' }}>
         {/* Efficiency scoreboard */}
         
 
-        {/* Export Panel Sidebar */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Export Panel Sidebar removed for grid */}
           {/* MRU-wise Data Exporter */}
           <div className="animate-card" style={{
             backgroundColor: 'var(--surface)',
@@ -506,7 +505,6 @@ const Reports = () => {
               Agent Efficiency scores are calculated using a 70% weight on completed assigned workloads, combined with a 30% accuracy audit (evaluating anomalous readings and proximity warnings).
             </p>
           </div>
-        </div>
       </div>
     </div>
   );
