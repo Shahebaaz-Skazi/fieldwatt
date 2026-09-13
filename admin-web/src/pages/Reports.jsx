@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import PaywallModal from '../components/PaywallModal';
 import anime from 'animejs';
 import { FileDown, RefreshCw, Award, TrendingUp } from 'lucide-react';
 
@@ -17,6 +18,10 @@ const Reports = () => {
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [exportMruLoading, setExportMruLoading] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [feeData, setFeeData] = useState(null);
+  const [paywallPayload, setPaywallPayload] = useState({});
+  const [paywallSuccessCallback, setPaywallSuccessCallback] = useState(() => () => {});
 
   // Meter image downloader states
   const [imageMru, setImageMru] = useState('all');
@@ -124,6 +129,35 @@ const Reports = () => {
 
 
   const handleExport = async () => {
+    if (!selectedMru || !selectedYear || !selectedMonth) {
+      alert('Please select MRU, Year, and Month first.');
+      return;
+    }
+    
+    setExportMruLoading(true);
+    try {
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+      const feeRes = await fetch(`${api.API_BASE_URL}/admin/assignments/calculate-fee?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const feeJson = await feeRes.json();
+      
+      if (feeJson.paywallEnabled && feeJson.totalAmount > 0) {
+        setFeeData(feeJson);
+        setPaywallPayload({ mru: selectedMru, year: selectedYear, month: selectedMonth });
+        setPaywallSuccessCallback(() => () => executeRealExport());
+        setPaywallOpen(true);
+        setExportMruLoading(false);
+        return;
+      }
+      await executeRealExport();
+    } catch(err) {
+      alert('Failed to check export fee: ' + err.message);
+      setExportMruLoading(false);
+    }
+  };
+  
+  const executeRealExport = async () => {
+  // Paywall bypass logic wrapper applied
     if (!selectedMru || !selectedYear || !selectedMonth) {
       alert('Please select MRU, Year, and Month first.');
       return;
@@ -271,53 +305,9 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="reports-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px', alignItems: 'start' }}>
+      <div className="reports-grid" style={{ display: 'flex', flexDirection: 'column', gap: '32px', alignItems: 'center', maxWidth: '600px', margin: '0 auto' }}>
         {/* Efficiency scoreboard */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', color: 'var(--text)' }}>Agent Performance Leaderboard</h3>
-          <div className="table-container">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Agent Name</th>
-                  <th>Completion Rate</th>
-                  <th>Accuracy Index</th>
-                  <th>Efficiency Score</th>
-                  <th style={{ textAlign: 'right' }}>Award</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankedAgents.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px' }}>No performance data collected.</td>
-                  </tr>
-                ) : (
-                  rankedAgents.map((agent, index) => (
-                    <tr key={agent.id} className="animate-row" style={{ opacity: 0 }}>
-                      <td style={{ fontWeight: '700', color: index === 0 ? 'var(--accent)' : 'var(--muted)' }}>#{index + 1}</td>
-                      <td style={{ fontWeight: '600', color: 'var(--text)' }}>{agent.name}</td>
-                      <td>{agent.completionRate}%</td>
-                      <td>{agent.accuracyScore}%</td>
-                      <td style={{ fontWeight: '700', color: 'var(--accent2)' }}>{agent.efficiencyScore} pts</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {index === 0 ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent)', fontWeight: '600', fontSize: '12px' }}>
-                            <Award size={14} /> Elite Rank
-                          </span>
-                        ) : index < 3 ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--muted)', fontSize: '12px' }}>
-                            Superstars
-                          </span>
-                        ) : '-'}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        
 
         {/* Export Panel Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
