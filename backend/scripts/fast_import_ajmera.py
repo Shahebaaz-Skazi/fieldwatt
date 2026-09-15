@@ -289,18 +289,20 @@ def main():
     if not os.path.exists(excel_file):
         excel_file = r'f:\fieldwatt\upload file 15.09.2026 (1).xlsx'
 
-    print(f"Loading Excel file: {excel_file} ...")
+        print(f"Loading Excel file: {excel_file} ...")
     wb = openpyxl.load_workbook(excel_file, read_only=True)
-    ws = wb.active
     rows = []
-    headers = None
-    for r in ws.iter_rows(values_only=True):
-        if headers is None:
-            headers = [str(h).strip().lower() for h in r]
-        else:
-            row_dict = dict(zip(headers, r))
-            if row_dict.get('bp_number'):
-                rows.append(row_dict)
+    for sheet_name in wb.sheetnames:
+        print(f"Reading sheet: {sheet_name}")
+        ws = wb[sheet_name]
+        headers = None
+        for r in ws.iter_rows(values_only=True):
+            if headers is None:
+                headers = [str(h).strip().lower() for h in r if h is not None]
+            else:
+                row_dict = dict(zip(headers, r))
+                if row_dict.get('bp_number'):
+                    rows.append(row_dict)
     wb.close()
     print(f"Loaded {len(rows)} rows from Excel.\n")
 
