@@ -852,7 +852,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       });
 
       rowObj['MR ORDER ID'] = r.serial_no || sap['MR ORDER ID'] || rowObj['MR ORDER ID'] || '';
-      rowObj['MRU NAME'] = (mru !== 'all' ? mru : (r.area_name || sap['MRU NAME'] || rowObj['MRU NAME'] || ''));
+      rowObj['MRU NAME'] = sap['MRU NAME'] || rowObj['MRU NAME'] || r.area_name || (mru !== 'all' ? mru : '') || '';
       rowObj['BP No.'] = sap['BP No.'] !== undefined && sap['BP No.'] !== null ? sap['BP No.'] : (rowObj['BP No.'] || '');
       rowObj['Installation No.'] = sap['Installation No.'] !== undefined && sap['Installation No.'] !== null ? sap['Installation No.'] : (rowObj['Installation No.'] || '');
       rowObj['BPNAME'] = r.consumer_name || sap['BPNAME'] || rowObj['BPNAME'] || '';
