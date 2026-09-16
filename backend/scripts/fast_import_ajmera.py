@@ -82,7 +82,7 @@ R2_BUCKET      = _cfg('R2_BUCKET_NAME', 'ZmllbGR3YXR0LW1ldGVyLXBob3Rvcw==')
 R2_PUBLIC_BASE = _cfg('R2_PUBLIC_BASE_URL', 'aHR0cHM6Ly9wdWItM2RlNmYzYWNlMWQwNGQ1NThjNDdjMGU3ZGY1ZjMzM2QucjIuZGV2').rstrip('/')
 R2_ENDPOINT    = f"https://{CF_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
-CYCLE_ID = 'b50b81c7-201f-4fcc-ada7-9d5d2c5790cf' # June 2026 cycle
+CYCLE_ID = '83b91bca-44fc-46b2-abf2-31390e94189e' # Sept 2026 cycle
 
 AGENTS = [
     {'id': '88cc9759-3dbe-4c4d-909a-c7d139fed284', 'name': 'krishna kadam'},
