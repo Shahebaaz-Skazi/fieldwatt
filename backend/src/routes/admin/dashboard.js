@@ -264,7 +264,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
           ),
       areaId
         ? db.query(
-            `SELECT COUNT(r.id) as count
+            `SELECT COUNT(DISTINCT asg.property_id) as count
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              INNER JOIN properties p ON asg.property_id = p.id
@@ -272,7 +272,7 @@ router.get('/campaign-progress', authMiddleware, requireViewer, async (req, res,
              AND (r.note ILIKE '%whatsapp%' OR asg.property_id IN (SELECT property_id FROM whatsapp_logs WHERE status IN ('sent','delivered','read')))`, [areaId]
           )
         : db.query(
-            `SELECT COUNT(r.id) as count
+            `SELECT COUNT(DISTINCT asg.property_id) as count
              FROM readings r
              INNER JOIN assignments asg ON r.assignment_id = asg.id
              WHERE r.status_code = 'reading_taken'
