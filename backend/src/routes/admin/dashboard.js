@@ -77,8 +77,8 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
 
     
     // Add data coverage stats
-    const totalGlobalRes = await db.query('SELECT COUNT(*) as count FROM properties');
-    const completedGlobalRes = await db.query("SELECT COUNT(*) as count FROM readings WHERE status_code = 'reading_taken'");
+    const totalGlobalRes = await db.query('SELECT COUNT(id) as count FROM properties');
+    const completedGlobalRes = await db.query("SELECT COUNT(DISTINCT asg.property_id) as count FROM readings r JOIN assignments asg ON r.assignment_id = asg.id WHERE r.status_code = 'reading_taken'");
     const totalGlobal = Number(totalGlobalRes.rows[0]?.count || 0);
     const completedGlobal = Number(completedGlobalRes.rows[0]?.count || 0);
     const pendingGlobal = totalGlobal - completedGlobal;
