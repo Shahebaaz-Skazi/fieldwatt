@@ -53,7 +53,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         SUM(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 ELSE 0 END) as pending_count
       FROM agents a
       LEFT JOIN attendance att ON att.agent_id = a.id AND DATE(att.date) = CURRENT_DATE
-      LEFT JOIN assignments asg ON asg.agent_id = a.id
+      LEFT JOIN assignments asg ON asg.agent_id = a.id AND asg.cycle_id = '${cycleId}'
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE a.is_active = true
       GROUP BY a.id
