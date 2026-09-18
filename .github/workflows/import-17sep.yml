@@ -1,0 +1,54 @@
+﻿name: Fast Import Upload 17.09.2026
+
+on:
+  workflow_dispatch:
+    inputs:
+      excel_file:
+        description: 'Excel file path in repository'
+        required: true
+        default: 'meter_images/Upload 17.09.2026.xlsx'
+  push:
+    paths:
+      - 'meter_images/Upload 17.09.2026.xlsx'
+      - '.github/workflows/import-17sep.yml'
+      - 'backend/scripts/fast_import_17sep.py'
+
+jobs:
+  import-images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install System Fonts & Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install pillow requests openpyxl boto3 python-dotenv
+
+      - name: Run Ultra-Fast Import
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          python -u backend/scripts/fast_import_17sep.py "meter_images/Upload 17.09.2026.xlsx" 2>&1 | tee import.log
+
+      - name: Upload Import Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-logs-17sep
+          path: import.log
