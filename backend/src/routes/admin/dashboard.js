@@ -33,9 +33,14 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         summary: { total_agents: 0, present_agents: 0, leave_agents: 0 }
       });
     }
-
-    const cached = cache.get(`dashboard_${cycleId}`);
+    const explicitCycleId = req.query.cycle_id;
+    const cacheKey = `dashboard_${explicitCycleId || 'global_active'}`;
+    const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
+
+    const cycleCondition = explicitCycleId 
+      ? `asg.cycle_id = '${explicitCycleId.replace(/'/g, "''")}'` 
+      : `asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)`;
 
     // Query status count per agent for today + cycle progress
     const queryText = `
@@ -53,7 +58,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         SUM(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 ELSE 0 END) as pending_count
       FROM agents a
       LEFT JOIN attendance att ON att.agent_id = a.id AND DATE(att.date) = CURRENT_DATE
-      LEFT JOIN assignments asg ON asg.agent_id = a.id AND asg.cycle_id = '${cycleId}'
+      LEFT JOIN assignments asg ON asg.agent_id = a.id AND ${cycleCondition}
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE a.is_active = true
       GROUP BY a.id
@@ -120,7 +125,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         }
       }
     };
-cache.set(`dashboard_${cycleId}`, responseData, 300000); // 5 minutes TTL
+cache.set(cacheKey, responseData, 300000); // 5 minutes TTL
 
     res.json(responseData);
   } catch (error) {
