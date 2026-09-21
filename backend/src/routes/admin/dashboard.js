@@ -38,9 +38,9 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
-    const cycleCondition = explicitCycleId 
-      ? `asg.cycle_id = '${explicitCycleId.replace(/'/g, "''")}'` 
-      : `asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)`;
+    // FORCE GLOBAL: We ignore explicitCycleId entirely for the agent tracking board.
+    // The user strictly wants this table to ALWAYS show global data across all active cycles.
+    const cycleCondition = `asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)`;
 
     // Query status count per agent for today + cycle progress
     const queryText = `
