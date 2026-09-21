@@ -431,7 +431,7 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
     }
 
     const cycleId = cycle_id || await getActiveCycleId();
-    const cacheKey = `gsearch_${trimmed.toLowerCase()}_${cycleId || 'default'}`;
+    const cacheKey = `gsearch_${trimmed.toLowerCase()}_global`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
@@ -464,7 +464,7 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         r.submitted_at
       FROM properties p
       LEFT JOIN areas a ON p.area_id = a.id
-      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = ?
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE 
@@ -479,7 +479,7 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
       ORDER BY p.consumer_name ASC
       LIMIT 100
     `;
-    const result = await db.query(queryText, [cycleId, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+    const result = await db.query(queryText, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
 
     const formattedRows = result.rows.map(row => {
       if (row.raw_sap_data && typeof row.raw_sap_data === 'string') {
