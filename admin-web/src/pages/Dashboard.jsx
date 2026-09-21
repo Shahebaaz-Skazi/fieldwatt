@@ -230,9 +230,10 @@ const Dashboard = ({ viewerMode = false }) => {
 
   const fetchDashboardData = async () => {
     try {
+      const ts = Date.now();
       const [response, progress] = await Promise.all([
-        api.get(`/admin/dashboard`),
-        api.get(`/admin/dashboard/campaign-progress`),
+        api.get(`/admin/dashboard?_t=${ts}`),
+        api.get(`/admin/dashboard/campaign-progress?_t=${ts}`),
       ]);
       setData(response);
       setCampaign(progress);
