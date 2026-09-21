@@ -58,25 +58,25 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
       dateFilter = `AND r.submitted_at >= NOW() - INTERVAL '7 days'`;
     } else if (period === 'monthly') {
       dateFilter = `AND DATE_TRUNC('month', r.submitted_at) = DATE_TRUNC('month', NOW())`;
-    } else if (period === 'cycle' && targetCycleId) {
-      dateFilter = `AND asg.cycle_id = '${targetCycleId}'`;
     }
 
     // Build agent WHERE filter
     let agentFilterSql = 'WHERE ag.is_active = true';
-    let queryParams = [targetCycleId];
+    let queryParams = [];
 
     if (permittedAgentIds !== null) {
       // Contractor role: strictly limit to permitted IDs
       const targetIds = agent_id ? [agent_id] : permittedAgentIds;
-      const placeholders = targetIds.map((_, i) => `$${i + 2}`).join(', ');
+      const placeholders = targetIds.map((_, i) => `$${i + 1}`).join(', ');
       agentFilterSql += ` AND ag.id IN (${placeholders})`;
       queryParams.push(...targetIds);
     } else if (agent_id) {
       // Admin optional single agent filter
-      agentFilterSql += ` AND ag.id = $2`;
+      agentFilterSql += ` AND ag.id = $1`;
       queryParams.push(agent_id);
     }
+
+    const activeCyclesSubquery = `(SELECT id FROM cycles WHERE is_active = true)`;
 
     const result = await db.query(`
       SELECT
@@ -101,13 +101,13 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
-      LEFT JOIN assignments asg ON ag.id = asg.agent_id AND asg.cycle_id = $1
+      LEFT JOIN assignments asg ON ag.id = asg.agent_id AND asg.cycle_id IN ${activeCyclesSubquery}
       -- Subquery 1: all-time counts, no date filter
       LEFT JOIN (
         SELECT asg2.agent_id, COUNT(DISTINCT r2.id) as total_submitted_alltime
         FROM assignments asg2
         LEFT JOIN readings r2 ON asg2.id = r2.assignment_id
-        WHERE asg2.cycle_id = $1
+        WHERE asg2.cycle_id IN ${activeCyclesSubquery}
         GROUP BY asg2.agent_id
       ) alltime ON alltime.agent_id = ag.id
       -- Subquery 2: period-filtered counts
@@ -125,7 +125,7 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
           SUM(CASE WHEN r.status_code = 'revisit_needed' THEN 1 ELSE 0 END) as revisit_needed
         FROM assignments asg
         LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
-        WHERE asg.cycle_id = $1
+        WHERE asg.cycle_id IN ${activeCyclesSubquery}
         GROUP BY asg.agent_id
       ) period_counts ON period_counts.agent_id = ag.id
       ${agentFilterSql}

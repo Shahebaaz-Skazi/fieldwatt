@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
 import api from '../utils/api';
 import { TrendingUp, Users, CheckCircle, Clock, AlertTriangle, RefreshCw, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -35,7 +36,7 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
     setCalendarLoading(true);
     try {
       const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
-      const res = await api.get(`/admin/agent-performance/${agentId}/calendar?month=${monthStr}`);
+      const res = await api.get(`/admin/agent-performance/${agentId}/calendar?month=${monthStr}&_t=${Date.now()}`);
       setCalendarStats(res.stats || {});
     } catch (err) {
       console.error('Failed to fetch calendar data:', err);
@@ -85,10 +86,17 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ period });
+      const ts = Date.now();
+      const params = new URLSearchParams();
+      params.append('period', period);
       if (period === 'cycle' && selectedCycleId) {
         params.append('cycle_id', selectedCycleId);
       }
+      if (selectedAgentFilter !== 'all') {
+        params.append('agent_id', selectedAgentFilter);
+      }
+      params.append('_t', ts);
+
       const result = await api.get(`/admin/agent-performance?${params}`);
       setData(result);
       setError(null);
@@ -99,7 +107,7 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
     } finally {
       setLoading(false);
     }
-  }, [period, selectedCycleId]);
+  }, [period, selectedCycleId, selectedAgentFilter]);
 
   useEffect(() => {
     fetchData();
@@ -144,7 +152,6 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
             { value: 'daily',   label: 'Today' },
             { value: 'weekly',  label: 'This Week' },
             { value: 'monthly', label: 'This Month' },
-            { value: 'cycle',   label: 'By Cycle' },
           ].map(opt => (
             <button
               key={opt.value}
@@ -184,21 +191,6 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
             </select>
           </div>
         )}
-
-        {period === 'cycle' && data?.cycles && (
-          <select
-            value={selectedCycleId}
-            onChange={e => setSelectedCycleId(e.target.value)}
-            style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '13px' }}
-          >
-            <option value="">Select a cycle...</option>
-            {data.cycles.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.label} {c.is_active ? '(Active)' : ''}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {/* Summary Cards */}
@@ -230,7 +222,7 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
 
       {/* Agent Cards */}
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px', color: 'var(--muted)' }}>Loading agent data...</div>
+        <DashboardSkeleton />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {displayedAgents.length === 0 ? (
