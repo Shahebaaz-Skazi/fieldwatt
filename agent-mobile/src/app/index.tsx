@@ -1494,27 +1494,38 @@ export default function WorkListScreen() {
             )}
           </View>
 
-          {/* Clear stuck queue Action */}
+          {/* Force Sync Queue Action */}
           <TouchableOpacity 
             onPress={async () => {
               try {
-                await clearReadingsQueue();
                 if (typeof window !== 'undefined' && window.alert) {
-                  window.alert('The local readings queue has been wiped successfully. You can now re-submit readings.');
+                  window.alert('Syncing... Please wait.');
+                }
+                const syncRes = await syncOfflineReadings();
+                
+                // Refresh local data after sync
+                await handleRefresh();
+
+                const msg = syncRes.success 
+                  ? `Successfully synced ${syncRes.count || 0} pending readings to the server.` 
+                  : `Sync finished with issues: ${syncRes.message || 'Unknown error'}`;
+                  
+                if (typeof window !== 'undefined' && window.alert) {
+                  window.alert(msg);
                 } else {
-                  Alert.alert('Queue Cleared', 'The local readings queue has been wiped successfully. You can now re-submit readings.');
+                  Alert.alert(syncRes.success ? 'Sync Complete' : 'Sync Issue', msg);
                 }
               } catch (err: any) {
                 if (typeof window !== 'undefined' && window.alert) {
-                  window.alert(err.message || 'Failed to wipe queue.');
+                  window.alert(err.message || 'Failed to sync queue.');
                 } else {
-                  Alert.alert('Wipe Failed', err.message || 'Failed to wipe queue.');
+                  Alert.alert('Sync Failed', err.message || 'Failed to sync queue.');
                 }
               }
             }} 
             style={{
-              backgroundColor: '#fffbeb',
-              borderColor: '#fcd34d',
+              backgroundColor: '#eff6ff',
+              borderColor: '#60a5fa',
               borderWidth: 1,
               borderRadius: 12,
               paddingVertical: 14,
@@ -1524,8 +1535,8 @@ export default function WorkListScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="trash-outline" size={18} color="#d97706" />
-              <Text style={{ color: '#d97706', fontWeight: '700', fontSize: 14 }}>Clear Stuck Queue</Text>
+              <Ionicons name="cloud-upload-outline" size={18} color="#2563eb" />
+              <Text style={{ color: '#2563eb', fontWeight: '700', fontSize: 14 }}>Force Sync Offline Queue</Text>
             </View>
           </TouchableOpacity>
 
