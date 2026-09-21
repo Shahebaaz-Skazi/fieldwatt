@@ -12,10 +12,12 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
 
     // Smart active cycle resolution:
     // 1. For field agents: prefer active cycle where this agent HAS assignments
-    // 2. Fallback to latest active cycle
+    // 2. Fallback to any cycle (active or not) where this agent has assignments (most recent first)
+    // 3. Final fallback: latest active cycle
     let cycleId = null;
 
     if (req.user.role !== 'admin') {
+      // Try active cycle with assignments first
       const agentCycleRes = await db.query(
         `SELECT asg.cycle_id 
          FROM assignments asg 
@@ -25,6 +27,21 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
       );
       if (agentCycleRes.rows.length > 0) {
         cycleId = agentCycleRes.rows[0].cycle_id;
+      }
+
+      // ponytail: if agent has no active-cycle assignments, show their most recent work
+      // so Kothrud agents (whose September data hasn't been uploaded yet) still see their properties
+      if (!cycleId) {
+        const fallbackCycleRes = await db.query(
+          `SELECT asg.cycle_id 
+           FROM assignments asg 
+           INNER JOIN cycles c ON asg.cycle_id = c.id 
+           WHERE asg.agent_id = '${safeAgentId}'
+           ORDER BY c.start_date DESC LIMIT 1`
+        );
+        if (fallbackCycleRes.rows.length > 0) {
+          cycleId = fallbackCycleRes.rows[0].cycle_id;
+        }
       }
     }
 
