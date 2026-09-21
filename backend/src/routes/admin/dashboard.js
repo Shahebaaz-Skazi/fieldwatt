@@ -464,7 +464,13 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         r.submitted_at
       FROM properties p
       LEFT JOIN areas a ON p.area_id = a.id
-      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)
+      LEFT JOIN (
+        SELECT asg_sub.*, 
+               ROW_NUMBER() OVER(PARTITION BY asg_sub.property_id ORDER BY c_sub.start_date DESC) as rn
+        FROM assignments asg_sub
+        INNER JOIN cycles c_sub ON asg_sub.cycle_id = c_sub.id
+        WHERE c_sub.is_active = true
+      ) asg ON asg.property_id = p.id AND asg.rn = 1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE 

@@ -186,7 +186,11 @@ async function processBulkInBackground({ propertyIds, cycleId, phoneNumbers, sec
     const ph = chunk.map((_, i) => `$${i + 1}`).join(', ');
     const cycleJoin = cycleId
       ? `LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = '${cycleId}'`
-      : `LEFT JOIN assignments asg ON asg.property_id = p.id`;
+      : `LEFT JOIN (
+           SELECT asg_sub.*, ROW_NUMBER() OVER(PARTITION BY property_id ORDER BY c_sub.start_date DESC) as rn
+           FROM assignments asg_sub
+           INNER JOIN cycles c_sub ON asg_sub.cycle_id = c_sub.id WHERE c_sub.is_active = true
+         ) asg ON asg.property_id = p.id AND asg.rn = 1`;
 
     try {
       const res = await db.query(

@@ -506,26 +506,35 @@ router.post('/property/:propId/reading', authMiddleware, requireAdmin, async (re
     const propId = req.params.propId;
     const { status_code, reading_value, note, photo_url, cycle_id } = req.body;
 
-    const cycleResult = await db.query(
-      cycle_id
-        ? 'SELECT id FROM cycles WHERE id = $1 LIMIT 1'
-        : 'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1',
-      cycle_id ? [cycle_id] : []
-    );
-    if (cycleResult.rows.length === 0) {
-      return res.status(400).json({ error: 'No active billing cycle found.' });
-    }
-    const cycleId = cycleResult.rows[0].id;
+    // 1. Try to find an existing assignment for this property in ANY active cycle
+    const existingAsg = await db.query(`
+      SELECT asg.id, asg.cycle_id
+      FROM assignments asg
+      INNER JOIN cycles c ON asg.cycle_id = c.id
+      WHERE asg.property_id = $1 AND c.is_active = true
+      ORDER BY c.start_date DESC
+      LIMIT 1
+    `, [propId]);
 
-    let assignmentId = null;
-    const asgResult = await db.query(
-      'SELECT id FROM assignments WHERE property_id = $1 AND cycle_id = $2 LIMIT 1',
-      [propId, cycleId]
-    );
+    let assignmentId;
+    let cycleId;
 
-    if (asgResult.rows.length > 0) {
-      assignmentId = asgResult.rows[0].id;
+    if (existingAsg.rows.length > 0) {
+      assignmentId = existingAsg.rows[0].id;
+      cycleId = existingAsg.rows[0].cycle_id;
     } else {
+      // 2. No assignment exists, we create one in the requested or latest active cycle
+      const cycleResult = await db.query(
+        cycle_id
+          ? 'SELECT id FROM cycles WHERE id = $1 LIMIT 1'
+          : 'SELECT id FROM cycles WHERE is_active = true ORDER BY start_date DESC LIMIT 1',
+        cycle_id ? [cycle_id] : []
+      );
+      if (cycleResult.rows.length === 0) {
+        return res.status(400).json({ error: 'No active billing cycle found.' });
+      }
+      cycleId = cycleResult.rows[0].id;
+
       const newAsg = await db.query(
         `INSERT INTO assignments (property_id, cycle_id, assigned_by)
          VALUES ($1, $2, $3)
