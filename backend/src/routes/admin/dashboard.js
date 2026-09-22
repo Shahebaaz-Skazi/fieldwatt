@@ -478,7 +478,12 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         WHERE c_sub.is_active = true
       ) asg ON asg.property_id = p.id AND asg.rn = 1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings r ON r.assignment_id = asg.id
+      LEFT JOIN readings r ON r.id = (
+        SELECT id FROM readings 
+        WHERE assignment_id = asg.id 
+        ORDER BY submitted_at DESC 
+        LIMIT 1
+      )
       WHERE 
         p.consumer_name LIKE ? OR
         p.serial_no LIKE ? OR
