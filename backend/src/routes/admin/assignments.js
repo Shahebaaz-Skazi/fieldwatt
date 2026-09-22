@@ -648,9 +648,11 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings latest_r ON latest_r.id = (
-        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
-      )
+      LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        FROM readings
+        GROUP BY assignment_id
+      ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
       ORDER BY p.society ASC, p.serial_no ASC
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
@@ -663,9 +665,11 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings latest_r ON latest_r.id = (
-        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
-      )
+      LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        FROM readings
+        GROUP BY assignment_id
+      ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
     `;
 
@@ -766,13 +770,11 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings latest_r ON latest_r.id = (
-        SELECT id
+      LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        WHERE assignment_id = asg.id
-        ORDER BY submitted_at DESC
-        LIMIT 1
-      )
+        GROUP BY assignment_id
+      ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
     `;
@@ -989,9 +991,11 @@ router.get("/calculate-fee", authMiddleware, requireViewer, async (req, res, nex
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
-      LEFT JOIN readings latest_r ON latest_r.id = (
-        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
-      )
+      LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        FROM readings
+        GROUP BY assignment_id
+      ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
         AND latest_r.photo_url IS NOT NULL 
@@ -1085,9 +1089,11 @@ router.post("/verify-payment", authMiddleware, requireViewer, upload.single("rec
         INNER JOIN areas a ON p.area_id = a.id
         INNER JOIN imports i ON p.import_id = i.id
         LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
-        LEFT JOIN readings latest_r ON latest_r.id = (
-          SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
-        )
+        LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        FROM readings
+        GROUP BY assignment_id
+      ) latest_r ON latest_r.assignment_id = asg.id
         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
           AND EXTRACT(MONTH FROM i.scheduled_date) = $2
           AND latest_r.photo_url IS NOT NULL 

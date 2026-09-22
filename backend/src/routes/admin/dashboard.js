@@ -478,12 +478,11 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         WHERE c_sub.is_active = true
       ) asg ON asg.property_id = p.id AND asg.rn = 1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings r ON r.id = (
-        SELECT id FROM readings 
-        WHERE assignment_id = asg.id 
-        ORDER BY submitted_at DESC 
-        LIMIT 1
-      )
+      LEFT JOIN (
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, anomaly_reason, is_anomalous, MAX(submitted_at) as submitted_at
+        FROM readings
+        GROUP BY assignment_id
+      ) r ON r.assignment_id = asg.id
       WHERE 
         p.consumer_name LIKE ? OR
         p.serial_no LIKE ? OR
