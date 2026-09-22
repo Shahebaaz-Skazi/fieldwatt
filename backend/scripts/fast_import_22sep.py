@@ -226,6 +226,7 @@ def process_single_row(row_tuple):
 
         # 3. Check existing reading
         existing_reading = read_cache.get(asg_id)
+        # Force rewrite for 22nd Sept: We do NOT skip if reading exists.
 
         # 4. Download S3 image with retries
         dl_resp = None
