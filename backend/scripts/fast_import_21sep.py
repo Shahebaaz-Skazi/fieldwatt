@@ -12,6 +12,7 @@ import random
 import datetime
 import subprocess
 import re
+import uuid
 import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -268,7 +269,7 @@ def process_single_row(row_tuple):
                 [reading_val, photo_url, db_time, asg_id]
             )
         else:
-            rd_id = f"rd_{asg_id}"
+            rd_id = f"rd_{str(uuid.uuid4())}"  # ponytail: uuid prevents thread-collision on concurrent inserts
             query_d1(
                 "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'whatsapp readings data', ?, datetime('now'))",
                 [rd_id, asg_id, idemp_key, reading_val, photo_url, db_time]
