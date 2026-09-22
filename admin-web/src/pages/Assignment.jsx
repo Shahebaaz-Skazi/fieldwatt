@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
 import api from '../utils/api';
 import { Search, MapPin, Users, Calendar, Filter, CheckSquare, Square, Check, RefreshCw } from 'lucide-react';
 
@@ -30,7 +31,9 @@ const Assignment = () => {
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 100;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 200;
 
   // UI states
   const [showSocietyDropdown, setShowSocietyDropdown] = useState(false);
@@ -117,7 +120,7 @@ const Assignment = () => {
     }
   };
 
-  const fetchProperties = async () => {
+  const fetchProperties = async (page = currentPage) => {
     if (!selectedMru || !selectedYear || !selectedMonth) {
       setMessage({ text: 'Please select Area (MRU), Year, and Month first.', type: 'error' });
       return;
@@ -134,12 +137,17 @@ const Assignment = () => {
           month: selectedMonth,
           status: selectedStatus,
           societies: societiesQuery,
-          agent_filter_id: aboveAgentFilterId
+          agent_filter_id: aboveAgentFilterId,
+          page,
+          page_size: PAGE_SIZE,
         }
       });
       const props = res.properties || [];
       setProperties(props);
       setResolvedCycleId(res.cycleId);
+      setTotalPages(res.total_pages || 1);
+      setTotalCount(res.total || props.length);
+      setCurrentPage(page);
 
       // Auto-check properties if their society is in selectedSocieties
       const nextSelection = new Set();
@@ -151,7 +159,6 @@ const Assignment = () => {
         });
       }
       setSelectedPropIds(nextSelection);
-      setCurrentPage(1); // Reset pagination on data load
     } catch (err) {
       setMessage({ text: err.message || 'Failed to search properties.', type: 'error' });
     } finally {
@@ -186,11 +193,7 @@ const Assignment = () => {
     fetchProperties();
   };
 
-  useEffect(() => {
-    if (hasLoaded) {
-      fetchProperties();
-    }
-  }, [debouncedSearch, selectedMru, selectedYear, selectedMonth, selectedSocieties, selectedStatus, aboveAgentFilterId]);
+
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -204,11 +207,13 @@ const Assignment = () => {
   }, []);
 
   const handleSelectAll = (e) => {
+    const next = new Set(selectedPropIds);
     if (e.target.checked) {
-      setSelectedPropIds(new Set(properties.map(p => p.id)));
+      properties.forEach(p => next.add(p.id));
     } else {
-      setSelectedPropIds(new Set());
+      properties.forEach(p => next.delete(p.id));
     }
+    setSelectedPropIds(next);
   };
 
   const handleSelectProperty = (id) => {
@@ -308,12 +313,7 @@ const Assignment = () => {
     </span>;
   };
 
-  // Slice paginated flats
-  const totalPages = Math.ceil(properties.length / ITEMS_PER_PAGE) || 1;
-  const paginatedProperties = properties.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+
 
   const getAgentStatusLabel = (agentId) => {
     const s = agentStatusMap[agentId];
@@ -697,7 +697,7 @@ const Assignment = () => {
                   <th style={{ width: '40px', textAlign: 'center' }}>
                     <input
                       type="checkbox"
-                      checked={properties.length > 0 && selectedPropIds.size === properties.length}
+                      checked={properties.length > 0 && properties.every(p => selectedPropIds.has(p.id))}
                       onChange={handleSelectAll}
                       style={{ cursor: 'pointer' }}
                     />
@@ -710,14 +710,14 @@ const Assignment = () => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedProperties.length === 0 ? (
+                {properties.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ textAlign: 'center', color: 'var(--muted)', padding: '40px' }}>
                       No properties match your filter options.
                     </td>
                   </tr>
                 ) : (
-                  paginatedProperties.map(prop => (
+                  properties.map(prop => (
                     <tr
                       key={prop.id}
                       onClick={() => handleSelectProperty(prop.id)}
@@ -749,7 +749,7 @@ const Assignment = () => {
             </table>
           </div>
 
-          {/* Client-Side Pagination Drawer controls */}
+          {/* Server-Side Pagination controls */}
           {totalPages > 1 && (
             <div style={{
               display: 'flex',
@@ -762,21 +762,21 @@ const Assignment = () => {
               marginTop: '4px'
             }}>
               <span style={{ fontSize: '13px', color: 'var(--muted)' }}>
-                Showing page <b>{currentPage}</b> of <b>{totalPages}</b> (Showing {paginatedProperties.length} of {properties.length.toLocaleString()} total flats)
+                Showing page <b>{currentPage}</b> of <b>{totalPages}</b> (Showing {properties.length} rows of {totalCount.toLocaleString()} total match)
               </span>
               
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
+                  onClick={() => fetchProperties(Math.max(currentPage - 1, 1))}
+                  disabled={currentPage === 1 || loading}
                   className="btn btn-secondary"
                   style={{ padding: '6px 12px', fontSize: '13px', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                 >
                   Previous
                 </button>
                 <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
+                  onClick={() => fetchProperties(Math.min(currentPage + 1, totalPages))}
+                  disabled={currentPage === totalPages || loading}
                   className="btn btn-secondary"
                   style={{ padding: '6px 12px', fontSize: '13px', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                 >
@@ -801,7 +801,7 @@ const Assignment = () => {
           }}>
             <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CheckSquare size={16} />
-              Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{properties.length.toLocaleString()}</strong> loaded properties.
+              Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{totalCount.toLocaleString()}</strong> loaded properties.
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>

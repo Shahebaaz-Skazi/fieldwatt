@@ -269,7 +269,6 @@ router.post('/range', authMiddleware, requireAdmin, async (req, res, next) => {
 router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { agent_id, property_ids, cycle_id, month, year } = assignBulkSchema.parse(req.body);
-    const adminId = req.user.id;
 
     if (property_ids.length === 0) {
       return res.status(400).json({ error: 'property_ids array must not be empty.' });
@@ -283,11 +282,12 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
 
     // 2. Filter properties that actually exist in the database (chunked to avoid D1 limits)
     const propertyChunks = chunkArray(property_ids, 50);
-    const propertyQueries = propertyChunks.map(chunk => {
-      const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(', ');
-      return db.query(`SELECT id FROM properties WHERE id IN (${placeholders})`, chunk);
-    });
-    const propertyQueryResults = await Promise.all(propertyQueries);
+    const propertyQueryResults = await Promise.all(
+      propertyChunks.map(chunk => {
+        const placeholders = chunk.map((_, idx) => `$${idx + 1}`).join(', ');
+        return db.query(`SELECT id FROM properties WHERE id IN (${placeholders})`, chunk);
+      })
+    );
     const existingPropIds = propertyQueryResults.flatMap(r => r.rows.map(row => row.id));
 
     if (existingPropIds.length === 0) {
@@ -306,7 +306,8 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       return propImportRes.rows[0]?.billing_month;
     });
 
-    // 4. Batch insert/upsert and update properties in chunks of 50
+    // 4. Batch upsert in chunks of 50
+    // ON CONFLICT: update agent_id but PRESERVE is_completed so completed readings aren't wiped
     const chunks = chunkArray(existingPropIds, 50);
     let totalCount = 0;
 
@@ -319,7 +320,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
             INSERT INTO assignments (id, property_id, agent_id, cycle_id, is_completed, created_at)
             VALUES ($1, $2, $3, $4, 0, datetime('now'))
             ON CONFLICT (property_id, cycle_id) 
-            DO UPDATE SET agent_id = EXCLUDED.agent_id, is_completed = 0
+            DO UPDATE SET agent_id = EXCLUDED.agent_id
             RETURNING id
           `,
           params: [require('crypto').randomUUID(), propId, agent_id, targetCycleId]
@@ -328,11 +329,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
 
       const placeholders = chunk.map((_, idx) => `$${idx + 2}`).join(', ');
       chunkStatements.push({
-        sql: `
-          UPDATE properties 
-          SET is_assigned = 1, assigned_agent_id = $1 
-          WHERE id IN (${placeholders})
-        `,
+        sql: `UPDATE properties SET is_assigned = 1, assigned_agent_id = $1 WHERE id IN (${placeholders})`,
         params: [agent_id, ...chunk]
       });
 
@@ -341,6 +338,7 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
       totalCount += insertResults.reduce((sum, r) => sum + r.rowCount, 0);
     }
 
+    cache.invalidateAll(); // bust cache so agent name shows immediately in search-properties
     res.json({
       message: `Assigned ${totalCount} properties to agent successfully.`,
       count: totalCount
@@ -349,6 +347,8 @@ router.post('/bulk', authMiddleware, requireAdmin, async (req, res, next) => {
     next(error);
   }
 });
+
+
 
 // GET /admin/assignments/coverage - Coverage status and unassigned counts per area
 router.get('/coverage', authMiddleware, requireAdmin, async (req, res, next) => {
@@ -473,51 +473,67 @@ router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) =>
     let queryText = `
       SELECT 
         society, 
-        0::int as total_count, 
-        0::int as assigned_count 
+        0 as total_count, 
+        0 as assigned_count 
       FROM properties 
       WHERE society IS NOT NULL AND society <> ''
       GROUP BY society
+      ORDER BY society ASC
     `;
     let params = [];
+    
     if (mru && year && month) {
+      // Resolve target cycle ID
+      const cycleRes = await db.query(
+        `SELECT c.id as cycle_id
+         FROM cycles c
+         WHERE c.label = (
+           SELECT billing_month FROM imports i
+           WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 
+             AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+           LIMIT 1
+         )`,
+        [parseInt(year), parseInt(month)]
+      );
+      const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : '00000000-0000-0000-0000-000000000000';
+
       if (mru === 'all') {
         queryText = `
           SELECT 
             p.society,
-            COUNT(p.id)::int as total_count,
-            COUNT(asg.id)::int as assigned_count
+            COUNT(p.id) as total_count,
+            COUNT(asg.id) as assigned_count
           FROM properties p
           INNER JOIN imports i ON p.import_id = i.id
-          LEFT JOIN cycles c ON c.label = i.billing_month
-          LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = c.id
+          LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
           WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 
             AND EXTRACT(MONTH FROM i.scheduled_date) = $2
             AND p.society IS NOT NULL AND p.society <> ''
           GROUP BY p.society
+          ORDER BY p.society ASC
         `;
-        params = [parseInt(year), parseInt(month)];
+        params = [parseInt(year), parseInt(month), targetCycleId];
       } else {
         queryText = `
           SELECT 
             p.society,
-            COUNT(p.id)::int as total_count,
-            COUNT(asg.id)::int as assigned_count
+            COUNT(p.id) as total_count,
+            COUNT(asg.id) as assigned_count
           FROM properties p
           INNER JOIN areas a ON p.area_id = a.id
           INNER JOIN imports i ON p.import_id = i.id
-          LEFT JOIN cycles c ON c.label = i.billing_month
-          LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = c.id
+          LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $4
           WHERE a.name = $1 
             AND EXTRACT(YEAR FROM i.scheduled_date) = $2 
             AND EXTRACT(MONTH FROM i.scheduled_date) = $3
             AND p.society IS NOT NULL AND p.society <> ''
           GROUP BY p.society
+          ORDER BY p.society ASC
         `;
-        params = [mru, parseInt(year), parseInt(month)];
+        params = [mru, parseInt(year), parseInt(month), targetCycleId];
       }
     }
-    queryText += " ORDER BY society ASC";
+
     const result = await db.query(queryText, params);
     res.json(result.rows);
   } catch (error) {
@@ -528,14 +544,18 @@ router.get('/societies', authMiddleware, requireAdmin, async (req, res, next) =>
 // GET /admin/assignments/search-properties - Query properties with status and society groupings by area name (or all)
 router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
-    const { q, mru, year, month, status, societies, agent_filter_id } = req.query;
+    const { q, mru, year, month, status, societies, agent_filter_id, page = '1', page_size = '200' } = req.query;
     
     if (!mru || !year || !month) {
-      return res.json({ properties: [], cycleId: null });
+      return res.json({ properties: [], cycleId: null, total: 0, page: 1, page_size: 200 });
     }
 
-    // Cache key includes ALL filter params — different filter combinations = different cache entries
-    const cacheKey = `sp_${mru}_${year}_${month}_${status||''}_${societies||''}_${agent_filter_id||''}_${(q||'').toLowerCase().trim()}`;
+    const pageNum  = Math.max(1, parseInt(page) || 1);
+    const pageSize = Math.min(500, Math.max(50, parseInt(page_size) || 200)); // ponytail: hard cap at 500 rows per page
+    const offset   = (pageNum - 1) * pageSize;
+
+    // Cache key includes ALL filter params + pagination
+    const cacheKey = `sp_${mru}_${year}_${month}_${status||''}_${societies||''}_${agent_filter_id||''}_${(q||'').toLowerCase().trim()}_p${pageNum}_ps${pageSize}`;
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
 
@@ -553,7 +573,58 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
     );
     const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : '00000000-0000-0000-0000-000000000000';
 
-    let queryText = `
+    // Build WHERE conditions separately so we can reuse them for the COUNT query
+    const filterParams = [targetCycleId, parseInt(year), parseInt(month)];
+    let filterWhere = `
+      EXTRACT(YEAR FROM i.scheduled_date) = $2 
+        AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+    `;
+    let paramCount = 4;
+
+    if (mru !== 'all') {
+      filterWhere += ` AND (a.name = $${paramCount} OR i.file_code = $${paramCount})`;
+      filterParams.push(mru);
+      paramCount++;
+    }
+
+    if (q && q.trim()) {
+      filterWhere += ` AND (p.consumer_name LIKE $${paramCount} OR p.serial_no LIKE $${paramCount} OR p.address LIKE $${paramCount} OR p.society LIKE $${paramCount})`;
+      filterParams.push(`%${q.trim()}%`);
+      paramCount++;
+    }
+
+    if (societies) {
+      const socList = societies.split(',').map(s => s.trim()).filter(Boolean);
+      if (socList.length > 0) {
+        const placeholders = socList.map((_, idx) => `$${paramCount + idx}`).join(', ');
+        filterWhere += ` AND p.society IN (${placeholders})`;
+        filterParams.push(...socList);
+        paramCount += socList.length;
+      }
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'assigned') {
+        filterWhere += ` AND asg.id IS NOT NULL`;
+      } else if (status === 'unassigned') {
+        filterWhere += ` AND asg.id IS NULL`;
+      } else if (status === 'doorlocked') {
+        filterWhere += ` AND latest_r.status_code = 'door_locked'`;
+      } else if (status === 'completed') {
+        filterWhere += ` AND (latest_r.status_code = 'completed' OR latest_r.status_code = 'reading_taken')`;
+      } else if (status === 'incomplete') {
+        filterWhere += ` AND asg.id IS NOT NULL AND latest_r.id IS NULL`;
+      }
+    }
+
+    if (agent_filter_id && agent_filter_id !== 'all') {
+      filterWhere += ` AND asg.agent_id = $${paramCount}`;
+      filterParams.push(agent_filter_id);
+      paramCount++;
+    }
+
+    // Single query with latest reading via correlated subquery — avoids row duplication from multi-reading assignments
+    const dataQuery = `
       SELECT 
         p.id,
         p.serial_no,
@@ -567,80 +638,59 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
         asg.id as assignment_id,
         asg.agent_id,
         ag.name as agent_name,
-        r.status_code,
-        r.reading_value,
-        CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
-        CASE WHEN r.status_code = 'reading_taken' OR r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
+        latest_r.status_code,
+        latest_r.reading_value,
+        CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
+        CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
         CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
       FROM properties p
       INNER JOIN areas a ON p.area_id = a.id
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE EXTRACT(YEAR FROM i.scheduled_date) = $2 
-        AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+      LEFT JOIN readings latest_r ON latest_r.id = (
+        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
+      )
+      WHERE ${filterWhere}
+      ORDER BY p.society ASC, p.serial_no ASC
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
     `;
-    
-    const params = [targetCycleId, parseInt(year), parseInt(month)];
-    let paramCount = 4;
 
-    if (mru !== 'all') {
-      queryText += ` AND (a.name = $${paramCount} OR i.file_code = $${paramCount})`;
-      params.push(mru);
-      paramCount++;
-    }
-    
-    if (q && q.trim()) {
-      queryText += ` AND (p.consumer_name ILIKE $${paramCount} OR p.serial_no ILIKE $${paramCount} OR p.address ILIKE $${paramCount} OR p.society ILIKE $${paramCount})`;
-      params.push(`%${q.trim()}%`);
-      paramCount++;
-    }
-    
-    if (societies) {
-      const socList = societies.split(',').map(s => s.trim()).filter(Boolean);
-      if (socList.length > 0) {
-        const placeholders = socList.map((_, idx) => `$${paramCount + idx}`).join(', ');
-        queryText += ` AND p.society IN (${placeholders})`;
-        params.push(...socList);
-        paramCount += socList.length;
-      }
-    }
-    
-    if (status && status !== 'all') {
-      if (status === 'assigned') {
-        queryText += ` AND asg.id IS NOT NULL`;
-      } else if (status === 'unassigned') {
-        queryText += ` AND asg.id IS NULL`;
-      } else if (status === 'doorlocked') {
-        queryText += ` AND r.status_code = 'door_locked'`;
-      } else if (status === 'completed') {
-        queryText += ` AND (r.status_code = 'completed' OR r.status_code = 'reading_taken')`;
-      } else if (status === 'incomplete') {
-        // Assigned but pending (no reading taken or door lock recorded yet)
-        queryText += ` AND asg.id IS NOT NULL AND r.id IS NULL`;
-      }
-    }
+    const countQuery = `
+      SELECT COUNT(p.id) as total
+      FROM properties p
+      INNER JOIN areas a ON p.area_id = a.id
+      INNER JOIN imports i ON p.import_id = i.id
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
+      LEFT JOIN agents ag ON asg.agent_id = ag.id
+      LEFT JOIN readings latest_r ON latest_r.id = (
+        SELECT id FROM readings WHERE assignment_id = asg.id ORDER BY submitted_at DESC LIMIT 1
+      )
+      WHERE ${filterWhere}
+    `;
 
-    if (agent_filter_id && agent_filter_id !== 'all') {
-      queryText += ` AND asg.agent_id = $${paramCount}`;
-      params.push(agent_filter_id);
-      paramCount++;
-    }
-    
-    queryText += ` ORDER BY p.society ASC, p.serial_no ASC LIMIT 25000`;
-    
-    const result = await db.query(queryText, params);
+    const [result, countResult] = await Promise.all([
+      db.query(dataQuery, [...filterParams, pageSize, offset]),
+      db.query(countQuery, filterParams),
+    ]);
+
+    const total = parseInt(countResult.rows[0]?.total || 0);
     const responseData = {
       properties: result.rows,
-      cycleId: targetCycleId
+      cycleId: targetCycleId,
+      total,
+      page: pageNum,
+      page_size: pageSize,
+      total_pages: Math.ceil(total / pageSize),
     };
-    cache.set(cacheKey, responseData, 120000); // 2 min TTL — short because assignment changes should be visible quickly
+    cache.set(cacheKey, responseData, 300000); // 5 min TTL — busted by cache.invalidateAll() on write
     res.json(responseData);
   } catch (error) {
     next(error);
   }
 });
+
+
 
 // GET /admin/assignments/export - Export properties, readings, and assignment logs in exact 30-column SAP Excel format
 router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
