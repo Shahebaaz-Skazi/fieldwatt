@@ -582,6 +582,16 @@ export default function WorkListScreen() {
         (p.meter_no && p.meter_no.toLowerCase().includes(q))
       );
     }
+    // Sort by flat number descending (highest floor first).
+    // Address format: "FLAT, 1001, A1, 10TH FLOOR, ..." — the flat number is the 2nd comma-separated token.
+    // ponytail: parseInt handles '1001' → 1001, non-numeric falls back to 0.
+    list = [...list].sort((a, b) => {
+      const getFlatNo = (p: any): number => {
+        const parts = (p.address || '').split(',');
+        return parts.length >= 2 ? (parseInt(parts[1].trim(), 10) || 0) : 0;
+      };
+      return getFlatNo(b) - getFlatNo(a);
+    });
     return list;
   }, [properties, drillArea, drillSociety, drillSubSociety, drillWing, drillSearch]);
 
