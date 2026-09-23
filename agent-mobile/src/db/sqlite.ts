@@ -289,7 +289,11 @@ export const getCachedProperties = async () => {
   const rows = await database.getAllAsync(`
     SELECT p.*, r.reading_value, COALESCE(r.status_code, p.reading_status) as reading_status, r.photo_url, r.note, r.is_synced, r.id as queued_reading_id
     FROM properties p
-    LEFT JOIN readings_queue r ON p.assignment_id = r.assignment_id
+    LEFT JOIN (
+      SELECT id, assignment_id, reading_value, status_code, photo_url, note, is_synced, MAX(submitted_at) as submitted_at
+      FROM readings_queue
+      GROUP BY assignment_id
+    ) r ON p.assignment_id = r.assignment_id
     ORDER BY CAST(p.serial_no AS INTEGER) ASC
   `);
   return rows;
