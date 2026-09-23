@@ -112,16 +112,20 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           p.sub_society,
           p.wing_code as building_code,
           ar.name as area_name,
-          r.id as reading_id,
-          r.reading_value,
-          r.status_code as reading_status,
-          r.photo_url,
-          r.note,
-          r.submitted_at as reading_submitted_at
+          latest_r.id as reading_id,
+          latest_r.reading_value,
+          latest_r.status_code as reading_status,
+          latest_r.photo_url,
+          latest_r.note,
+          latest_r.submitted_at as reading_submitted_at
         FROM assignments asg
         INNER JOIN properties p ON asg.property_id = p.id
         LEFT JOIN areas ar ON ar.id = p.area_id
-        LEFT JOIN readings r ON r.assignment_id = asg.id
+        LEFT JOIN (
+          SELECT id, assignment_id, reading_value, status_code, photo_url, note, MAX(submitted_at) as submitted_at
+          FROM readings
+          GROUP BY assignment_id
+        ) latest_r ON latest_r.assignment_id = asg.id
         WHERE asg.agent_id = '${safeAgentId}' AND asg.cycle_id = '${safeCycleId}'
         ORDER BY p.serial_no ASC
       `;
