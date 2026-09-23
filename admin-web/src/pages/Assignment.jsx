@@ -801,7 +801,7 @@ const Assignment = () => {
           }}>
             <div style={{ color: 'var(--muted)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <CheckSquare size={16} />
-              Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{totalCount.toLocaleString()}</strong> loaded properties.
+              Selected <strong style={{ color: 'var(--text)' }}>{selectedPropIds.size.toLocaleString()}</strong> of <strong style={{ color: 'var(--text)' }}>{totalCount.toLocaleString()}</strong> total matching properties.
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
