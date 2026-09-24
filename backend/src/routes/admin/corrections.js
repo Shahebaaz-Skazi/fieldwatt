@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
     // Only return 1 at a time to prevent collisions if multiple admins are correcting
     const result = await db.query(`
       SELECT rc.reading_id, rc.serial_no, rc.original_value, rc.photo_url, rc.status,
-             p.bp_no, p.consumer_name, p.address, p.meter_no,
+             p.consumer_name, p.address, p.meter_no,
              a.name as agent_name
       FROM reading_corrections rc
       JOIN readings r ON rc.reading_id = r.id

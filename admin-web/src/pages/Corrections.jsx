@@ -76,6 +76,17 @@ export default function Corrections() {
     );
   }
 
+  if (error && !data) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center p-6">
+        <AlertCircle className="text-red-500" size={64} />
+        <h2 className="text-2xl font-bold text-red-700">Error Loading Data</h2>
+        <p className="text-red-600">{error}</p>
+        <button onClick={fetchNext} className="btn mt-4 bg-gray-800 text-white px-4 py-2 rounded-lg">Try Again</button>
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
