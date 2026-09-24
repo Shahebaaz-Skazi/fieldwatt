@@ -587,3 +587,33 @@ body {
     width: 100% !important;
   }
 }
+
+/* --- PREMIUM MICRO-INTERACTIONS --- */
+.btn {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, opacity 0.2s ease !important;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.96) !important;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
+}
+.table tr {
+  transition: background-color 0.15s ease !important;
+}
+.table tbody tr:hover {
+  background-color: var(--bg) !important;
+}

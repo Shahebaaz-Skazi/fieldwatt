@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { UploadCloud, FileSpreadsheet, Play, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
@@ -267,7 +268,7 @@ const Import = () => {
         {historyLoading ? (
           <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '24px' }}>
             <RefreshCw size={24} className="spinning" style={{ margin: '0 auto 12px', animation: 'spin 2s linear infinite' }} />
-            <span>Loading upload logs...</span>
+            <DashboardSkeleton />
           </div>
         ) : history.length === 0 ? (
           <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '32px', border: '1px dashed var(--border)', borderRadius: '8px' }}>

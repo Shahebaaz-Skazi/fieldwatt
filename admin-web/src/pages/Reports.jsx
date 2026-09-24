@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
+import { toast } from 'sonner';
 import api from '../utils/api';
 import PaywallModal from '../components/PaywallModal';
 import anime from 'animejs';
@@ -130,7 +132,7 @@ const Reports = () => {
 
   const handleExport = async () => {
     if (!selectedMru || !selectedYear || !selectedMonth) {
-      alert('Please select MRU, Year, and Month first.');
+      toast.error('Please select MRU, Year, and Month first.');
       return;
     }
     
@@ -151,7 +153,7 @@ const Reports = () => {
       }
       await executeRealExport();
     } catch(err) {
-      alert('Failed to check export fee: ' + err.message);
+      toast.error('Failed to check export fee: ' + err.message);
       setExportMruLoading(false);
     }
   };
@@ -159,7 +161,7 @@ const Reports = () => {
   const executeRealExport = async () => {
   // Paywall bypass logic wrapper applied
     if (!selectedMru || !selectedYear || !selectedMonth) {
-      alert('Please select MRU, Year, and Month first.');
+      toast.error('Please select MRU, Year, and Month first.');
       return;
     }
 
@@ -194,7 +196,7 @@ const Reports = () => {
         URL.revokeObjectURL(url);
       }, 1000);
     } catch (err) {
-      alert('Export failed: ' + err.message);
+      toast.error('Export failed: ' + err.message);
     } finally {
       setExportMruLoading(false);
     }
@@ -202,7 +204,7 @@ const Reports = () => {
 
   const handleDownloadImages = async () => {
     if (!imageYear || !imageMonth) {
-      alert('Please select Year and Month first.');
+      toast.error('Please select Year and Month first.');
       return;
     }
 
@@ -255,7 +257,7 @@ const Reports = () => {
         URL.revokeObjectURL(url);
       }, 1000);
     } catch (err) {
-      alert('Download failed: ' + err.message);
+      toast.error('Download failed: ' + err.message);
     } finally {
       setDownloadImagesLoading(false);
     }

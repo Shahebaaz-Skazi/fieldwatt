@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
 import api from '../utils/api';
 import { 
   ArrowLeft, Search, Filter, Home, Landmark, Building2, MapPin, X, User, 
@@ -443,7 +444,7 @@ const Areas = () => {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '100px', color: 'var(--muted)' }}>
             <RefreshCw className="spinner" size={24} style={{ margin: '0 auto 12px' }} />
-            <p>Loading files database...</p>
+            <DashboardSkeleton />
           </div>
         ) : fileCodes.length === 0 ? (
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '60px 20px', textAlign: 'center', color: 'var(--muted)' }}>
@@ -504,7 +505,7 @@ const Areas = () => {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '100px', color: 'var(--muted)' }}>
             <RefreshCw className="spinner" size={24} style={{ margin: '0 auto 12px' }} />
-            <p>Loading monthly records...</p>
+            <DashboardSkeleton />
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
@@ -559,7 +560,7 @@ const Areas = () => {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '100px', color: 'var(--muted)' }}>
             <RefreshCw className="spinner" size={24} style={{ margin: '0 auto 12px' }} />
-            <p>Loading geographic areas...</p>
+            <DashboardSkeleton />
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
@@ -1001,7 +1002,7 @@ const Areas = () => {
             </div>
 
             {loadingPropertyDetail ? (
-              <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>Loading...</div>
+              <div style={{ padding: "40px 0" }}><DashboardSkeleton /></div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
                 <div>

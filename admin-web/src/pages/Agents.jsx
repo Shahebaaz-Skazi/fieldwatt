@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { DashboardSkeleton } from '../components/Skeleton';
+import { toast } from 'sonner';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { Plus, Edit2, ShieldAlert, Check, X, Search, Phone, Mail, UserPlus } from 'lucide-react';
@@ -124,36 +126,36 @@ const Agents = () => {
       await api.patch(`/auth/admin/contractors/${contractor.id}/status`, { status: newStatus });
       fetchContractors();
     } catch (err) {
-      alert(err.message || 'Failed to update account status.');
+      toast.error(err.message || 'Failed to update account status.');
     }
   };
 
   const handleSaveEditAgents = async (e) => {
     e.preventDefault();
     if (editAgentIds.length === 0) {
-      return alert('Please select at least one agent.');
+      return toast.error('Please select at least one agent.');
     }
     try {
       await api.patch(`/auth/admin/contractors/${editingContractor.id}/agents`, { agent_ids: editAgentIds });
       setEditingContractor(null);
       fetchContractors();
     } catch (err) {
-      alert(err.message || 'Failed to update assigned agents.');
+      toast.error(err.message || 'Failed to update assigned agents.');
     }
   };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!resetPasswordVal || resetPasswordVal.length < 6) {
-      return alert('Password must be at least 6 characters.');
+      return toast.error('Password must be at least 6 characters.');
     }
     try {
       await api.patch(`/auth/admin/contractors/${resetPwContractor.id}/password`, { password: resetPasswordVal });
       setResetPwContractor(null);
       setResetPasswordVal('');
-      alert('Password reset successfully.');
+      toast.success('Password reset successfully.');
     } catch (err) {
-      alert(err.message || 'Failed to reset password.');
+      toast.error(err.message || 'Failed to reset password.');
     }
   };
 
@@ -224,7 +226,7 @@ const Agents = () => {
   };
 
   if (loading) {
-    return <div style={{ color: 'var(--muted)', textAlign: 'center', padding: '40px' }}>Loading agents records...</div>;
+    return <DashboardSkeleton />;
   }
 
   return (
