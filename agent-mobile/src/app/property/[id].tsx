@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { CameraView, Camera } from 'expo-camera';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import useAuthStore from '../../store/authStore';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
@@ -70,6 +71,12 @@ export default function PropertyDetailScreen() {
   const [captureTimestamp, setCaptureTimestamp] = useState('');
   const [captureGps, setCaptureGps] = useState('');
   const [watermarking, setWatermarking] = useState(false);
+
+  // Pinch-to-zoom state for the camera
+  const [zoom, setZoom] = useState(0);
+  const zoomOffset = useRef(0);
+  const [zoomVisible, setZoomVisible] = useState(false);
+  const zoomHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const watermarkShotRef = useRef<any>(null);
   const [pendingWatermarkUri, setPendingWatermarkUri] = useState<string | null>(null);
@@ -293,6 +300,8 @@ export default function PropertyDetailScreen() {
         console.warn('Orientation lock failed on this device, opening camera anyway:', orientationErr);
       }
       
+      setZoom(0);
+      zoomOffset.current = 0;
       setCameraActive(true);
     } catch (err) {
       console.error('Failed to request camera permission:', err);
@@ -460,27 +469,58 @@ export default function PropertyDetailScreen() {
     const bpNoStr = (property?.bp_no || 'N/A').toString();
     const meterNo = property?.meter_no || 'N/A';
 
+    // ponytail: pinch gesture built from already-installed RNGH — no new deps
+    const pinchGesture = Gesture.Pinch()
+      .onStart(() => {
+        zoomOffset.current = zoom;
+      })
+      .onUpdate((e) => {
+        // scale 1 = no change; clamp result to [0, 1]
+        const next = Math.min(1, Math.max(0, zoomOffset.current + (e.scale - 1) * 0.3));
+        setZoom(next);
+        setZoomVisible(true);
+        if (zoomHideTimer.current) clearTimeout(zoomHideTimer.current);
+        zoomHideTimer.current = setTimeout(() => setZoomVisible(false), 1500);
+      })
+      .runOnJS(true);
+
     return (
       <View style={styles.cameraContainer}>
-        <View style={{ flex: 1, width: '100%', height: '100%' }}>
-          <CameraView
-            style={{ flex: 1 }}
-            ref={cameraRef}
-            facing="back"
-          />
-          
-          {/* Watermark overlay — visible while shooting, visual only */}
-          <View style={[styles.watermarkOverlay, { padding: watermarkPadding }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{agentName}</Text>
-              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{currentTime}</Text>
+        <GestureDetector gesture={pinchGesture}>
+          <View style={{ flex: 1, width: '100%', height: '100%' }}>
+            <CameraView
+              style={{ flex: 1 }}
+              ref={cameraRef}
+              facing="back"
+              zoom={zoom}
+            />
+
+            {/* Watermark overlay — visible while shooting, visual only */}
+            <View style={[styles.watermarkOverlay, { padding: watermarkPadding }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{agentName}</Text>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>{currentTime}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>Meter: {meterNo}</Text>
+                <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>Meter: {meterNo}</Text>
-              <Text style={[styles.watermarkText, { fontSize: watermarkFontSize }]}>BP: {bpNoStr}</Text>
-            </View>
+
+            {/* Zoom level badge — appears briefly on pinch, auto-hides */}
+            {zoomVisible && (
+              <View style={{
+                position: 'absolute', top: 16, alignSelf: 'center',
+                backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
+                paddingHorizontal: 14, paddingVertical: 5,
+              }}>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                  {zoom < 0.01 ? '1×' : `${(1 + zoom * 9).toFixed(1)}×`}
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
+        </GestureDetector>
 
         {/* Shutter controls */}
         <View style={styles.cameraControls}>
