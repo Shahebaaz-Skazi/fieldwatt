@@ -1,4 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -11,11 +12,37 @@ const Import = lazy(() => import('./pages/Import'));
 const Reports = lazy(() => import('./pages/Reports'));
 const SelfReading = lazy(() => import('./pages/SelfReading'));
 const AgentPerformance = lazy(() => import('./pages/AgentPerformance'));
+const Corrections = lazy(() => import('./pages/Corrections'));
+// Fallback if WhatsAppDashboard doesn't exist
+const WhatsAppDashboard = lazy(() => import('./pages/Dashboard').catch(() => ({ default: () => <div style={{padding:'40px'}}>WhatsApp Module Not Available</div> })));
 
 import { LayoutDashboard, MapPin, Users, FileSpreadsheet, Map, LogOut, ShieldAlert, BarChart3, UserCheck, MessageSquare, TrendingUp, RefreshCw } from 'lucide-react';
 
 const App = () => {
-  if (window.location.pathname === '/self-reading') {
+  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isViewer = user?.role === 'viewer';
+  const isPerformanceViewer = user?.role === 'agent_performance_viewer';
+
+  // pageKeys allows resetting a component when the user re-clicks its active sidebar link
+  const [pageKeys, setPageKeys] = useState({
+    '/': 0,
+    '/areas': 0,
+    '/agents': 0,
+    '/assignment': 0,
+    '/import': 0,
+    '/corrections': 0,
+    '/reports': 0,
+    '/performance': 0
+  });
+
+  // Handle special public/unauthenticated routes first
+  if (location.pathname === '/self-reading') {
     return (
       <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading self reading portal...</div>}>
         <SelfReading />
@@ -23,82 +50,25 @@ const App = () => {
     );
   }
 
-  if (window.location.pathname === '/whatsapp') {
-    // <Route element={<WhatsAppDashboard />} path="/whatsapp"/>
-    const token = useAuthStore.getState().token;
-    if (!token) return <Login />;
-    return (
-      <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading outreach dashboard...</div>}>
-        <WhatsAppDashboard />
-      </Suspense>
-    );
-  }
-
-  const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
-  const isViewer = user?.role === 'viewer';
-  const isPerformanceViewer = user?.role === 'agent_performance_viewer';
-  const activePage = useAuthStore((state) => state.activePage);
-  const setActivePage = useAuthStore((state) => state.setActivePage);
-  const logout = useAuthStore((state) => state.logout);
-
-  // pageKeys allows resetting a component when the user re-clicks its active sidebar link
-  const [pageKeys, setPageKeys] = useState({
-    dashboard: 0,
-    areas: 0,
-    agents: 0,
-    assignment: 0,
-    import: 0,
-    map: 0,
-    alerts: 0,
-    reports: 0,
-    whatsapp: 0,
-    whatsapp_outreach: 0,
-    performance: 0
-  });
-
+  // Handle auth enforcement
   if (!token) {
     return <Login />;
   }
 
-  const handleNavClick = (page) => {
-    if (activePage === page) {
-      setPageKeys(prev => ({ ...prev, [page]: prev[page] + 1 }));
+  // Ensure role-based routing
+  if (isPerformanceViewer && location.pathname !== '/performance' && location.pathname !== '/self-reading') {
+    return <Navigate to="/performance" replace />;
+  }
+
+  if (isViewer && location.pathname !== '/' && location.pathname !== '/self-reading') {
+    return <Navigate to="/" replace />;
+  }
+
+  const handleNavClick = (path) => {
+    if (location.pathname === path) {
+      setPageKeys(prev => ({ ...prev, [path]: (prev[path] || 0) + 1 }));
     } else {
-      setActivePage(page);
-    }
-  };
-
-  const renderActivePage = () => {
-    if (isPerformanceViewer) {
-      return <AgentPerformance key={pageKeys.performance || 'performance'} performanceViewerMode={true} />;
-    }
-
-    if (isViewer) {
-      return <Dashboard key={pageKeys.dashboard} viewerMode={true} />;
-    }
-
-    switch (activePage) {
-      case 'dashboard':
-        return <Dashboard key={pageKeys.dashboard} />;
-      case 'areas':
-        return <Areas key={pageKeys.areas} />;
-      case 'agents':
-        return <Agents key={pageKeys.agents} />;
-      case 'assignment':
-        return <Assignment key={pageKeys.assignment} />;
-      case 'import':
-        return <Import key={pageKeys.import} />;
-      
-      
-      case 'reports':
-        return <Reports key={pageKeys.reports} />;
-      case 'performance':
-        return <AgentPerformance key={pageKeys.performance || 'performance'} />;
-      
-      
-      default:
-        return <Dashboard key={pageKeys.dashboard} />;
+      navigate(path);
     }
   };
 
@@ -116,8 +86,8 @@ const App = () => {
             {isPerformanceViewer ? (
               <li>
                 <button
-                  onClick={() => handleNavClick('performance')}
-                  className={`nav-link active`}
+                  onClick={() => handleNavClick('/performance')}
+                  className={`nav-link ${location.pathname === '/performance' ? 'active' : ''}`}
                 >
                   <TrendingUp size={18} />
                   Agent Performance
@@ -126,8 +96,8 @@ const App = () => {
             ) : isViewer ? (
               <li>
                 <button
-                  onClick={() => handleNavClick('dashboard')}
-                  className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => handleNavClick('/')}
+                  className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
                 >
                   <LayoutDashboard size={18} />
                   Dashboard
@@ -137,8 +107,8 @@ const App = () => {
               <>
                 <li>
                   <button
-                    onClick={() => handleNavClick('dashboard')}
-                    className={`nav-link ${activePage === 'dashboard' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/')}
+                    className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
                   >
                     <LayoutDashboard size={18} />
                     Dashboard
@@ -146,8 +116,8 @@ const App = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => handleNavClick('areas')}
-                    className={`nav-link ${activePage === 'areas' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/areas')}
+                    className={`nav-link ${location.pathname.startsWith('/areas') ? 'active' : ''}`}
                   >
                     <MapPin size={18} />
                     Areas Browser
@@ -155,8 +125,8 @@ const App = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => handleNavClick('agents')}
-                    className={`nav-link ${activePage === 'agents' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/agents')}
+                    className={`nav-link ${location.pathname.startsWith('/agents') ? 'active' : ''}`}
                   >
                     <Users size={18} />
                     Manage Agents
@@ -164,8 +134,8 @@ const App = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => handleNavClick('import')}
-                    className={`nav-link ${activePage === 'import' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/import')}
+                    className={`nav-link ${location.pathname.startsWith('/import') ? 'active' : ''}`}
                   >
                     <FileSpreadsheet size={18} />
                     Import Excel
@@ -173,26 +143,26 @@ const App = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => handleNavClick('assignment')}
-                    className={`nav-link ${activePage === 'assignment' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/corrections')}
+                    className={`nav-link ${location.pathname.startsWith('/corrections') ? 'active' : ''}`}
+                  >
+                    <ShieldAlert size={18} />
+                    Corrections
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => handleNavClick('/assignment')}
+                    className={`nav-link ${location.pathname.startsWith('/assignment') ? 'active' : ''}`}
                   >
                     <UserCheck size={18} />
                     Bulk Assign
                   </button>
                 </li>
                 <li>
-                  
-                </li>
-                <li>
-                  
-                </li>
-                <li>
-                  
-                </li>
-                <li>
                   <button
-                    onClick={() => handleNavClick('reports')}
-                    className={`nav-link ${activePage === 'reports' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/reports')}
+                    className={`nav-link ${location.pathname.startsWith('/reports') ? 'active' : ''}`}
                   >
                     <BarChart3 size={18} />
                     Analytics & Reports
@@ -200,15 +170,12 @@ const App = () => {
                 </li>
                 <li>
                   <button
-                    onClick={() => handleNavClick('performance')}
-                    className={`nav-link ${activePage === 'performance' ? 'active' : ''}`}
+                    onClick={() => handleNavClick('/performance')}
+                    className={`nav-link ${location.pathname.startsWith('/performance') ? 'active' : ''}`}
                   >
                     <TrendingUp size={18} />
                     Agent Performance
                   </button>
-                </li>
-                <li>
-                  
                 </li>
               </>
             )}
@@ -221,7 +188,7 @@ const App = () => {
             <span style={{ fontWeight: '600', color: 'var(--text)', fontSize: '13px' }}>{user?.name || 'Administrator'}</span>
             <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{user?.email || 'admin@fieldwatt.com'}</span>
           </div>
-          <button onClick={logout} className="nav-link nav-link-logout">
+          <button onClick={() => { logout(); navigate('/'); }} className="nav-link nav-link-logout">
             <LogOut size={16} />
             Logout
           </button>
@@ -244,7 +211,22 @@ const App = () => {
             <span>Loading page...</span>
           </div>
         }>
-          {renderActivePage()}
+          <Routes>
+            <Route path="/" element={
+              isPerformanceViewer 
+                ? <Navigate to="/performance" replace /> 
+                : <Dashboard key={pageKeys['/']} viewerMode={isViewer} />
+            } />
+            <Route path="/areas" element={<Areas key={pageKeys['/areas']} />} />
+            <Route path="/agents" element={<Agents key={pageKeys['/agents']} />} />
+            <Route path="/assignment" element={<Assignment key={pageKeys['/assignment']} />} />
+            <Route path="/import" element={<Import key={pageKeys['/import']} />} />
+            <Route path="/corrections" element={<Corrections key={pageKeys['/corrections']} />} />
+            <Route path="/reports" element={<Reports key={pageKeys['/reports']} />} />
+            <Route path="/performance" element={<AgentPerformance key={pageKeys['/performance']} performanceViewerMode={isPerformanceViewer} />} />
+            <Route path="/whatsapp" element={<WhatsAppDashboard key={pageKeys['/whatsapp']} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Suspense>
       </main>
     </div>
