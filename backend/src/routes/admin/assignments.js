@@ -765,9 +765,9 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
         CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 'completed' ELSE 'pending' END as status,
         CASE WHEN latest_r.status_code = 'reading_taken' OR latest_r.status_code = 'completed' THEN 1 ELSE 0 END as is_completed,
         CASE WHEN asg.id IS NOT NULL THEN 1 ELSE 0 END as is_assigned
-      FROM properties p
+      FROM imports i
+      INNER JOIN properties p ON p.import_id = i.id
       INNER JOIN areas a ON p.area_id = a.id
-      INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (

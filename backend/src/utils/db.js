@@ -123,7 +123,7 @@ async function query(sql, params = []) {
         {
           headers: { 'Authorization': 'Bearer ' + apiToken, 'Content-Type': 'application/json' },
           httpsAgent,
-          timeout: 20000
+          timeout: 55000
         }
       );
       json = res.data;
