@@ -649,9 +649,9 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
       ORDER BY p.society ASC, p.serial_no ASC
@@ -666,9 +666,9 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
     `;
@@ -774,9 +774,9 @@ router.get('/search-properties-ids', authMiddleware, requireAdmin, async (req, r
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
     `;
@@ -863,9 +863,9 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
@@ -1084,9 +1084,9 @@ router.get("/calculate-fee", authMiddleware, requireViewer, async (req, res, nex
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
@@ -1182,9 +1182,9 @@ router.post("/verify-payment", authMiddleware, requireViewer, upload.single("rec
         INNER JOIN imports i ON p.import_id = i.id
         LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
         LEFT JOIN (
-        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
         FROM readings
-        ORDER BY assignment_id, submitted_at DESC
+        GROUP BY assignment_id
       ) latest_r ON latest_r.assignment_id = asg.id
         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
           AND EXTRACT(MONTH FROM i.scheduled_date) = $2

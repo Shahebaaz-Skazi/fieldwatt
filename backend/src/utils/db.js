@@ -50,10 +50,6 @@ function convertPg(sql) {
   // 1. Remove all PostgreSQL type casts (e.g. ::int, ::text, ::jsonb, ::uuid[], etc.)
   s = s.replace(/::[a-zA-Z_0-9]+(?:\[\])?/gi, '');
   
-  // 1a. Convert DISTINCT ON (assignment_id) ... to ROW_NUMBER()
-  s = s.replace(/SELECT DISTINCT ON\s*\(\s*assignment_id\s*\)\s*(.*?)\s*FROM\s*readings\s*ORDER BY\s*assignment_id\s*,\s*submitted_at\s*DESC/gi, 
-    "SELECT $1 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY assignment_id ORDER BY submitted_at DESC) as _rn FROM readings) WHERE _rn = 1");
-  
   // 1b. Replace PostgreSQL POSIX regex matches (~ '^[0-9]+$') with standard SQLite GLOB operator
   s = s.replace(/~\s*'\^\\\[0-9\\\]\+\\$'/gi, "NOT GLOB '*[^0-9]*'");
   s = s.replace(/~\s*'\^\[0-9\]\+\$'/gi, "NOT GLOB '*[^0-9]*'");
