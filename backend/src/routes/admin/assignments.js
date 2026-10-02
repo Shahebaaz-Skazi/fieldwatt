@@ -613,7 +613,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       } else if (status === 'completed') {
         filterWhere += ` AND (latest_r.status_code = 'completed' OR latest_r.status_code = 'reading_taken')`;
       } else if (status === 'incomplete') {
-        filterWhere += ` AND asg.id IS NOT NULL AND latest_r.id IS NULL`;
+        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken'))`;
       }
     }
 
@@ -649,9 +649,9 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
         FROM readings
-        GROUP BY assignment_id
+        ORDER BY assignment_id, submitted_at DESC
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
       ORDER BY p.society ASC, p.serial_no ASC
@@ -666,9 +666,9 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
         FROM readings
-        GROUP BY assignment_id
+        ORDER BY assignment_id, submitted_at DESC
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE ${filterWhere}
     `;
@@ -695,6 +695,98 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
 });
 
 
+
+// GET /admin/assignments/search-properties-ids - Fetch all matching property IDs for bulk assignment bypassing pagination
+router.get('/search-properties-ids', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { q, mru, year, month, status, societies, agent_filter_id } = req.query;
+    
+    if (!mru || !year || !month) {
+      return res.json({ ids: [] });
+    }
+
+    const cycleRes = await db.query(
+      `SELECT c.id as cycle_id
+       FROM cycles c
+       WHERE c.label = (
+         SELECT billing_month FROM imports i
+         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1 
+           AND EXTRACT(MONTH FROM i.scheduled_date) = $2
+         LIMIT 1
+       )`,
+      [parseInt(year), parseInt(month)]
+    );
+    const targetCycleId = cycleRes.rows.length > 0 ? cycleRes.rows[0].cycle_id : '00000000-0000-0000-0000-000000000000';
+
+    const filterParams = [targetCycleId, parseInt(year), parseInt(month)];
+    let filterWhere = `
+      EXTRACT(YEAR FROM i.scheduled_date) = $2 
+        AND EXTRACT(MONTH FROM i.scheduled_date) = $3
+    `;
+    let paramCount = 4;
+
+    if (mru !== 'all') {
+      filterWhere += ` AND (a.name = $${paramCount} OR i.file_code = $${paramCount})`;
+      filterParams.push(mru);
+      paramCount++;
+    }
+
+    if (q && q.trim()) {
+      filterWhere += ` AND (p.consumer_name LIKE $${paramCount} OR p.serial_no LIKE $${paramCount} OR p.address LIKE $${paramCount} OR p.society LIKE $${paramCount})`;
+      filterParams.push(`%${q.trim()}%`);
+      paramCount++;
+    }
+
+    if (societies) {
+      const socList = societies.split(',').map(s => s.trim()).filter(Boolean);
+      if (socList.length > 0) {
+        const placeholders = socList.map((_, idx) => `$${paramCount + idx}`).join(', ');
+        filterWhere += ` AND p.society IN (${placeholders})`;
+        filterParams.push(...socList);
+        paramCount += socList.length;
+      }
+    }
+
+    if (status && status !== 'all') {
+      if (status === 'assigned') {
+        filterWhere += ` AND asg.id IS NOT NULL`;
+      } else if (status === 'unassigned') {
+        filterWhere += ` AND asg.id IS NULL`;
+      } else if (status === 'doorlocked') {
+        filterWhere += ` AND latest_r.status_code = 'door_locked'`;
+      } else if (status === 'completed') {
+        filterWhere += ` AND (latest_r.status_code = 'completed' OR latest_r.status_code = 'reading_taken')`;
+      } else if (status === 'incomplete') {
+        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken'))`;
+      }
+    }
+
+    if (agent_filter_id && agent_filter_id !== 'all') {
+      filterWhere += ` AND asg.agent_id = $${paramCount}`;
+      filterParams.push(agent_filter_id);
+      paramCount++;
+    }
+
+    const dataQuery = `
+      SELECT p.id
+      FROM properties p
+      INNER JOIN areas a ON p.area_id = a.id
+      INNER JOIN imports i ON p.import_id = i.id
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $1
+      LEFT JOIN (
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
+        FROM readings
+        ORDER BY assignment_id, submitted_at DESC
+      ) latest_r ON latest_r.assignment_id = asg.id
+      WHERE ${filterWhere}
+    `;
+
+    const result = await db.query(dataQuery, filterParams);
+    res.json({ ids: result.rows.map(r => r.id) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /admin/assignments/export - Export properties, readings, and assignment logs in exact 30-column SAP Excel format
 router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
@@ -771,9 +863,9 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
         FROM readings
-        GROUP BY assignment_id
+        ORDER BY assignment_id, submitted_at DESC
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
@@ -992,9 +1084,9 @@ router.get("/calculate-fee", authMiddleware, requireViewer, async (req, res, nex
       INNER JOIN imports i ON p.import_id = i.id
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
         FROM readings
-        GROUP BY assignment_id
+        ORDER BY assignment_id, submitted_at DESC
       ) latest_r ON latest_r.assignment_id = asg.id
       WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
         AND EXTRACT(MONTH FROM i.scheduled_date) = $2
@@ -1090,9 +1182,9 @@ router.post("/verify-payment", authMiddleware, requireViewer, upload.single("rec
         INNER JOIN imports i ON p.import_id = i.id
         LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
         LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
+        SELECT DISTINCT ON (assignment_id) id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at
         FROM readings
-        GROUP BY assignment_id
+        ORDER BY assignment_id, submitted_at DESC
       ) latest_r ON latest_r.assignment_id = asg.id
         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
           AND EXTRACT(MONTH FROM i.scheduled_date) = $2

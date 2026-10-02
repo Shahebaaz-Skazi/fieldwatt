@@ -272,6 +272,63 @@ const Assignment = () => {
     }
   };
 
+  const handleAssignAllMatching = async () => {
+    if (!selectedAgentId) {
+      setMessage({ text: 'Please select an agent to assign the workload to.', type: 'error' });
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to assign ALL ${totalCount} matching properties to this agent?`)) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setMessage({ text: 'Fetching all matching property IDs...', type: '' });
+      const societiesQuery = selectedSocieties.join(',');
+      const resIds = await api.get('/admin/assignments/search-properties-ids', {
+        params: {
+          q: debouncedSearch,
+          mru: selectedMru,
+          year: selectedYear,
+          month: selectedMonth,
+          status: selectedStatus,
+          societies: societiesQuery,
+          agent_filter_id: aboveAgentFilterId
+        }
+      });
+      
+      const allIds = resIds.ids || [];
+      if (allIds.length === 0) {
+        setMessage({ text: 'No properties found matching filters.', type: 'error' });
+        return;
+      }
+
+      setMessage({ text: `Assigning ${allIds.length} properties...`, type: '' });
+      
+      const BATCH_SIZE = 500;
+      let totalAssigned = 0;
+
+      for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+        const batch = allIds.slice(i, i + BATCH_SIZE);
+        const res = await api.post('/admin/assignments/bulk', {
+          property_ids: batch,
+          agent_id: selectedAgentId,
+          cycle_id: resolvedCycleId
+        });
+        totalAssigned += (res.count || batch.length);
+      }
+      
+      setMessage({ text: `Successfully assigned all ${totalAssigned} matching properties.`, type: 'success' });
+      setSelectedPropIds(new Set());
+      fetchProperties();
+    } catch (err) {
+      setMessage({ text: err.message || 'Failed to complete bulk assignment.', type: 'error' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusBadge = (prop) => {
     if (!prop.assignment_id) {
       return <span className="badge badge-danger">Not Assigned</span>;
@@ -827,8 +884,20 @@ const Assignment = () => {
                 style={{ height: '40px', padding: '0 20px' }}
               >
                 {actionLoading ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
-                Assign Workload
+                Assign Selected ({selectedPropIds.size})
               </button>
+              
+              {totalCount > PAGE_SIZE && (
+                <button
+                  onClick={handleAssignAllMatching}
+                  disabled={actionLoading || totalCount === 0 || !selectedAgentId}
+                  className="btn btn-primary"
+                  style={{ height: '40px', padding: '0 20px', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                >
+                  {actionLoading ? <RefreshCw size={16} className="spin" /> : <Check size={16} />}
+                  Assign ALL {totalCount.toLocaleString()} Matching
+                </button>
+              )}
             </div>
           </div>
         </div>
