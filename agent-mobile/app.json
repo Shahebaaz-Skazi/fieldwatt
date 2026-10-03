@@ -27,7 +27,12 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "themeColor": "#f5a623",
+      "backgroundColor": "#080b12",
+      "bundleIdentifier": "com.shahebaaz.fieldwatt",
+      "shortName": "FieldWatt",
+      "description": "Electricity meter reading field operations app"
     },
     "plugins": [
       "expo-router",
