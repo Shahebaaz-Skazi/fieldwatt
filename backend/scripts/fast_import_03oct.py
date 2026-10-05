@@ -103,7 +103,7 @@ s3_client = boto3.client(
     )
 )
 
-def query_d1(sql, params=None, max_retries=3):
+def query_d1(sql, params=None, max_retries=6):
     if params is None:
         params = []
     url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/d1/database/{CF_DB_ID}/query"
@@ -301,11 +301,13 @@ def main():
                 bp = row_dict.get('bp_number') or row_dict.get('bp no.')
                 mr = row_dict.get('meter_reading') or row_dict.get('current mr')
                 img = row_dict.get('meter_image') or row_dict.get('meter photo url')
-                if bp:
+                
+                # Only process rows that actually have a photo URL
+                if bp and img and str(img).strip():
                     rows.append({
                         'bp_number': bp,
                         'meter_reading': mr,
-                        'meter_image': img,
+                        'meter_image': str(img).strip(),
                         'created_on': row_dict.get('created_on') or row_dict.get('current meter reading date')
                     })
     wb.close()
@@ -333,7 +335,7 @@ def main():
     errors = []
 
     work_items = [(i, rows[i], prop_cache, asg_cache, read_cache) for i in range(len(rows))]
-    workers = 10
+    workers = 40
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_item = {executor.submit(process_single_row, item): item for item in work_items}
@@ -348,9 +350,10 @@ def main():
                 stats['done'] += 1
             elif st == 'skipped':
                 stats['skipped'] += 1
-            else:
                 stats['failed'] += 1
                 errors.append(res)
+                
+                
 
             total = stats['done'] + stats['skipped'] + stats['failed']
             if total % 25 == 0 or total == len(rows):
