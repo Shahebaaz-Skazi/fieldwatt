@@ -26,9 +26,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
-        working-directory: ./backend
-        run: npm ci
+      - name: Install System Fonts & Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y fonts-dejavu-core
+          python -m pip install --upgrade pip
+          pip install pillow requests openpyxl boto3 python-dotenv
 
       - name: Run Import Worker
         run: |
@@ -38,8 +40,12 @@ jobs:
           export CLOUDFLARE_ACCOUNT_ID=$(echo 'MmNjYTVlNWI3ZDQzYjg3MTVmYzA5MGNlNGY3MGY3MTU=' | base64 -d)
           export CLOUDFLARE_D1_DATABASE_ID=$(echo 'YzNjYWMwOWItOGVhMS00MTFjLTgzYmYtZDNmZTU0MzVjNDQ2' | base64 -d)
           export CLOUDFLARE_API_TOKEN=$(echo 'Y2Z1dF9FbGFRQXQwdFdHZHpYcVVib21sMXFabFUzSEhVNGpSS0lSOHlUTTNZYjIwNWY0NGI=' | base64 -d)
+          export R2_ACCESS_KEY_ID=$(echo 'MzlkZWM3YmJhNThmZDk3MzE2MGJmYTc3OTM1NmM1NDI=' | base64 -d)
+          export R2_SECRET_ACCESS_KEY=$(echo 'MmRmNDk0NjQ4MmU2ZTJkMWY1MmFkMWUyZjY2MzIzNGExOTQ4ZmI1NzkwODhjMjIxZGMyYjU3ZGM2MWNkM2ExMQ==' | base64 -d)
+          export R2_BUCKET_NAME=$(echo 'ZmllbGR3YXR0LW1ldGVyLXBob3Rvcw==' | base64 -d)
+          export R2_PUBLIC_BASE_URL=$(echo 'aHR0cHM6Ly9wdWItM2RlNmYzYWNlMWQwNGQ1NThjNDdjMGU3ZGY1ZjMzM2QucjIuZGV2' | base64 -d)
           
-          node backend/scripts/run_import.js "meter_images/Upload reading 03.10.2026.xlsx" 2>&1 | tee import.log
+          python -u backend/scripts/fast_import_03oct.py "meter_images/Upload reading 03.10.2026.xlsx" 2>&1 | tee import.log
 
       - name: Upload Import Log
         if: always()
