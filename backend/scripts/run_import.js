@@ -13,7 +13,7 @@ const worker = new Worker(workerPath, {
   workerData: { 
     filePath: path.resolve(filePath), 
     fileName: path.basename(filePath),
-    adminId: 'github-action-import' 
+    adminId: '60529973-4ca8-4a4b-9de8-3246b5a5e941' // admin@fieldwatt.com
   }
 });
 
