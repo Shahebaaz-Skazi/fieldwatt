@@ -290,28 +290,18 @@ def main():
     wb = openpyxl.load_workbook(excel_file, read_only=True)
     rows = []
     
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
+    if 'Sheet2' in wb.sheetnames:
+        ws = wb['Sheet2']
         headers = None
         for r in ws.iter_rows(values_only=True):
             if headers is None:
                 headers = [str(h).strip().lower() for h in r]
             else:
                 row_dict = dict(zip(headers, r))
-                bp = row_dict.get('bp_number') or row_dict.get('bp no.')
-                mr = row_dict.get('meter_reading') or row_dict.get('current mr')
-                img = row_dict.get('meter_image') or row_dict.get('meter photo url')
-                
-                # Only process rows that actually have a photo URL
-                if bp and img and str(img).strip():
-                    rows.append({
-                        'bp_number': bp,
-                        'meter_reading': mr,
-                        'meter_image': str(img).strip(),
-                        'created_on': row_dict.get('created_on') or row_dict.get('current meter reading date')
-                    })
+                if row_dict.get('bp_number') and row_dict.get('meter_image'):
+                    rows.append(row_dict)
     wb.close()
-    print(f"Loaded {len(rows)} rows from Excel.\n")
+    print(f"Loaded {len(rows)} rows from Sheet2.\n")
 
     print("Pre-fetching properties, assignments, and readings from D1 database...")
     t_preload = time.time()
