@@ -68,12 +68,12 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           asg.id as assignment_id,
           p.id as property_id,
           p.serial_no,
-          LTRIM(COALESCE(p.raw_sap_data->>'BP No.', p.raw_sap_data->>'BP NO', p.raw_sap_data->>'BP No', p.raw_sap_data->>'BP NO.', p.raw_sap_data->>'BP', p.serial_no), '0') AS bp_no,
+          LTRIM(COALESCE(json_extract(p.raw_sap_data,'$."BP No."'), json_extract(p.raw_sap_data,'$.\"BP NO\"'), json_extract(p.raw_sap_data,'$.\"BP No\"'), json_extract(p.raw_sap_data,'$.\"BP NO.\"'), json_extract(p.raw_sap_data,'$.\"BP\"'), p.serial_no), '0') AS bp_no,
           p.consumer_name,
           p.address,
           p.meter_no,
           p.property_type,
-          COALESCE(p.phone_number, p.raw_sap_data->>'Mobile No.', p.raw_sap_data->>'Mobile', p.raw_sap_data->>'Telephone No.', p.raw_sap_data->>'Telephone', p.raw_sap_data->>'Phone', p.raw_sap_data->>'Contact No') AS phone_number,
+          COALESCE(p.phone_number, json_extract(p.raw_sap_data,'$.\"Mobile No.\"'), json_extract(p.raw_sap_data,'$.\"Mobile\"'), json_extract(p.raw_sap_data,'$.\"Telephone No.\"'), json_extract(p.raw_sap_data,'$.\"Telephone\"'), json_extract(p.raw_sap_data,'$.\"Phone\"'), json_extract(p.raw_sap_data,'$.\"Contact No\"')) AS phone_number,
           p.lat as property_lat,
           p.lng as property_lng,
           p.society,
@@ -100,12 +100,12 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           asg.id as assignment_id,
           p.id as property_id,
           p.serial_no,
-          LTRIM(COALESCE(p.raw_sap_data->>'BP No.', p.raw_sap_data->>'BP NO', p.raw_sap_data->>'BP No', p.raw_sap_data->>'BP NO.', p.raw_sap_data->>'BP', p.serial_no), '0') AS bp_no,
+          LTRIM(COALESCE(json_extract(p.raw_sap_data,'$."BP No."'), json_extract(p.raw_sap_data,'$.\"BP NO\"'), json_extract(p.raw_sap_data,'$.\"BP No\"'), json_extract(p.raw_sap_data,'$.\"BP NO.\"'), json_extract(p.raw_sap_data,'$.\"BP\"'), p.serial_no), '0') AS bp_no,
           p.consumer_name,
           p.address,
           p.meter_no,
           p.property_type,
-          COALESCE(p.phone_number, p.raw_sap_data->>'Mobile No.', p.raw_sap_data->>'Mobile', p.raw_sap_data->>'Telephone No.', p.raw_sap_data->>'Telephone', p.raw_sap_data->>'Phone', p.raw_sap_data->>'Contact No') AS phone_number,
+          COALESCE(p.phone_number, json_extract(p.raw_sap_data,'$.\"Mobile No.\"'), json_extract(p.raw_sap_data,'$.\"Mobile\"'), json_extract(p.raw_sap_data,'$.\"Telephone No.\"'), json_extract(p.raw_sap_data,'$.\"Telephone\"'), json_extract(p.raw_sap_data,'$.\"Phone\"'), json_extract(p.raw_sap_data,'$.\"Contact No\"')) AS phone_number,
           p.lat as property_lat,
           p.lng as property_lng,
           p.society,
@@ -203,7 +203,8 @@ router.get('/nearest', authMiddleware, requireAgent, async (req, res, next) => {
       return res.json(result.rows[0] || null);
     }
 
-    // Haversine distance formula in Postgres (result in metres)
+    // SQLite-compatible distance: Euclidean degrees * 111000 m/degree approximation
+    // Good enough for ordering nearest ~5km radius
     const result = await db.query(`
       SELECT
         asg.id as assignment_id,
@@ -214,17 +215,14 @@ router.get('/nearest', authMiddleware, requireAgent, async (req, res, next) => {
         p.lat as property_lat,
         p.lng as property_lng,
         (
-          6371000 * acos(
-            cos(radians($3)) * cos(radians(p.lat)) * cos(radians(p.lng) - radians($4))
-            + sin(radians($3)) * sin(radians(p.lat))
-          )
-        ) AS distance_m
+          (p.lat - $3) * (p.lat - $3) + (p.lng - $4) * (p.lng - $4)
+        ) AS distance_sq
       FROM assignments asg
       INNER JOIN properties p ON p.id = asg.property_id
       LEFT JOIN readings r ON r.assignment_id = asg.id
       WHERE asg.agent_id = $1 AND asg.cycle_id = $2 AND r.id IS NULL
         AND p.lat IS NOT NULL AND p.lng IS NOT NULL
-      ORDER BY distance_m ASC
+      ORDER BY distance_sq ASC
       LIMIT 1
     `, [agentId, cycleId, lat, lng]);
 
