@@ -9,8 +9,8 @@ const { getDistance } = require('../../utils/geo');
 const { detectAnomaly } = require('../../services/anomaly');
 
 const readingItemSchema = z.object({
-  assignment_id: z.string().uuid(),
-  idempotency_key: z.string().uuid(),
+  assignment_id: z.string().min(1),
+  idempotency_key: z.string().min(1),
   reading_value: z.string().nullable().optional(),
   status_code: z.string().min(1),
   photo_url: z.string().nullable().optional(),
