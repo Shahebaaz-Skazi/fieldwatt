@@ -613,7 +613,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       } else if (status === 'completed') {
         filterWhere += ` AND (latest_r.status_code = 'completed' OR latest_r.status_code = 'reading_taken')`;
       } else if (status === 'incomplete') {
-        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken'))`;
+        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken' AND latest_r.status_code != 'door_locked'))`;
       }
     }
 
@@ -757,7 +757,7 @@ router.get('/search-properties-ids', authMiddleware, requireAdmin, async (req, r
       } else if (status === 'completed') {
         filterWhere += ` AND (latest_r.status_code = 'completed' OR latest_r.status_code = 'reading_taken')`;
       } else if (status === 'incomplete') {
-        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken'))`;
+        filterWhere += ` AND asg.id IS NOT NULL AND (latest_r.id IS NULL OR (latest_r.status_code != 'completed' AND latest_r.status_code != 'reading_taken' AND latest_r.status_code != 'door_locked'))`;
       }
     }
 
