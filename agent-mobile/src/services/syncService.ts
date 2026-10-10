@@ -54,19 +54,21 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
       
       // Process and upload local images inside the chunk sequence
       const payload = [];
-      let uploadFailed = false;
-      let uploadErrorMsg = '';
 
       for (const r of chunk) {
         let finalPhotoUrl = r.photo_url || null;
+        let finalNote = r.note || null;
+
         if (finalPhotoUrl && !finalPhotoUrl.startsWith('http')) {
           try {
             finalPhotoUrl = await uploadLocalPhoto(finalPhotoUrl);
           } catch (uploadErr: any) {
-            console.error('Photo upload failed — leaving reading in queue for retry:', uploadErr);
-            uploadFailed = true;
-            uploadErrorMsg = uploadErr.message || 'Photo upload failed';
-            break; // Abort processing this chunk
+            console.error('Photo upload failed — skipping photo and proceeding:', uploadErr);
+            finalPhotoUrl = null;
+            const photoFailureNote = 'Photo unavailable on device; reading synced without photo.';
+            finalNote = finalNote 
+              ? `${finalNote} | ${photoFailureNote}`
+              : photoFailureNote;
           }
         }
 
@@ -76,7 +78,7 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
           reading_value: r.reading_value !== null ? r.reading_value.toString() : null,
           status_code: r.status_code,
           photo_url: finalPhotoUrl,
-          note: r.note || null,
+          note: finalNote,
           gps_lat: r.gps_lat !== null ? parseFloat(r.gps_lat.toString()) : null,
           gps_lng: r.gps_lng !== null ? parseFloat(r.gps_lng.toString()) : null,
           gps_accuracy: r.gps_accuracy !== null ? parseFloat(r.gps_accuracy.toString()) : null,
@@ -84,17 +86,24 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
         });
       }
 
-      if (uploadFailed) {
-        isSyncing = false;
-        return { success: false, count: syncedCount, error: `Upload aborted: ${uploadErrorMsg}` };
-      }
-
       try {
         const response = await api.post('/sync/batch', { readings: payload });
         
-        // If response is successful, update SQLite to remove synced items
-        const syncedKeys = response.synced || chunk.map((r: any) => r.idempotency_key);
-        await markReadingsAsSynced(syncedKeys);
+        // The backend returns { synced: string[], failed: { idempotency_key, reason }[] }
+        const syncedKeys = response.synced || [];
+        const failedKeys = (response.failed || []).map((f: any) => f.idempotency_key);
+        
+        const keysToRemove = [...syncedKeys, ...failedKeys];
+
+        // Fallback if backend doesn't return synced/failed explicitly
+        if (keysToRemove.length === 0 && !response.synced && !response.failed) {
+          keysToRemove.push(...chunk.map((r: any) => r.idempotency_key));
+        }
+
+        if (keysToRemove.length > 0) {
+          await markReadingsAsSynced(keysToRemove);
+        }
+        
         syncedCount += syncedKeys.length;
 
         if (response.failed && response.failed.length > 0) {

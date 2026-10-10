@@ -1518,7 +1518,7 @@ export default function WorkListScreen() {
 
                 const msg = syncRes.success 
                   ? `Successfully synced ${syncRes.count || 0} pending readings to the server.` 
-                  : `Sync finished with issues: ${syncRes.error || syncRes.message || 'Unknown error'}`;
+                  : `Sync finished with issues: ${syncRes.error || 'Unknown error'}`;
                   
                 if (typeof window !== 'undefined' && window.alert) {
                   window.alert(msg);

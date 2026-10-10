@@ -90,31 +90,34 @@ const processReadingsDirectly = async (agentId, readings, role = 'agent') => {
         }
       }
 
-      // 4. Save reading with idempotency key safety
-      await client.query(
-        `INSERT INTO readings (
-          assignment_id, idempotency_key, reading_value, status_code, 
-          photo_url, note, gps_lat, gps_lng, gps_accuracy, 
-          is_anomalous, anomaly_reason, submitted_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         ON CONFLICT (idempotency_key) DO NOTHING`,
-        [
-          reading.assignment_id,
-          reading.idempotency_key,
-          reading.reading_value || null,
-          reading.status_code,
-          reading.photo_url || null,
-          reading.note || null,
-          reading.gps_lat || null,
-          reading.gps_lng || null,
-          reading.gps_accuracy || null,
-          isAnomalous,
-          anomalyReason,
-          reading.submitted_at
-        ]
-      );
-
-      synced.push(reading.idempotency_key);
+      try {
+        await client.query(
+          `INSERT INTO readings (
+            assignment_id, idempotency_key, reading_value, status_code, 
+            photo_url, note, gps_lat, gps_lng, gps_accuracy, 
+            is_anomalous, anomaly_reason, submitted_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           ON CONFLICT (idempotency_key) DO NOTHING`,
+          [
+            reading.assignment_id,
+            reading.idempotency_key,
+            reading.reading_value || null,
+            reading.status_code,
+            reading.photo_url || null,
+            reading.note || null,
+            reading.gps_lat || null,
+            reading.gps_lng || null,
+            reading.gps_accuracy || null,
+            isAnomalous,
+            anomalyReason,
+            reading.submitted_at
+          ]
+        );
+        synced.push(reading.idempotency_key);
+      } catch (insertErr) {
+        console.error(`Error inserting reading ${reading.idempotency_key}:`, insertErr.message);
+        failed.push({ idempotency_key: reading.idempotency_key, reason: insertErr.message });
+      }
     }
     
     await client.query('COMMIT');

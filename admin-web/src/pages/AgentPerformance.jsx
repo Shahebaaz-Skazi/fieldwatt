@@ -278,7 +278,7 @@ const AgentPerformance = ({ performanceViewerMode = false }) => {
                   {/* Middle: Progress Bar */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>
-                      <span>{readingTaken} of {totalAssigned} readings done</span>
+                      <span>{parseInt(agent.total_submitted_alltime || 0)} of {totalAssigned} readings done</span>
                       <span style={{ fontWeight: '700', fontSize: '13px', color: completionPct >= 80 ? '#22c55e' : completionPct >= 50 ? '#f59e0b' : '#ef4444' }}>{completionPct}%</span>
                     </div>
                     <div style={{ height: '8px', background: 'var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
