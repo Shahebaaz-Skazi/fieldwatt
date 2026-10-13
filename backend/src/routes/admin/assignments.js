@@ -18,20 +18,25 @@ const getActiveCycleId = async () => {
 // Safe dynamic cycle resolution helper
 // ponytail: normalized month/year lookup with LOWER() to avoid case mismatch
 const resolveCycleHelper = async (cycleId, month, year, fallbackQueryFunc) => {
+  // Always prefer the property's canonical import billing_month cycle if available
+  if (typeof fallbackQueryFunc === 'function') {
+    const propBillingMonth = await fallbackQueryFunc();
+    if (propBillingMonth) {
+      const canonicalCheck = await db.query(
+        `SELECT id FROM cycles WHERE LOWER(label) = LOWER($1) LIMIT 1`,
+        [String(propBillingMonth).trim()]
+      );
+      if (canonicalCheck.rows.length > 0) {
+        return canonicalCheck.rows[0].id;
+      }
+    }
+  }
+
   let targetCycleId = cycleId;
   if (!targetCycleId) {
     // Normalize inputs
     let targetMonth = month ? String(month).trim() : null;
     let targetYear  = year  ? Number(year)         : null;
-
-    if (!targetMonth || !targetYear) {
-      const billingMonthStr = await fallbackQueryFunc();
-      if (billingMonthStr) {
-        const parts = billingMonthStr.split(' ');
-        targetMonth = targetMonth || parts[0];
-        targetYear  = targetYear  || parseInt(parts[1]);
-      }
-    }
 
     if (!targetMonth || !targetYear) {
       const now = new Date();
@@ -651,7 +656,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN (
         SELECT * FROM (
           SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at,
-                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY submitted_at DESC) as rn
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
         ) r_sub WHERE rn = 1
       ) latest_r ON latest_r.assignment_id = asg.id
@@ -670,7 +675,7 @@ router.get('/search-properties', authMiddleware, requireAdmin, async (req, res, 
       LEFT JOIN (
         SELECT * FROM (
           SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at,
-                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY submitted_at DESC) as rn
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
         ) r_sub WHERE rn = 1
       ) latest_r ON latest_r.assignment_id = asg.id
@@ -780,7 +785,7 @@ router.get('/search-properties-ids', authMiddleware, requireAdmin, async (req, r
       LEFT JOIN (
         SELECT * FROM (
           SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at,
-                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY submitted_at DESC) as rn
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
         ) r_sub WHERE rn = 1
       ) latest_r ON latest_r.assignment_id = asg.id
@@ -871,7 +876,7 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
       LEFT JOIN (
         SELECT * FROM (
           SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at,
-                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY submitted_at DESC) as rn
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
         ) r_sub WHERE rn = 1
       ) latest_r ON latest_r.assignment_id = asg.id
@@ -1093,8 +1098,8 @@ router.get("/calculate-fee", authMiddleware, requireViewer, async (req, res, nex
       LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
       LEFT JOIN (
         SELECT * FROM (
-          SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, submitted_at,
-                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY submitted_at DESC) as rn
+          SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, is_paid, submitted_at,
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
         ) r_sub WHERE rn = 1
       ) latest_r ON latest_r.assignment_id = asg.id
@@ -1192,10 +1197,12 @@ router.post("/verify-payment", authMiddleware, requireViewer, upload.single("rec
         INNER JOIN imports i ON p.import_id = i.id
         LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = $3
         LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, MAX(submitted_at) as submitted_at
-        FROM readings
-        GROUP BY assignment_id
-      ) latest_r ON latest_r.assignment_id = asg.id
+          SELECT * FROM (
+            SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, is_paid, submitted_at,
+                   ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+            FROM readings
+          ) r_sub WHERE rn = 1
+        ) latest_r ON latest_r.assignment_id = asg.id
         WHERE EXTRACT(YEAR FROM i.scheduled_date) = $1
           AND EXTRACT(MONTH FROM i.scheduled_date) = $2
           AND latest_r.photo_url IS NOT NULL 

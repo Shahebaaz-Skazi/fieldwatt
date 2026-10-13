@@ -61,7 +61,7 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
     }
 
     // Build agent WHERE filter
-    let agentFilterSql = 'WHERE ag.is_active = true';
+    let agentFilterSql = 'WHERE (ag.is_active = true OR asg.id IS NOT NULL)';
     let queryParams = [];
 
     if (permittedAgentIds !== null) {
@@ -76,7 +76,20 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
       queryParams.push(agent_id);
     }
 
-    const activeCyclesSubquery = `(SELECT id FROM cycles WHERE is_active = true)`;
+    const canonicalAssignmentsCte = `
+      SELECT asg_sub.id, asg_sub.agent_id, asg_sub.property_id, asg_sub.cycle_id
+      FROM assignments asg_sub
+      INNER JOIN properties p ON asg_sub.property_id = p.id
+      INNER JOIN imports i ON p.import_id = i.id
+      INNER JOIN cycles c ON c.label = i.billing_month AND asg_sub.cycle_id = c.id
+      WHERE c.is_active = true
+    `;
+
+    const dedupReadingsCte = `
+      SELECT id, assignment_id, status_code, submitted_at,
+             ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+      FROM readings
+    `;
 
     const result = await db.query(`
       SELECT
@@ -101,13 +114,12 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
-      LEFT JOIN assignments asg ON ag.id = asg.agent_id AND asg.cycle_id IN ${activeCyclesSubquery}
+      LEFT JOIN (${canonicalAssignmentsCte}) asg ON ag.id = asg.agent_id
       -- Subquery 1: all-time counts, no date filter
       LEFT JOIN (
         SELECT asg2.agent_id, COUNT(DISTINCT r2.id) as total_submitted_alltime
-        FROM assignments asg2
-        LEFT JOIN readings r2 ON asg2.id = r2.assignment_id
-        WHERE asg2.cycle_id IN ${activeCyclesSubquery}
+        FROM (${canonicalAssignmentsCte}) asg2
+        INNER JOIN (${dedupReadingsCte}) r2 ON asg2.id = r2.assignment_id AND r2.rn = 1
         GROUP BY asg2.agent_id
       ) alltime ON alltime.agent_id = ag.id
       -- Subquery 2: period-filtered counts
@@ -123,9 +135,8 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
           SUM(CASE WHEN r.status_code = 'meter_damaged' THEN 1 ELSE 0 END) as meter_damaged,
           SUM(CASE WHEN r.status_code = 'vacant_property' THEN 1 ELSE 0 END) as vacant_property,
           SUM(CASE WHEN r.status_code = 'revisit_needed' THEN 1 ELSE 0 END) as revisit_needed
-        FROM assignments asg
-        LEFT JOIN readings r ON asg.id = r.assignment_id ${dateFilter}
-        WHERE asg.cycle_id IN ${activeCyclesSubquery}
+        FROM (${canonicalAssignmentsCte}) asg
+        LEFT JOIN (${dedupReadingsCte}) r ON asg.id = r.assignment_id AND r.rn = 1 ${dateFilter}
         GROUP BY asg.agent_id
       ) period_counts ON period_counts.agent_id = ag.id
       ${agentFilterSql}
@@ -190,9 +201,17 @@ router.get('/:agentId/calendar', authMiddleware, requirePerformanceViewer, async
         COUNT(r.id) as total,
         SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as done,
         SUM(CASE WHEN r.status_code != 'reading_taken' THEN 1 ELSE 0 END) as other
-      FROM readings r
-      INNER JOIN assignments asg ON r.assignment_id = asg.id
+      FROM (
+        SELECT id, assignment_id, status_code, submitted_at,
+               ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+        FROM readings
+      ) r
+      INNER JOIN assignments asg ON r.assignment_id = asg.id AND r.rn = 1
+      INNER JOIN properties p ON asg.property_id = p.id
+      INNER JOIN imports i ON p.import_id = i.id
+      INNER JOIN cycles c ON c.label = i.billing_month AND asg.cycle_id = c.id
       WHERE asg.agent_id = $1
+        AND c.is_active = true
         AND EXTRACT(YEAR FROM timezone('Asia/Kolkata', r.submitted_at)) = $2
         AND EXTRACT(MONTH FROM timezone('Asia/Kolkata', r.submitted_at)) = $3
       GROUP BY TO_CHAR(timezone('Asia/Kolkata', r.submitted_at), 'YYYY-MM-DD')

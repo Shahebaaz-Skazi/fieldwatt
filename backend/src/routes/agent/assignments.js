@@ -120,13 +120,15 @@ router.get('/', authMiddleware, requireAgent, async (req, res, next) => {
           latest_r.submitted_at as reading_submitted_at
         FROM assignments asg
         INNER JOIN properties p ON asg.property_id = p.id
+        INNER JOIN imports i ON p.import_id = i.id
+        INNER JOIN cycles c ON c.label = i.billing_month AND asg.cycle_id = c.id
         LEFT JOIN areas ar ON ar.id = p.area_id
         LEFT JOIN (
-          SELECT id, assignment_id, reading_value, status_code, photo_url, note, MAX(submitted_at) as submitted_at
+          SELECT id, assignment_id, reading_value, status_code, photo_url, note, submitted_at,
+                 ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
           FROM readings
-          GROUP BY assignment_id
-        ) latest_r ON latest_r.assignment_id = asg.id
-        WHERE asg.agent_id = '${safeAgentId}' AND asg.cycle_id = '${safeCycleId}'
+        ) latest_r ON latest_r.assignment_id = asg.id AND latest_r.rn = 1
+        WHERE asg.agent_id = '${safeAgentId}' AND c.is_active = true
         ORDER BY p.serial_no ASC
       `;
     }

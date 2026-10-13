@@ -42,7 +42,7 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
     // The user strictly wants this table to ALWAYS show global data across all active cycles.
     const cycleCondition = `asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)`;
 
-    // Query status count per agent for today + cycle progress
+    // Query status count per agent for today + cycle progress (canonical cycle per property, deduplicated reading per assignment)
     const queryText = `
       SELECT 
         a.id,
@@ -58,20 +58,32 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
         SUM(CASE WHEN asg.id IS NOT NULL AND r.id IS NULL THEN 1 ELSE 0 END) as pending_count
       FROM agents a
       LEFT JOIN attendance att ON att.agent_id = a.id AND DATE(att.date) = CURRENT_DATE
-      LEFT JOIN assignments asg ON asg.agent_id = a.id AND ${cycleCondition}
-      LEFT JOIN readings r ON r.assignment_id = asg.id
-      WHERE a.is_active = true
+      LEFT JOIN (
+        SELECT asg_sub.id, asg_sub.agent_id, asg_sub.property_id, asg_sub.cycle_id
+        FROM assignments asg_sub
+        INNER JOIN properties p ON asg_sub.property_id = p.id
+        INNER JOIN imports i ON p.import_id = i.id
+        INNER JOIN cycles c ON c.label = i.billing_month AND asg_sub.cycle_id = c.id
+        WHERE c.is_active = true
+      ) asg ON asg.agent_id = a.id
+      LEFT JOIN (
+        SELECT id, assignment_id, status_code,
+               ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+        FROM readings
+      ) r ON r.assignment_id = asg.id AND r.rn = 1
+      WHERE a.is_active = true OR asg.id IS NOT NULL
       GROUP BY a.id
       ORDER BY a.name ASC
     `;
     const result = await db.query(queryText);
 
     // Calculate daily summary aggregates
-    let totalAgents = result.rows.length;
+    let totalAgents = 0;
     let presentAgents = 0;
     let leaveAgents = 0;
     
     result.rows.forEach(agent => {
+      if (agent.is_active) totalAgents++;
       if (agent.is_on_leave) {
         leaveAgents++;
       } else if (agent.login_time) {
@@ -79,44 +91,35 @@ router.get('/', authMiddleware, requireViewer, async (req, res, next) => {
       }
     });
 
-
-    
-    // Add data coverage stats
-    const totalGlobalRes = await db.query('SELECT COUNT(id) as count FROM properties');
-    const completedGlobalRes = await db.query(`
-      SELECT COUNT(r.id) as count 
-      FROM readings r 
-      JOIN assignments asg ON r.assignment_id = asg.id 
-      WHERE r.status_code = 'reading_taken'
-      AND asg.cycle_id IN (SELECT id FROM cycles WHERE is_active = true)
-    `);
-    const totalGlobal = Number(totalGlobalRes.rows[0]?.count || 0);
-    const completedGlobal = Number(completedGlobalRes.rows[0]?.count || 0);
-    const pendingGlobal = totalGlobal - completedGlobal;
-    
-    // Cycle breakdown
+    // Cycle breakdown (canonical property import -> cycle mapping, 1 deduplicated reading per property)
     const cycleBreakdownRes = await db.query(`
       SELECT 
         c.label as cycle_name,
         COUNT(p.id) as total,
-        (SELECT COUNT(r.id) 
-         FROM readings r 
-         INNER JOIN assignments asg ON r.assignment_id = asg.id 
-         WHERE asg.cycle_id = c.id AND r.status_code = 'reading_taken'
-        ) as completed
+        SUM(CASE WHEN r.status_code = 'reading_taken' THEN 1 ELSE 0 END) as completed
       FROM cycles c
       LEFT JOIN imports i ON c.label = i.billing_month
       LEFT JOIN properties p ON p.import_id = i.id
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = c.id
+      LEFT JOIN (
+        SELECT id, assignment_id, status_code,
+               ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+        FROM readings
+      ) r ON r.assignment_id = asg.id AND r.rn = 1
       GROUP BY c.id, c.label, c.start_date
       ORDER BY c.start_date ASC
     `);
     
     const cycle_breakdown = cycleBreakdownRes.rows.map(r => ({
        name: r.cycle_name,
-       total: Number(r.total),
-       completed: Number(r.completed),
-       pending: Number(r.total) - Number(r.completed)
+       total: Number(r.total || 0),
+       completed: Number(r.completed || 0),
+       pending: Number(r.total || 0) - Number(r.completed || 0)
     }));
+
+    const totalGlobal = cycle_breakdown.reduce((sum, c) => sum + c.total, 0);
+    const completedGlobal = cycle_breakdown.reduce((sum, c) => sum + c.completed, 0);
+    const pendingGlobal = totalGlobal - completedGlobal;
 
     const responseData = {
       active_cycle_id: cycleId,
@@ -177,12 +180,18 @@ router.get('/agents/:id/readings', authMiddleware, requireAdmin, async (req, res
         p.raw_sap_data,
         a.name as area_name,
         ag.name as agent_name
-      FROM readings r
-      INNER JOIN assignments asg ON r.assignment_id = asg.id
+      FROM (
+        SELECT *,
+               ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
+        FROM readings
+      ) r
+      INNER JOIN assignments asg ON r.assignment_id = asg.id AND r.rn = 1
       INNER JOIN properties p ON asg.property_id = p.id
+      INNER JOIN imports i ON p.import_id = i.id
+      INNER JOIN cycles c ON c.label = i.billing_month AND asg.cycle_id = c.id
       LEFT JOIN areas a ON p.area_id = a.id
       LEFT JOIN agents ag ON asg.agent_id = ag.id
-      WHERE asg.agent_id = $1
+      WHERE asg.agent_id = $1 AND c.is_active = true
       ORDER BY r.submitted_at DESC
     `;
     const result = await db.query(queryText, [agentId]);
@@ -470,19 +479,15 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
         r.submitted_at
       FROM properties p
       LEFT JOIN areas a ON p.area_id = a.id
-      LEFT JOIN (
-        SELECT asg_sub.*, 
-               ROW_NUMBER() OVER(PARTITION BY asg_sub.property_id ORDER BY c_sub.start_date DESC) as rn
-        FROM assignments asg_sub
-        INNER JOIN cycles c_sub ON asg_sub.cycle_id = c_sub.id
-        WHERE c_sub.is_active = true
-      ) asg ON asg.property_id = p.id AND asg.rn = 1
+      LEFT JOIN imports i ON p.import_id = i.id
+      LEFT JOIN cycles c ON c.label = i.billing_month
+      LEFT JOIN assignments asg ON asg.property_id = p.id AND asg.cycle_id = c.id
       LEFT JOIN agents ag ON asg.agent_id = ag.id
       LEFT JOIN (
-        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, anomaly_reason, is_anomalous, MAX(submitted_at) as submitted_at
+        SELECT id, assignment_id, reading_value, status_code, note, photo_url, gps_lat, gps_lng, anomaly_reason, is_anomalous, submitted_at,
+               ROW_NUMBER() OVER(PARTITION BY assignment_id ORDER BY CASE WHEN status_code = 'reading_taken' THEN 0 ELSE 1 END, submitted_at DESC) as rn
         FROM readings
-        GROUP BY assignment_id
-      ) r ON r.assignment_id = asg.id
+      ) r ON r.assignment_id = asg.id AND r.rn = 1
       WHERE 
         p.consumer_name LIKE ? OR
         p.serial_no LIKE ? OR
