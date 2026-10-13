@@ -1022,8 +1022,9 @@ router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
 
       // Filled reading values
       rowObj['Current meter reading date'] = readingDate;
-      rowObj['Current MR'] = (r.reading_value !== null && r.reading_value !== undefined)
-        ? String(r.reading_value).replace(/\.0+$/, '')
+      const cleanVal = (r.reading_value !== null && r.reading_value !== undefined) ? String(r.reading_value).trim() : '';
+      rowObj['Current MR'] = (cleanVal && !['none', 'null', 'nan'].includes(cleanVal.toLowerCase()))
+        ? cleanVal.replace(/\.0+$/, '')
         : '';
       rowObj['MR Note'] = computedMrNote;
       rowObj['Comment'] = r.note || '';
