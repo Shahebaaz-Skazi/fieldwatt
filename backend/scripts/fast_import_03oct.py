@@ -193,7 +193,25 @@ def process_single_row(row_tuple):
     raw_bp = str(r_dict.get('bp_number', '')).strip()
     stripped_bp = raw_bp.lstrip('0')
     try:
-        reading_val = str(r_dict.get('meter_reading', '')).strip()
+        raw_val = r_dict.get('meter_reading')
+        is_door_lock = (
+            raw_val is None or
+            str(raw_val).strip() in ('', 'None', 'none', 'null', 'NULL', 'DOOR LOCK', 'Door Locked') or
+            'DOOR' in str(r_dict.get('mr_note', '')).upper() or
+            'LOCK' in str(r_dict.get('mr_note', '')).upper() or
+            'DOOR' in str(r_dict.get('comment', '')).upper() or
+            'LOCK' in str(r_dict.get('comment', '')).upper()
+        )
+        if is_door_lock:
+            status_code = 'door_locked'
+            reading_val = None
+            note_val = 'Door Locked'
+            is_completed_val = 0
+        else:
+            status_code = 'reading_taken'
+            reading_val = str(raw_val).strip()
+            note_val = 'whatsapp readings data'
+            is_completed_val = 1
         img_url = r_dict.get('meter_image')
         created_on = r_dict.get('created_on')
 
@@ -229,7 +247,6 @@ def process_single_row(row_tuple):
 
         # 3. Check existing reading
         existing_reading = read_cache.get(asg_id)
-        # Force rewrite for 28th Sept: We do NOT skip if reading exists.
 
         # 4. Download S3 image with retries
         dl_resp = None
@@ -267,18 +284,18 @@ def process_single_row(row_tuple):
         idemp_key = f"idemp_{asg_id}_{int(time.time()*1000)}"
         if existing_reading:
             query_d1(
-                "UPDATE readings SET reading_value = ?, status_code = 'reading_taken', photo_url = ?, submitted_at = ?, note = 'whatsapp readings data' WHERE assignment_id = ?",
-                [reading_val, photo_url, db_time, asg_id]
+                "UPDATE readings SET reading_value = ?, status_code = ?, photo_url = ?, submitted_at = ?, note = ? WHERE assignment_id = ?",
+                [reading_val, status_code, photo_url, db_time, note_val, asg_id]
             )
         else:
             rd_id = f"rd_{str(uuid.uuid4())}"  # ponytail: uuid prevents thread-collision on concurrent inserts
             query_d1(
-                "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, 'reading_taken', ?, 'whatsapp readings data', ?, datetime('now'))",
-                [rd_id, asg_id, idemp_key, reading_val, photo_url, db_time]
+                "INSERT INTO readings (id, assignment_id, idempotency_key, reading_value, status_code, photo_url, note, submitted_at, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                [rd_id, asg_id, idemp_key, reading_val, status_code, photo_url, note_val, db_time]
             )
 
         # 8. Complete assignment and ensure correct agent_id
-        query_d1("UPDATE assignments SET agent_id = ?, is_completed = 1 WHERE id = ?", [agent['id'], asg_id])
+        query_d1("UPDATE assignments SET agent_id = ?, is_completed = ? WHERE id = ?", [agent['id'], is_completed_val, asg_id])
 
         return {'status': 'done', 'bp': stripped_bp, 'consumer': prop.get('consumer_name'), 'photo_url': photo_url}
     except Exception as e:
