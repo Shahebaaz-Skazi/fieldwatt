@@ -115,10 +115,8 @@ const ViewerExportGrid = ({ viewerMode }) => {
   };
 
   const handleDownloadImages = async () => {
-    if (!imageYear || !imageMonth) {
-      toast.error('Please select Year and Month first.');
-      return;
-    }
+    toast.error('Meter image download has been disabled by the system administrator.');
+    return;
 
     try {
       setDownloadImagesLoading(true);
@@ -319,11 +317,12 @@ const ViewerExportGrid = ({ viewerMode }) => {
 
           <Button
             onClick={handleDownloadImages}
-            disabled={downloadImagesLoading || !imageYear || !imageMonth}
-            style={{ width: '100%', marginTop: 'auto' }}
+            disabled={true}
+            style={{ width: '100%', marginTop: 'auto', opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#64748b' }}
+            title="Meter image download is disabled by administrator"
           >
-            {downloadImagesLoading ? <RefreshCw size={16} className="spin" style={{ animation: 'spin 2s linear infinite' }} /> : <FileDown size={16} />}
-            Download Images (.zip)
+            <Lock size={16} />
+            Image Download Disabled
           </Button>
         </Card>
       </div>

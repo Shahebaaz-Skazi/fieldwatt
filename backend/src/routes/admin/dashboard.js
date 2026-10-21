@@ -522,7 +522,30 @@ router.get('/global-search', authMiddleware, requireViewer, async (req, res, nex
 });
 
 // GET /admin/dashboard/download-images - Stream meter reading images directly into a ZIP
-router.get('/download-images', authMiddleware, requireViewer, async (req, res) => {
+// PERMANENTLY DISABLED: Image bulk download disabled by system administrator.
+router.get('/download-images', authMiddleware, async (req, res) => {
+  const attemptedBy = req.user ? `${req.user.email || req.user.username || req.user.id} (${req.user.role})` : 'Unknown';
+  console.warn(`[download-images-blocked] Image download attempt BLOCKED for user: ${attemptedBy}, IP: ${req.ip}`);
+  
+  try {
+    await db.query(
+      `INSERT INTO error_logs (message, route, payload) VALUES ($1, $2, $3)`,
+      [
+        `BLOCKED_IMAGE_DOWNLOAD_ATTEMPT by ${attemptedBy}`,
+        req.originalUrl || '/admin/dashboard/download-images',
+        JSON.stringify({ user: req.user, query: req.query, ip: req.ip, date: new Date().toISOString() })
+      ]
+    );
+  } catch (_) {}
+
+  return res.status(403).json({
+    error: 'Meter image download is permanently disabled by system administrator. Downloads are strictly prohibited.',
+    disabled: true
+  });
+});
+
+// Original download-images handler kept for reference but deactivated
+router.get('/download-images-inactive-reference', authMiddleware, requireViewer, async (req, res) => {
   try {
     const { cycle_id, year, month, mru, society, q } = req.query;
 

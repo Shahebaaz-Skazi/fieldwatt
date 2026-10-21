@@ -132,10 +132,8 @@ const Dashboard = ({ viewerMode = false }) => {
   };
 
   const handleDownloadImages = async () => {
-    if (!imageYear || !imageMonth) {
-      toast.error('Please select Year and Month first.');
-      return;
-    }
+    toast.error('Meter image download has been disabled by the system administrator.');
+    return;
 
     try {
       setDownloadImagesLoading(true);
