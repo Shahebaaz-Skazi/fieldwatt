@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import api from '../utils/api';
 import PaywallModal from '../components/PaywallModal';
 import anime from 'animejs';
-import { FileDown, RefreshCw, Award, TrendingUp } from 'lucide-react';
+import { FileDown, RefreshCw, Award, TrendingUp, Lock } from 'lucide-react';
 
 const Reports = () => {
   const [data, setData] = useState({ agents: [] });
@@ -131,31 +131,8 @@ const Reports = () => {
 
 
   const handleExport = async () => {
-    if (!selectedMru || !selectedYear || !selectedMonth) {
-      toast.error('Please select MRU, Year, and Month first.');
-      return;
-    }
-    
-    setExportMruLoading(true);
-    try {
-      const token = localStorage.getItem('admin_token');
-      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
-      const feeRes = await fetch(`${api.API_BASE_URL}/admin/assignments/calculate-fee?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      const feeJson = await feeRes.json();
-      
-      if (feeJson.paywallEnabled && feeJson.totalAmount > 0) {
-        setFeeData(feeJson);
-        setPaywallPayload({ mru: selectedMru, year: selectedYear, month: selectedMonth });
-        setPaywallSuccessCallback(() => () => executeRealExport());
-        setPaywallOpen(true);
-        setExportMruLoading(false);
-        return;
-      }
-      await executeRealExport();
-    } catch(err) {
-      toast.error('Failed to check export fee: ' + err.message);
-      setExportMruLoading(false);
-    }
+    toast.error('Excel export has been disabled by the system administrator.');
+    return;
   };
   
   const executeRealExport = async () => {
@@ -380,12 +357,13 @@ const Reports = () => {
 
             <button
               onClick={handleExport}
-              disabled={exportMruLoading || !selectedMru || !selectedYear || !selectedMonth}
-              className="btn btn-primary"
-              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px' }}
+              disabled={true}
+              className="btn btn-secondary"
+              style={{ width: '100%', justifyContent: 'center', padding: '12px', gap: '8px', opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#64748b' }}
+              title="Excel export is disabled by administrator"
             >
-              {exportMruLoading ? <RefreshCw size={16} className="spin" /> : <FileDown size={16} />}
-              Export MRU Data to Excel (.xlsx)
+              <Lock size={16} />
+              Excel Export Disabled
             </button>
           </div>
 

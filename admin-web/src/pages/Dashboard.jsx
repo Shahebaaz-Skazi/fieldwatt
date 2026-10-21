@@ -83,31 +83,8 @@ const Dashboard = ({ viewerMode = false }) => {
   };
 
   const handleExport = async () => {
-    if (!selectedMru || !selectedYear || !selectedMonth) {
-      toast.error('Please select MRU, Year, and Month first.');
-      return;
-    }
-    
-    setExportMruLoading(true);
-    try {
-      const token = localStorage.getItem('admin_token');
-      const params = new URLSearchParams({ mru: selectedMru, year: selectedYear, month: selectedMonth });
-      const feeRes = await fetch(`${api.API_BASE_URL}/admin/assignments/calculate-fee?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      const feeJson = await feeRes.json();
-      
-      if (feeJson.paywallEnabled && feeJson.totalAmount > 0) {
-        setFeeData(feeJson);
-        setPaywallPayload({ mru: selectedMru, year: selectedYear, month: selectedMonth });
-        setPaywallSuccessCallback(() => () => executeRealExport());
-        setPaywallOpen(true);
-        setExportMruLoading(false);
-        return;
-      }
-      await executeRealExport();
-    } catch(err) {
-      toast.error('Failed to check export fee: ' + err.message);
-      setExportMruLoading(false);
-    }
+    toast.error('Excel export has been disabled by the system administrator.');
+    return;
   };
   
   const executeRealExport = async () => {
