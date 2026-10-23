@@ -800,30 +800,7 @@ router.get('/search-properties-ids', authMiddleware, requireAdmin, async (req, r
 });
 
 // GET /admin/assignments/export - Export properties, readings, and assignment logs in exact 30-column SAP Excel format
-// PERMANENTLY DISABLED: Export disabled by system administrator. No user (not even admin) can download export excel.
-router.get('/export', authMiddleware, async (req, res, next) => {
-  const attemptedBy = req.user ? `${req.user.email || req.user.username || req.user.id} (${req.user.role})` : 'Unknown';
-  console.warn(`[export-blocked] Export attempt BLOCKED for user: ${attemptedBy}, IP: ${req.ip}`);
-  
-  try {
-    await db.query(
-      `INSERT INTO error_logs (message, route, payload) VALUES ($1, $2, $3)`,
-      [
-        `BLOCKED_EXPORT_ATTEMPT by ${attemptedBy}`,
-        req.originalUrl || '/admin/assignments/export',
-        JSON.stringify({ user: req.user, query: req.query, ip: req.ip, date: new Date().toISOString() })
-      ]
-    );
-  } catch (_) {}
-
-  return res.status(403).json({
-    error: 'Excel export is permanently disabled by system administrator. Downloads are strictly prohibited.',
-    disabled: true
-  });
-});
-
-// Original export handler kept for reference but deactivated
-router.get('/export-inactive-reference', authMiddleware, requireViewer, async (req, res, next) => {
+router.get('/export', authMiddleware, requireViewer, async (req, res, next) => {
   try {
     const { mru, year, month } = req.query;
     if (!mru || !year || !month) {
