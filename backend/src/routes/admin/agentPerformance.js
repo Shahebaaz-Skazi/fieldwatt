@@ -112,7 +112,7 @@ router.get('/', authMiddleware, requirePerformanceViewer, async (req, res) => {
         COALESCE(period_counts.revisit_needed, 0) as revisit_needed,
         ROUND(
           CASE WHEN (COUNT(DISTINCT asg.id) + COALESCE(MAX(hist.total_assigned), 0)) > 0
-          THEN (COALESCE(alltime.total_submitted_alltime, 0) + COALESCE(MAX(hist.reading_taken), 0) + COALESCE(MAX(hist.door_locked), 0))::numeric / (COUNT(DISTINCT asg.id) + COALESCE(MAX(hist.total_assigned), 0)) * 100
+          THEN 100.0 * (COALESCE(alltime.total_submitted_alltime, 0) + COALESCE(MAX(hist.reading_taken), 0) + COALESCE(MAX(hist.door_locked), 0)) / (COUNT(DISTINCT asg.id) + COALESCE(MAX(hist.total_assigned), 0))
           ELSE 0 END, 1
         ) as completion_percentage
       FROM agents ag
