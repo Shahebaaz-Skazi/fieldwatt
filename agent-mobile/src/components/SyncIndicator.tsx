@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { getUnsyncedReadings } from '../db/sqlite';
+import { getUnsyncedReadings, saveProperties } from '../db/sqlite';
 import { syncOfflineReadings } from '../services/syncService';
+import api from '../utils/api';
 
 export default function SyncIndicator() {
   const [pendingCount, setPendingCount] = useState(0);
@@ -23,10 +24,17 @@ export default function SyncIndicator() {
   }, []);
 
   const handleSync = async () => {
-    if (syncing || pendingCount === 0) return;
+    if (syncing) return;
     setSyncing(true);
     try {
       await syncOfflineReadings();
+      // Reconcile with latest server assignments to clear confirmed items
+      try {
+        const fresh = await api.get(`/agent/assignments?_t=${Date.now()}`);
+        if (fresh && Array.isArray(fresh)) {
+          await saveProperties(fresh, true);
+        }
+      } catch (_) {}
       await checkPending();
     } catch (e) {
       console.error(e);

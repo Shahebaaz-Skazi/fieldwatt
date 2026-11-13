@@ -203,6 +203,9 @@ export const saveProperties = async (properties: any[], preserveStatus = false) 
         ]
       );
     }
+
+    // Automatically reconcile queue: clear any locally queued readings that the server already has
+    await reconcileQueueWithServer(properties);
   } catch (err: any) {
     // Nuclear option — if ANY constraint error, drop and recreate the table then retry
     if (err?.message?.includes('constraint') || err?.message?.includes('UNIQUE')) {
@@ -361,6 +364,32 @@ export const markReadingsAsSynced = async (idempotencyKeys: string[]) => {
       'DELETE FROM readings_queue WHERE idempotency_key = ?',
       [key]
     );
+  }
+};
+
+// Update the photo_url of a queued reading once uploaded to R2
+export const updateQueuedReadingPhoto = async (idempotencyKey: string, photoUrl: string) => {
+  const database = getDb();
+  await database.runAsync(
+    'UPDATE readings_queue SET photo_url = ? WHERE idempotency_key = ?',
+    [photoUrl, idempotencyKey]
+  );
+};
+
+// Reconcile local queue with server assignments: delete any queued reading that server already recorded
+export const reconcileQueueWithServer = async (serverAssignments: any[]) => {
+  if (!serverAssignments || serverAssignments.length === 0) return;
+  try {
+    const database = getDb();
+    const completedAssignments = serverAssignments.filter(a => a.reading_status);
+    for (const a of completedAssignments) {
+      await database.runAsync(
+        'DELETE FROM readings_queue WHERE assignment_id = ?',
+        [a.assignment_id]
+      );
+    }
+  } catch (err) {
+    console.warn('reconcileQueueWithServer error:', err);
   }
 };
 

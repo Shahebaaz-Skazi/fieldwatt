@@ -1,10 +1,11 @@
-import { getUnsyncedReadings, markReadingsAsSynced } from '../db/sqlite';
+import { getUnsyncedReadings, markReadingsAsSynced, updateQueuedReadingPhoto } from '../db/sqlite';
 import api from '../utils/api';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 let isSyncing = false;
 
-// Upload local photo to Supabase before syncing the reading
+// Upload local photo to Cloudflare R2 via presigned URL before syncing the reading
 const uploadLocalPhoto = async (uri: string): Promise<string> => {
   if (uri.startsWith('http')) return uri;
 
@@ -16,21 +17,34 @@ const uploadLocalPhoto = async (uri: string): Promise<string> => {
     contentType: 'image/jpeg'
   });
 
-  // FileSystem.uploadAsync is the most reliable upload method on Android
-  // No blob conversion needed — reads directly from local filesystem
-  const result = await FileSystem.uploadAsync(uploadUrl, uri, {
-    httpMethod: 'PUT',
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    headers: {
-      'Content-Type': 'image/jpeg',
-    },
-  });
+  if (Platform.OS === 'web') {
+    const res = await fetch(uri);
+    const blob = await res.blob();
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob
+    });
+    if (!putRes.ok) {
+      throw new Error(`Upload failed: status ${putRes.status}`);
+    }
+  } else {
+    // FileSystem.uploadAsync is the most reliable upload method on Android
+    // No blob conversion needed — reads directly from local filesystem
+    const result = await FileSystem.uploadAsync(uploadUrl, uri, {
+      httpMethod: 'PUT',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        'Content-Type': 'image/jpeg',
+      },
+    });
 
-  if (result.status !== 200 && result.status !== 201) {
-    throw new Error(`Upload failed: status ${result.status}`);
+    if (result.status !== 200 && result.status !== 201) {
+      throw new Error(`Upload failed: status ${result.status}`);
+    }
   }
 
-  console.log('✔ Photo uploaded successfully:', photoUrl);
+  console.log('✔ Photo uploaded successfully to R2:', photoUrl);
   return photoUrl;
 };
 
@@ -56,16 +70,40 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
       const payload = [];
 
       for (const r of chunk) {
+        // Guard: purge corrupt legacy row missing assignment_id so it doesn't fail the batch
+        if (!r.assignment_id) {
+          console.warn('Purging corrupt queued reading without assignment_id:', r.idempotency_key);
+          await markReadingsAsSynced([r.idempotency_key]);
+          continue;
+        }
+
         let finalPhotoUrl = r.photo_url || null;
         let finalNote = r.note || null;
 
         if (finalPhotoUrl && !finalPhotoUrl.startsWith('http')) {
           try {
             finalPhotoUrl = await uploadLocalPhoto(finalPhotoUrl);
+            await updateQueuedReadingPhoto(r.idempotency_key, finalPhotoUrl);
           } catch (uploadErr: any) {
-            console.error('Photo upload failed — skipping photo and proceeding:', uploadErr);
+            const errStr = (uploadErr?.message || '').toLowerCase();
+            // If network dropped, abort chunk so photo is NOT lost and stays in queue until online!
+            if (
+              errStr.includes('network') ||
+              errStr.includes('failed to fetch') ||
+              errStr.includes('timeout') ||
+              errStr.includes('econnreset') ||
+              errStr.includes('abort') ||
+              errStr.includes('status 50') ||
+              errStr.includes('status 429')
+            ) {
+              console.warn('Network issue uploading photo — keeping reading in queue for retry:', uploadErr);
+              isSyncing = false;
+              return { success: false, count: syncedCount, error: `Photo upload network error: ${uploadErr.message}` };
+            }
+
+            console.error('Photo permanently unreadable on device — proceeding without photo:', uploadErr);
             finalPhotoUrl = null;
-            const photoFailureNote = 'Photo unavailable on device; reading synced without photo.';
+            const photoFailureNote = 'Photo unreadable on device; reading synced without photo.';
             finalNote = finalNote 
               ? `${finalNote} | ${photoFailureNote}`
               : photoFailureNote;
@@ -86,6 +124,8 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
         });
       }
 
+      if (payload.length === 0) continue;
+
       try {
         const response = await api.post('/sync/batch', { readings: payload });
         
@@ -97,7 +137,7 @@ export const syncOfflineReadings = async (): Promise<{ success: boolean; count: 
 
         // Fallback if backend doesn't return synced/failed explicitly
         if (keysToRemove.length === 0 && !response.synced && !response.failed) {
-          keysToRemove.push(...chunk.map((r: any) => r.idempotency_key));
+          keysToRemove.push(...payload.map((r: any) => r.idempotency_key));
         }
 
         if (keysToRemove.length > 0) {

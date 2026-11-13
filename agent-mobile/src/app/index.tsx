@@ -641,7 +641,12 @@ export default function WorkListScreen() {
         const syncRes = await syncOfflineReadings();
         if (syncRes.success && syncRes.count > 0) {
           console.log(`Auto-sync (push): Synced ${syncRes.count} pending readings.`);
-          // Reload sqlite cache to reflect completion badges
+          try {
+            const fresh = await api.get(`/agent/assignments?_t=${Date.now()}`);
+            if (fresh && Array.isArray(fresh)) {
+              await saveProperties(fresh, true);
+            }
+          } catch (_) {}
           const cached = await getCachedProperties();
           setProperties(cached);
         }

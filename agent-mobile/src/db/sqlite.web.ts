@@ -32,6 +32,7 @@ export const saveProperties = async (properties: any[]) => {
   });
   
   localStorage.setItem('fieldwatt_properties', JSON.stringify(merged));
+  await reconcileQueueWithServer(properties);
 };
 
 // Retrieve cached properties merged with their queued readings if any
@@ -109,6 +110,26 @@ export const getUnsyncedReadings = async () => {
 export const markReadingsAsSynced = async (idempotencyKeys: string[]) => {
   const queue = JSON.parse(localStorage.getItem('fieldwatt_readings_queue') || '[]');
   const filtered = queue.filter((item: any) => !idempotencyKeys.includes(item.idempotency_key));
+  localStorage.setItem('fieldwatt_readings_queue', JSON.stringify(filtered));
+};
+
+export const updateQueuedReadingPhoto = async (idempotencyKey: string, photoUrl: string) => {
+  const queue = JSON.parse(localStorage.getItem('fieldwatt_readings_queue') || '[]');
+  const updated = queue.map((item: any) =>
+    item.idempotency_key === idempotencyKey ? { ...item, photo_url: photoUrl } : item
+  );
+  localStorage.setItem('fieldwatt_readings_queue', JSON.stringify(updated));
+};
+
+export const reconcileQueueWithServer = async (serverAssignments: any[]) => {
+  if (!serverAssignments || serverAssignments.length === 0) return;
+  const raw = localStorage.getItem('fieldwatt_readings_queue');
+  if (!raw) return;
+  const queue = JSON.parse(raw);
+  const completedAssignmentIds = new Set(
+    serverAssignments.filter((a: any) => a.reading_status).map((a: any) => a.assignment_id)
+  );
+  const filtered = queue.filter((item: any) => !completedAssignmentIds.has(item.assignment_id));
   localStorage.setItem('fieldwatt_readings_queue', JSON.stringify(filtered));
 };
 

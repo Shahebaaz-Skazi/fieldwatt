@@ -393,6 +393,10 @@ export default function PropertyDetailScreen() {
 
   const handleSubmit = async () => {
     // Validations
+    if (!property?.assignment_id) {
+      showAlert('Assignment Error', 'Assignment not found for this property. Please return to work list and tap Sync to refresh.');
+      return;
+    }
     if (statusCode === 'reading_taken' && !readingValue) {
       showAlert('Validation Error', 'Reading value is required.');
       return;
@@ -856,7 +860,6 @@ export default function PropertyDetailScreen() {
         }}>
           <ViewShot
             ref={watermarkShotRef}
-            collapsable={false}
             options={{ format: 'jpg', quality: 0.95 }}
             style={{
               width: photoWidth,
